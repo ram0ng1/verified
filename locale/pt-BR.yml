@@ -4,7 +4,7 @@ ramon-verified:
     tooltip_with_date: "Conta verificada · desde {date}"
     popover:
       pill: "Verificado"
-      headline: "Esta conta tem <strong>identidade verificada</strong>."
+      headline: "Esta conta tem a <strong>identidade verificada</strong>."
       verified_on: "Verificado {date}"
 
 
