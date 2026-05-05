@@ -36,11 +36,20 @@ class VerifyUserController implements RequestHandlerInterface
     {
         $actor = RequestUtil::getActor($request);
         $actor->assertRegistered();
-        $actor->assertCan('verified.verifyUsers');
 
         $userId = (int) ($request->getQueryParams()['id'] ?? 0);
         if ($userId <= 0) {
             throw new ValidationException(['id' => $this->translator->trans('ramon-verified.api.user_missing')]);
+        }
+
+        // Authorization: an actor can flip their OWN verification flag
+        // (used by the "request to change avatar" flow on the forum side
+        // — verified users renounce their badge to unlock avatar editing
+        // and then submit a fresh request). Otherwise the actor must hold
+        // the admin permission.
+        $isSelf = (int) $actor->id === $userId;
+        if (! $isSelf) {
+            $actor->assertCan('verified.verifyUsers');
         }
 
         /** @var User|null $target */
@@ -58,7 +67,18 @@ class VerifyUserController implements RequestHandlerInterface
         $now    = Carbon::now();
 
         if ($method === 'DELETE') {
+            // Users self-revoking can't write `admin notes` — replace any
+            // payload with a fixed self-revoke marker so the audit log is
+            // honest about who triggered the revocation.
+            if ($isSelf && ! $actor->isAdmin()) {
+                $note = $this->translator->trans('ramon-verified.api.self_revoked_note');
+            }
             return $this->unverify($target, $actor, $note, $now);
+        }
+
+        // POST (verify) is admin-only — self-verification doesn't make sense.
+        if ($isSelf && ! $actor->isAdmin()) {
+            $actor->assertCan('verified.verifyUsers');
         }
 
         return $this->verify($target, $actor, $note, $now);

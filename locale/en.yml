@@ -23,6 +23,10 @@ ramon-verified:
       locked_label: "Avatar locked"
       locked_help: "Verified accounts can't change their avatar. Submit a new verification request to update it."
       locked_alert: "Your avatar is locked because your account is verified."
+      request_change_button: "Request to change avatar"
+      request_change_confirm: "This will revoke your current verification so you can update your avatar. You'll need to submit a new verification request afterwards. Continue?"
+      request_change_success: "Your verification was revoked. You can now change your avatar — submit a new verification request when you're done."
+      request_change_failed: "Could not revoke your verification. Please try again."
 
     user_controls:
       verify_button: "Verify user"
@@ -45,14 +49,22 @@ ramon-verified:
       document_type_other: "Other"
       document_label: "Identity document"
       document_help: "PNG, JPG, WEBP or PDF. Max 8 MB. Documents are stored privately and only seen by administrators."
-      uploading: "Uploading…"
+      uploading: "Uploading document…"
       uploaded: "Attached: {name}"
+      uploaded_short: "Document attached"
+      choose_file: "Click to choose a document"
+      choose_file_hint: "PNG, JPG, WEBP or PDF · max 8 MB"
+      remove_file: "Remove document"
       file_too_large: "Document is too large (max 8 MB)."
       bad_type: "Unsupported file type."
       upload_failed: "Upload failed. Please try again."
       document_required: "An identity document is required."
       submit_button: "Submit request"
       success: "Verification request submitted!"
+
+    notifications:
+      user_verified_text: "Your account has been verified."
+      user_verified_preference: "Someone verifies my account"
 
   admin:
     preview:
@@ -64,6 +76,8 @@ ramon-verified:
       section_appearance_help: "Customize how the verified badge looks across your forum."
       section_behaviour: "Behaviour"
       section_behaviour_help: "Control what users must provide and what they can change after being verified."
+      requests_open_label: "Accept new verification requests"
+      requests_open_help: "When off, the \"Request verification\" button is hidden and the API rejects new submissions. Existing pending requests can still be approved or rejected."
       show_tooltip_label: "Show verified info popover"
       show_tooltip_help: "When enabled, hovering the badge shows a card with verification details. Disable for a silent badge."
       require_document_label: "Require identity document"
@@ -110,10 +124,6 @@ ramon-verified:
       reject_success: "Request rejected."
       revoke_success: "Verification revoked."
 
-  notifications:
-    user_verified_text: "Your account has been verified."
-    user_verified_preference: "Someone verifies my account"
-
   email:
     verified:
       subject: "Your account has been verified"
@@ -129,6 +139,7 @@ ramon-verified:
   api:
     already_verified: "This user is already verified."
     already_pending: "There is already a pending verification request for this user."
+    requests_closed: "New verification requests are not being accepted at the moment."
     document_required: "An identity document is required to request verification."
     no_file: "No document was uploaded."
     upload_failed: "The document could not be saved. Please try again."
@@ -141,3 +152,4 @@ ramon-verified:
     revoked_default_note: "Verification revoked by administrator."
     not_verified: "This user is not verified."
     verified_by_admin_note: "Verified directly by an administrator."
+    self_revoked_note: "Verification revoked by the user (avatar change request)."

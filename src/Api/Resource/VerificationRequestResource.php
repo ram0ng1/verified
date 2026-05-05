@@ -68,6 +68,14 @@ class VerificationRequestResource extends AbstractDatabaseResource
                     $actor->assertRegistered();
                     $actor->assertCan('verified.request');
 
+                    // Admin kill-switch: when intake is closed, reject every
+                    // new request even if the actor has the permission.
+                    if (! (bool) $this->settings->get('ramon-verified.requests_open', true)) {
+                        throw new ValidationException([
+                            'status' => $this->translator->trans('ramon-verified.api.requests_closed'),
+                        ]);
+                    }
+
                     if ((bool) $actor->is_verified) {
                         throw new ValidationException([
                             'status' => $this->translator->trans('ramon-verified.api.already_verified'),

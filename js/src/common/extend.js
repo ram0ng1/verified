@@ -1,8 +1,12 @@
 import Extend from 'flarum/common/extenders';
 import User from 'flarum/common/models/User';
 import VerificationRequest from './models/VerificationRequest';
-import UserVerifiedNotification from '../forum/components/UserVerifiedNotification';
 
+/**
+ * Extenders shared by both the forum and admin apps. Things that only make
+ * sense on one side (notification-component mapping, route additions, etc.)
+ * live in the per-app `extend.js` files.
+ */
 export default [
   new Extend.Store().add('verification-requests', VerificationRequest),
 
@@ -12,8 +16,4 @@ export default [
     .attribute('canRequestVerification')
     .attribute('hasPendingVerificationRequest')
     .attribute('isAvatarLocked'),
-
-  // Maps the `userVerified` notification type from the backend blueprint
-  // to its forum-side renderer.
-  new Extend.Notification().add('userVerified', UserVerifiedNotification),
 ];

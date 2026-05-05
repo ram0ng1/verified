@@ -5,6 +5,7 @@ import UserControls from 'flarum/forum/utils/UserControls';
 import extractText from 'flarum/common/utils/extractText';
 import VerifiedBadge from '../common/components/VerifiedBadge';
 import RequestVerificationModal from './components/RequestVerificationModal';
+import getBadgeSvg, { getBadgeColor, getBadgeSize, DEFAULT_VERIFIED_SVG } from '../common/utils/getBadgeSvg';
 
 // ─── Avocado theme integration helpers ────────────────────────────────────
 //
@@ -40,7 +41,7 @@ function findVnodeByClass(node, className) {
  * child shape (single child vs. array).
  */
 function appendVnodeChild(parent, child) {
-  if (!parent) return;
+  if (!parent || child == null) return;
   const existing = parent.children;
   if (existing == null) {
     parent.children = [child];
@@ -49,6 +50,81 @@ function appendVnodeChild(parent, child) {
   } else {
     parent.children = [existing, child];
   }
+}
+
+/**
+ * Build a verified-badge vnode for use inside an avocado vnode tree.
+ *
+ * Returns the VerifiedBadge component when available so the rich popover
+ * setting is honoured everywhere, or falls back to a plain <span> rendered
+ * via inline SVG if the component class isn't accessible from this code
+ * path (defensive — keeps the page from crashing if a future build does
+ * something unexpected with module resolution).
+ */
+function makeVerifiedVnode(user, className) {
+  if (!user || !user.isVerified || !user.isVerified()) return null;
+
+  // Resolve VerifiedBadge with two fallbacks so a transient undefined
+  // import binding can't take down the whole page render.
+  const Cls =
+    (typeof VerifiedBadge === 'function' ? VerifiedBadge : null) ||
+    (typeof flarum !== 'undefined' && flarum.reg
+      ? flarum.reg.get('ramon-verified', 'common/components/VerifiedBadge')
+      : null);
+
+  if (typeof Cls === 'function') {
+    // Use the proper component — it picks rich popover vs simple title
+    // tooltip based on the `ramon-verified.show_tooltip` admin setting.
+    try {
+      return m(Cls, { user, className });
+    } catch (e) {
+      // fall through to inline span
+    }
+  }
+
+  // Fallback: inline span. Loses the rich popover but keeps the badge
+  // visible with a native browser tooltip. Only reached if Cls couldn't
+  // be resolved.
+  let svg = DEFAULT_VERIFIED_SVG;
+  let color = null;
+  let size = '1.2em';
+  let tooltip = 'Verified';
+
+  try {
+    if (typeof getBadgeSvg === 'function') {
+      const s = getBadgeSvg();
+      if (typeof s === 'string' && s) svg = s;
+    }
+    if (typeof getBadgeColor === 'function') {
+      const c = getBadgeColor();
+      if (typeof c === 'string' && c) color = c;
+    }
+    if (typeof getBadgeSize === 'function') {
+      const z = getBadgeSize();
+      if (typeof z === 'string' && z) size = z;
+    }
+    if (typeof app !== 'undefined' && app.translator) {
+      const t = extractText(app.translator.trans('ramon-verified.lib.tooltip'));
+      if (t) tooltip = t;
+    }
+  } catch (e) {
+    // defaults
+  }
+
+  const style = { '--verified-size': size };
+  if (color) style.color = color;
+
+  return m(
+    'span',
+    {
+      className: ('VerifiedBadge ' + (className || '')).trim(),
+      style: style,
+      role: 'img',
+      title: tooltip,
+      'aria-label': tooltip,
+    },
+    m.trust(svg)
+  );
 }
 
 // Helper used by the AvatarEditor overrides to short-circuit any upload /
@@ -67,7 +143,56 @@ function showLockedAlert() {
   );
 }
 
-export { default as extend } from '../common/extend';
+/**
+ * Verified-user flow for changing the locked avatar:
+ *
+ *  1. Confirm — make it explicit that the verification will be revoked.
+ *  2. Self-revoke verification via DELETE /verified/users/{id}/verify
+ *     (authorised because the actor is the target user).
+ *  3. Push the new state into the local user model so the avatar editor
+ *     unlocks immediately, and surface a follow-up alert reminding the
+ *     user they can re-request verification afterwards.
+ */
+function requestAvatarChange(user) {
+  if (!user || !user.id) return;
+
+  const confirmText = extractText(
+    app.translator.trans('ramon-verified.forum.avatar.request_change_confirm')
+  );
+  if (!window.confirm(confirmText)) return;
+
+  app
+    .request({
+      method: 'DELETE',
+      url: app.forum.attribute('apiUrl') + '/verified/users/' + user.id() + '/verify',
+      body: {},
+    })
+    .then((res) => {
+      if (res && res.data && res.data.attributes) {
+        user.pushAttributes(res.data.attributes);
+      } else {
+        user.pushAttributes({ isVerified: false, verifiedAt: null });
+      }
+      // Locally clear the avatar-locked flag so the editor unlocks the
+      // moment the dropdown re-renders, instead of waiting for the next
+      // /api/users/X round-trip.
+      user.pushAttributes({ isAvatarLocked: false });
+
+      app.alerts.show(
+        { type: 'success' },
+        app.translator.trans('ramon-verified.forum.avatar.request_change_success')
+      );
+      m.redraw();
+    })
+    .catch(() => {
+      app.alerts.show(
+        { type: 'error' },
+        app.translator.trans('ramon-verified.forum.avatar.request_change_failed')
+      );
+    });
+}
+
+export { default as extend } from './extend';
 
 // Use a low priority (-100) so this initializer runs AFTER avocado's
 // (priority 0). Avocado replaces UserPage.prototype.view with its own
@@ -216,21 +341,14 @@ app.initializers.add('ramon-verified', () => {
     }
   });
 
-  // ----- Avatar lock: visual lock overlay + replace the dropdown contents
-  // with an explanatory notice + intercept every upload entry-point so a
-  // verified user can't bypass the rule from the frontend. The backend
+  // ----- Avatar lock: replace the avatar dropdown contents with an
+  // explanatory notice + intercept every upload entry-point so a verified
+  // user can't bypass the rule from the frontend. The backend
   // EnforceAvatarLock listener is the actual security boundary; this is UX.
-
-  extend('flarum/forum/components/AvatarEditor', ['oncreate', 'onupdate'], function (_, vnode) {
-    const dom = vnode && vnode.dom;
-    if (!dom || !dom.classList) return;
-
-    if (isLockedAvatar(this)) {
-      dom.classList.add('AvatarEditor--locked');
-    } else {
-      dom.classList.remove('AvatarEditor--locked');
-    }
-  });
+  //
+  // We intentionally don't add a visual lock overlay on the avatar — the
+  // dropdown notice + the inline alert when an upload is attempted are
+  // enough feedback, and the overlay just clutters the profile page.
 
   // Replace the upload/remove buttons with a single explanatory notice.
   extend('flarum/forum/components/AvatarEditor', 'controlItems', function (items) {
@@ -238,6 +356,8 @@ app.initializers.add('ramon-verified', () => {
 
     if (items.has('upload')) items.remove('upload');
     if (items.has('remove')) items.remove('remove');
+
+    const user = this.attrs.user;
 
     items.add(
       'verified-locked',
@@ -249,6 +369,19 @@ app.initializers.add('ramon-verified', () => {
         <span className="AvatarEditor-lockedNotice-text">
           {app.translator.trans('ramon-verified.forum.avatar.locked_help')}
         </span>
+        <Button
+          className="Button Button--primary AvatarEditor-lockedNotice-button"
+          icon="fas fa-pen"
+          onclick={(e) => {
+            // Stop the click from bubbling up to the dropdown's outer
+            // toggle (which would close the menu) before our confirm
+            // dialog has a chance to run.
+            if (e) { e.stopPropagation(); }
+            requestAvatarChange(user);
+          }}
+        >
+          {app.translator.trans('ramon-verified.forum.avatar.request_change_button')}
+        </Button>
       </div>,
       100
     );
@@ -290,6 +423,15 @@ app.initializers.add('ramon-verified', () => {
     return original(e);
   });
 
+  // ----- Notification grid: expose `userVerified` toggle in preferences -----
+  extend('flarum/forum/components/NotificationGrid', 'notificationTypes', function (items) {
+    items.add('userVerified', {
+      name: 'userVerified',
+      icon: 'fas fa-certificate',
+      label: app.translator.trans('ramon-verified.forum.notifications.user_verified_preference'),
+    });
+  });
+
   // ----- Avocado theme integration -----
   installAvocadoIntegration();
 }, -100);
@@ -310,40 +452,46 @@ app.initializers.add('ramon-verified', () => {
  *    forums without avocado.
  */
 function installAvocadoIntegration() {
-  // `flarum.extensions` is populated on both forum and admin with the
-  // currently-loaded extension bundles. `app.data.extensions` is admin-only,
-  // so we'd never hit this branch on the forum side without the right check.
-  const avocadoEnabled =
-    typeof flarum !== 'undefined' &&
-    flarum.extensions &&
-    'ramon-avocado' in flarum.extensions;
-
   // ── Profile hero: AvocadoUserPage-hero-name ───────────────────────────
-  // The verified initializer runs with priority -100, so by the time we
-  // patch UserPage.prototype.view here, avocado has already installed its
-  // own override (priority 0). Our wrapper sits OUTSIDE avocado's, calls
-  // it, walks the resulting tree, and injects the badge into the hero h1.
-  if (avocadoEnabled) {
-    override('flarum/forum/components/UserPage', 'view', function (original, ...args) {
-      const tree = original ? original.apply(this, args) : null;
-      try {
-        const user = this.user;
-        if (user && user.isVerified && user.isVerified() && tree) {
-          const heroName = findVnodeByClass(tree, 'AvocadoUserPage-hero-name');
-          if (heroName) {
-            appendVnodeChild(heroName, ' ');
-            appendVnodeChild(
-              heroName,
-              m(VerifiedBadge, { user, className: 'VerifiedBadge--card' })
-            );
-          }
-        }
-      } catch (e) {
-        // Defensive — never crash the page.
-      }
-      return tree;
-    });
-  }
+  //
+  // Avocado renders the user hero in TWO different places:
+  //
+  //  1. The named user pages (/u/{username}, /u/{username}/discussions,
+  //     etc.) use `AvocadoUserPostsPage`, `AvocadoUserDiscussionsPage`,
+  //     etc. — all extending an internal `AvocadoUserBase` with its own
+  //     `view()`. That class shadows UserPage.view entirely.
+  //
+  //  2. The settings & security pages (/settings, /user-security) extend
+  //     UserPage directly and pick up avocado's UserPage.view override.
+  //
+  // We need to patch BOTH so the badge shows in every place that renders
+  // the avocado hero — profile tabs AND settings/security.
+
+  // (1) Patch AvocadoUserBase via the prototype of any exported subclass.
+  flarum.reg.onLoad('ramon-avocado', 'forum/components/UserProfilePage', (mod) => {
+    if (!mod) return;
+    const sample = mod.AvocadoUserPostsPage || mod.AvocadoUserDiscussionsPage
+                || mod.AvocadoUserLikesPage  || mod.AvocadoUserMentionsPage;
+    if (!sample || !sample.prototype) return;
+
+    const baseProto = Object.getPrototypeOf(sample.prototype);
+    if (!baseProto || typeof baseProto.view !== 'function') return;
+
+    patchHeroView(baseProto);
+  });
+
+  // (2) Patch UserPage.view (which avocado overrode). With initializer
+  // priority -100, our wrapper sits OUTSIDE avocado's wrapper, so we can
+  // walk the rendered tree from avocado's hero markup. This covers
+  // settings, security, and any other UserPage subclass that doesn't
+  // shadow `view` itself.
+  override('flarum/forum/components/UserPage', 'view', function (original, ...args) {
+    const tree = original ? original.apply(this, args) : null;
+    try {
+      injectIntoHeroName(tree, this.user);
+    } catch (e) { /* defensive */ }
+    return tree;
+  });
 
   // ── Thread cards on the home / tag / search pages ─────────────────────
   flarum.reg.onLoad('ramon-avocado', 'forum/components/shared/ThreadCard', (Component) => {
@@ -364,6 +512,47 @@ function installAvocadoIntegration() {
         || (discussion && discussion.user && discussion.user());
     });
   });
+}
+
+/**
+ * Wrap a class prototype's `view` so that, after the original view returns
+ * a vnode tree, we walk it looking for `.AvocadoUserPage-hero-name` and
+ * append the verified badge into that h1. Used by both the AvocadoUserBase
+ * patch (for profile tabs) and the UserPage override (for settings/security).
+ */
+function patchHeroView(proto) {
+  const originalView = proto.view;
+  proto.view = function (...args) {
+    const tree = originalView.apply(this, args);
+    try {
+      injectIntoHeroName(tree, this.user);
+    } catch (e) {
+      // Defensive — never crash the page.
+    }
+    return tree;
+  };
+}
+
+/**
+ * Walk the vnode tree, find the avocado hero h1, and append the badge into
+ * its children. Replaces children with a fresh array (not in-place mutation)
+ * so Mithril's diff sees a clean new list each render.
+ */
+function injectIntoHeroName(tree, user) {
+  if (!tree) return;
+  if (!user || !user.isVerified || !user.isVerified()) return;
+
+  const heroName = findVnodeByClass(tree, 'AvocadoUserPage-hero-name');
+  if (!heroName) return;
+
+  const badge = makeVerifiedVnode(user, 'VerifiedBadge--card');
+  if (!badge) return;
+
+  const existing = heroName.children;
+  const base = existing == null
+    ? []
+    : (Array.isArray(existing) ? existing.slice() : [existing]);
+  heroName.children = [...base, badge];
 }
 
 /**
@@ -392,7 +581,16 @@ function wrapCardView(Component, getUser) {
             )
           );
           if (authorIdx !== -1) {
-            meta.children.splice(authorIdx + 1, 0, m(VerifiedBadge, { user }));
+            const badge = makeVerifiedVnode(user, '');
+            if (badge) {
+              // Build a fresh children array rather than splice-mutating,
+              // so Mithril's diff sees a clean list each render.
+              meta.children = [
+                ...meta.children.slice(0, authorIdx + 1),
+                badge,
+                ...meta.children.slice(authorIdx + 1),
+              ];
+            }
           }
         }
       }

@@ -4,6 +4,13 @@
 // generous whitespace and clear typographic hierarchy. Inspired by the
 // avocado theme's admin layout.
 
+// Shared badge + popover visual styles. The admin live-preview re-uses
+// the same `.VerifiedBadge` / `.VerifiedPopover` markup the forum does,
+// so it needs the same dimensions and layout — without this import the
+// SVG inside the badge expands to fill the page (no width/height
+// constraint inherited from the forum bundle).
+@import 'badge.less';
+
 .VerifiedAdmin {
   display: flex;
   flex-direction: column;
@@ -133,7 +140,6 @@
     border-radius: 50%;
     background: var(--primary-color);
     border: 2px solid var(--body-bg);
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
     cursor: pointer;
   }
 
@@ -143,7 +149,6 @@
     border-radius: 50%;
     background: var(--primary-color);
     border: 2px solid var(--body-bg);
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
     cursor: pointer;
   }
 }

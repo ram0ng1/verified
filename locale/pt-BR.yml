@@ -24,6 +24,10 @@ ramon-verified:
       locked_label: "Avatar bloqueado"
       locked_help: "Contas verificadas não podem alterar o avatar. Envie uma nova solicitação de verificação para atualizar."
       locked_alert: "Seu avatar está bloqueado porque sua conta é verificada."
+      request_change_button: "Solicitar alteração do avatar"
+      request_change_confirm: "Isso vai revogar sua verificação atual para você poder alterar o avatar. Depois você terá que enviar uma nova solicitação de verificação. Continuar?"
+      request_change_success: "Sua verificação foi revogada. Agora você pode alterar o avatar — envie uma nova solicitação de verificação quando terminar."
+      request_change_failed: "Não foi possível revogar sua verificação. Tente novamente."
 
     user_controls:
       verify_button: "Verificar usuário"
@@ -46,14 +50,22 @@ ramon-verified:
       document_type_other: "Outro"
       document_label: "Documento de identidade"
       document_help: "PNG, JPG, WEBP ou PDF. Até 8 MB. Os documentos ficam armazenados de forma privada e só são vistos por administradores."
-      uploading: "Enviando…"
+      uploading: "Enviando documento…"
       uploaded: "Anexado: {name}"
+      uploaded_short: "Documento anexado"
+      choose_file: "Clique para selecionar um documento"
+      choose_file_hint: "PNG, JPG, WEBP ou PDF · máx 8 MB"
+      remove_file: "Remover documento"
       file_too_large: "Documento muito grande (máximo 8 MB)."
       bad_type: "Tipo de arquivo não suportado."
       upload_failed: "Falha no envio. Tente novamente."
       document_required: "É obrigatório anexar um documento de identidade."
       submit_button: "Enviar solicitação"
       success: "Solicitação de verificação enviada!"
+
+    notifications:
+      user_verified_text: "Sua conta foi verificada."
+      user_verified_preference: "Alguém verifica minha conta"
 
   admin:
     preview:
@@ -65,6 +77,8 @@ ramon-verified:
       section_appearance_help: "Personalize como o selo de verificação aparece em seu fórum."
       section_behaviour: "Comportamento"
       section_behaviour_help: "Controle o que os usuários precisam enviar e o que podem alterar após verificação."
+      requests_open_label: "Aceitar novas solicitações de verificação"
+      requests_open_help: "Quando desativado, o botão \"Solicitar verificação\" é escondido e a API rejeita novos envios. Solicitações pendentes existentes ainda podem ser aprovadas ou rejeitadas."
       show_tooltip_label: "Mostrar popover de informações"
       show_tooltip_help: "Quando ativo, ao passar o mouse no selo aparece um card com detalhes da verificação. Desative para um selo silencioso."
       require_document_label: "Exigir documento de identidade"
@@ -111,10 +125,6 @@ ramon-verified:
       reject_success: "Solicitação rejeitada."
       revoke_success: "Verificação revogada."
 
-  notifications:
-    user_verified_text: "Sua conta foi verificada."
-    user_verified_preference: "Alguém verifica minha conta"
-
   email:
     verified:
       subject: "Sua conta foi verificada"
@@ -130,6 +140,7 @@ ramon-verified:
   api:
     already_verified: "Este usuário já é verificado."
     already_pending: "Já existe uma solicitação de verificação pendente para este usuário."
+    requests_closed: "No momento não estamos aceitando novas solicitações de verificação."
     document_required: "É obrigatório anexar um documento de identidade."
     no_file: "Nenhum documento foi enviado."
     upload_failed: "Não foi possível salvar o documento. Tente novamente."
@@ -142,3 +153,4 @@ ramon-verified:
     revoked_default_note: "Verificação revogada pelo administrador."
     not_verified: "Este usuário não é verificado."
     verified_by_admin_note: "Verificado diretamente por um administrador."
+    self_revoked_note: "Verificação revogada pelo próprio usuário (solicitação de alteração de avatar)."

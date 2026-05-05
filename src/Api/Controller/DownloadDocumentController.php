@@ -25,6 +25,13 @@ class DownloadDocumentController implements RequestHandlerInterface
         $actor = RequestUtil::getActor($request);
         $actor->assertRegistered();
 
+        // Documents (RG / CPF / passport, etc.) are sensitive identity data —
+        // only administrators can read them. The submitter has the original
+        // file on their own machine; they don't need to fetch it back.
+        if (! $actor->isAdmin()) {
+            throw new PermissionDeniedException();
+        }
+
         $id = (int) ($request->getQueryParams()['id'] ?? 0);
         if ($id <= 0) {
             throw new RouteNotFoundException();
@@ -34,10 +41,6 @@ class DownloadDocumentController implements RequestHandlerInterface
         $req = VerificationRequest::query()->find($id);
         if (! $req) {
             throw new RouteNotFoundException();
-        }
-
-        if (! $actor->isAdmin() && (int) $req->user_id !== (int) $actor->id) {
-            throw new PermissionDeniedException();
         }
 
         if (! $req->document_path) {

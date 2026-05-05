@@ -41,6 +41,11 @@ class UserResourceFields
                         return false;
                     }
 
+                    // Admin can close intake of new requests entirely.
+                    if (! (bool) $this->settings->get('ramon-verified.requests_open', true)) {
+                        return false;
+                    }
+
                     $hasPending = VerificationRequest::query()
                         ->where('user_id', $user->id)
                         ->where('status', VerificationRequest::STATUS_PENDING)

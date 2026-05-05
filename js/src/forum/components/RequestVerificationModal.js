@@ -81,23 +81,97 @@ export default class RequestVerificationModal extends FormModal {
       </div>,
       <div className="Form-group">
         <label>{app.translator.trans('ramon-verified.forum.request_modal.document_label')}</label>
-        <input
-          type="file"
-          className="FormControl"
-          accept="image/png,image/jpeg,image/webp,application/pdf"
-          onchange={(e) => this.uploadDocument(e.target.files && e.target.files[0])}
-          disabled={this.loading || this.uploading}
-        />
-        {this.uploading ? <p className="helpText">{app.translator.trans('ramon-verified.forum.request_modal.uploading')}</p> : null}
-        {this.fileName() && !this.uploading ? (
-          <p className="helpText VerifiedRequestModal-filename">
-            {app.translator.trans('ramon-verified.forum.request_modal.uploaded', { name: this.fileName() })}
-          </p>
-        ) : null}
-        {this.uploadError ? <p className="helpText VerifiedRequestModal-error">{this.uploadError}</p> : null}
+        {this.renderFileField()}
         <p className="helpText">{app.translator.trans('ramon-verified.forum.request_modal.document_help')}</p>
       </div>,
     ];
+  }
+
+  /**
+   * Drop-zone style file input. The native <input type="file"> is hidden
+   * (visually-only — still keyboard-focusable) and a styled <label> acts
+   * as the click target. Once a file is selected/uploaded, we swap to a
+   * "selected file" card with the filename, size and a remove button.
+   */
+  renderFileField() {
+    const disabled = this.loading || this.uploading;
+
+    if (this.uploading) {
+      return (
+        <div className="VerifiedRequestModal-fileDrop is-uploading">
+          <i className="icon fas fa-spinner fa-spin VerifiedRequestModal-fileDrop-icon" aria-hidden="true" />
+          <span className="VerifiedRequestModal-fileDrop-title">
+            {app.translator.trans('ramon-verified.forum.request_modal.uploading')}
+          </span>
+        </div>
+      );
+    }
+
+    if (this.fileName() && this.documentPath()) {
+      return (
+        <div className="VerifiedRequestModal-fileSelected">
+          <i
+            className={'icon ' + this.fileIcon(this.fileName()) + ' VerifiedRequestModal-fileSelected-icon'}
+            aria-hidden="true"
+          />
+          <span className="VerifiedRequestModal-fileSelected-info">
+            <span className="VerifiedRequestModal-fileSelected-name">{this.fileName()}</span>
+            <span className="VerifiedRequestModal-fileSelected-meta">
+              {app.translator.trans('ramon-verified.forum.request_modal.uploaded_short')}
+            </span>
+          </span>
+          <button
+            type="button"
+            className="Button Button--icon VerifiedRequestModal-fileSelected-remove"
+            onclick={() => this.clearFile()}
+            disabled={disabled}
+            aria-label={extractText(app.translator.trans('ramon-verified.forum.request_modal.remove_file'))}
+          >
+            <i className="icon fas fa-times" aria-hidden="true" />
+          </button>
+        </div>
+      );
+    }
+
+    return [
+      <label className="VerifiedRequestModal-fileDrop">
+        <input
+          type="file"
+          className="VerifiedRequestModal-fileDrop-input"
+          accept="image/png,image/jpeg,image/webp,application/pdf"
+          onchange={(e) => this.uploadDocument(e.target.files && e.target.files[0])}
+          disabled={disabled}
+        />
+        <i className="icon fas fa-cloud-arrow-up VerifiedRequestModal-fileDrop-icon" aria-hidden="true" />
+        <span className="VerifiedRequestModal-fileDrop-title">
+          {app.translator.trans('ramon-verified.forum.request_modal.choose_file')}
+        </span>
+        <span className="VerifiedRequestModal-fileDrop-hint">
+          {app.translator.trans('ramon-verified.forum.request_modal.choose_file_hint')}
+        </span>
+      </label>,
+      this.uploadError
+        ? <p className="helpText VerifiedRequestModal-error">{this.uploadError}</p>
+        : null,
+    ];
+  }
+
+  /**
+   * Pick an icon class based on the file extension — visual cue in the
+   * "selected" state.
+   */
+  fileIcon(name) {
+    const ext = (name || '').split('.').pop().toLowerCase();
+    if (ext === 'pdf') return 'fas fa-file-pdf';
+    if (['png', 'jpg', 'jpeg', 'webp', 'gif'].indexOf(ext) !== -1) return 'fas fa-file-image';
+    return 'fas fa-file';
+  }
+
+  clearFile() {
+    this.fileName('');
+    this.documentPath('');
+    this.uploadError = null;
+    m.redraw();
   }
 
   uploadDocument(file) {

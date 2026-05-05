@@ -33,16 +33,21 @@ export default class VerifiedBadge extends Component {
     const color = getBadgeColor();
     const size = this.attrs.size || getBadgeSize();
     const className = classList('VerifiedBadge', this.attrs.className);
+    const tooltip = extractText(app.translator.trans('ramon-verified.lib.tooltip'));
 
     const style = { '--verified-size': size };
     if (color) style.color = color;
 
+    // When the rich popover is disabled, fall back to the browser's native
+    // tooltip via the `title` attribute — a simple "Verified account" hover
+    // hint with no JS / CSS overhead.
     return (
       <span
         className={className}
         style={style}
         role="img"
-        aria-label={extractText(app.translator.trans('ramon-verified.lib.tooltip'))}
+        aria-label={tooltip}
+        title={tooltip}
       >
         {m.trust(getBadgeSvg())}
       </span>

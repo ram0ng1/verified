@@ -77,17 +77,23 @@ class UploadBadgeSvgController extends UploadImageController
     }
 
     /**
-     * Walks the SVG and rewrites every `fill` attribute (other than `none` /
-     * `transparent`) to `currentColor`. This means the admin's badge_color
-     * setting (or the forum's primary colour) actually drives the visible
-     * colour of the uploaded artwork.
+     * Walks the SVG and rewrites every `fill` attribute (other than `none`,
+     * `transparent`, or a whiteish value) to `currentColor`. This means the
+     * admin's badge_color setting (or the forum's primary colour) drives the
+     * visible colour of the uploaded artwork — while preserving any explicit
+     * WHITE inner shapes (typically the inner check on a verified-style
+     * seal), so the "middle white" stays white on dark backgrounds.
      */
     private function replaceFillsWithCurrentColor(\DOMNode $node): void
     {
         if ($node instanceof \DOMElement) {
             if ($node->hasAttribute('fill')) {
                 $current = strtolower(trim($node->getAttribute('fill')));
-                if ($current !== '' && $current !== 'none' && $current !== 'transparent') {
+                $skip = $current === ''
+                    || $current === 'none'
+                    || $current === 'transparent'
+                    || $this->isWhiteFill($current);
+                if (! $skip) {
                     $node->setAttribute('fill', 'currentColor');
                 }
             }
@@ -113,6 +119,23 @@ class UploadBadgeSvgController extends UploadImageController
         foreach (iterator_to_array($node->childNodes) as $child) {
             $this->replaceFillsWithCurrentColor($child);
         }
+    }
+
+    /**
+     * Recognises common ways an SVG can express "white" — preserved so the
+     * inner check of a verified-style seal stays white instead of being
+     * recoloured to currentColor.
+     */
+    private function isWhiteFill(string $value): bool
+    {
+        $value = strtolower(trim($value));
+        if ($value === 'white' || $value === '#fff' || $value === '#ffffff') {
+            return true;
+        }
+        if (preg_match('/^rgba?\(\s*255\s*,\s*255\s*,\s*255(\s*,\s*[0-9.]+)?\s*\)$/', $value)) {
+            return true;
+        }
+        return false;
     }
 
     private function cleanNode(\DOMNode $node): void

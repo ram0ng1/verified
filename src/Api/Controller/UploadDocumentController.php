@@ -47,6 +47,14 @@ class UploadDocumentController implements RequestHandlerInterface
         $actor->assertRegistered();
         $actor->assertCan('verified.request');
 
+        // Admin kill-switch on the upload path too — refuse to store any
+        // document when intake is globally closed.
+        if (! (bool) $this->settings->get('ramon-verified.requests_open', true)) {
+            throw new ValidationException([
+                'status' => $this->translator->trans('ramon-verified.api.requests_closed'),
+            ]);
+        }
+
         if ((bool) $actor->is_verified) {
             throw new ValidationException([
                 'status' => $this->translator->trans('ramon-verified.api.already_verified'),

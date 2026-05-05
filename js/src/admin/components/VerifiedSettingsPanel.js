@@ -2,6 +2,7 @@ import app from 'flarum/admin/app';
 import Component from 'flarum/common/Component';
 import Switch from 'flarum/common/components/Switch';
 import UploadImageButton from 'flarum/common/components/UploadImageButton';
+import extractText from 'flarum/common/utils/extractText';
 import VerificationRequestsSection from './VerificationRequestsSection';
 import getBadgeSvg, { getBadgeColor, resolveAssetUrl } from '../../common/utils/getBadgeSvg';
 
@@ -80,11 +81,11 @@ export default class VerifiedSettingsPanel extends Component {
     const color = getBadgeColor();
     const sizeRaw = parseFloat(getStr('ramon-verified.badge_size'));
     const size = Number.isFinite(sizeRaw) && sizeRaw > 0 ? sizeRaw : 1.2;
+    const showTooltip = getBool('ramon-verified.show_tooltip');
 
     // Match the real-world rendering exactly. The post-header username uses
-    // 14px bold (`.PostUser-name a` in core's Post.less), so the badge inherits
-    // the same em-scale here. Showing the preview at the same px-scale
-    // prevents a "looks fine here, tiny in posts" mismatch.
+    // 14px bold (`.PostUser-name a` in core's Post.less), so the badge here
+    // inherits the same em-scale.
     const lineStyle = { fontSize: '14px' };
 
     const badgeStyle = {
@@ -93,19 +94,93 @@ export default class VerifiedSettingsPanel extends Component {
     };
     if (color) badgeStyle.color = color;
 
+    const tooltipText = extractText(app.translator.trans('ramon-verified.lib.tooltip'));
+
+    // When the rich popover is enabled, render the full anchor + popover
+    // structure so admins can hover the preview badge and see exactly
+    // what their users will see. When disabled, render a plain badge with
+    // the native browser `title` tooltip — same fallback the forum-side
+    // VerifiedBadge component uses.
+    const badgeNode = showTooltip
+      ? (
+        <span className="VerifiedPopover-anchor">
+          <span
+            className="VerifiedBadge VerifiedBadge--inAnchor"
+            style={badgeStyle}
+            role="img"
+            aria-label={tooltipText}
+            tabIndex="0"
+          >
+            {m.trust(getBadgeSvg())}
+          </span>
+          {this.previewPopover(color)}
+        </span>
+      )
+      : (
+        <span
+          className="VerifiedBadge"
+          style={badgeStyle}
+          role="img"
+          aria-label={tooltipText}
+          title={tooltipText}
+        >
+          {m.trust(getBadgeSvg())}
+        </span>
+      );
+
     return (
       <div className="VerifiedAdmin-card VerifiedAdmin-preview">
         <div className="VerifiedAdmin-preview-line" style={lineStyle}>
           <span className="VerifiedAdmin-preview-name">
             {app.session.user ? app.session.user.displayName() : 'User'}
           </span>
-          <span className="VerifiedAdmin-preview-badge" style={badgeStyle}>
-            {m.trust(getBadgeSvg())}
-          </span>
+          {badgeNode}
           <span className="VerifiedAdmin-preview-meta">{trans('preview.meta_sample')}</span>
         </div>
         <div className="helpText">{trans('preview.helper')}</div>
       </div>
+    );
+  }
+
+  /**
+   * Mini popover panel for the admin preview. Mirrors the structure of
+   * VerifiedPopover so the same CSS shows it on hover, but uses static
+   * sample data (admin's own user info) so we don't depend on the forum
+   * `app.forum` attributes that aren't all available in admin context.
+   */
+  previewPopover(color) {
+    const u = app.session.user;
+    const username = u ? u.username() : 'user';
+    const displayName = u ? u.displayName() : 'User';
+    const avatarUrl = u && u.avatarUrl && u.avatarUrl();
+
+    return (
+      <span className="VerifiedPopover" role="tooltip">
+        <span className="VerifiedPopover-arrow" aria-hidden="true" />
+
+        <span className="VerifiedPopover-header">
+          <span className="VerifiedPopover-headerIcon" style={color ? { color } : null}>
+            {m.trust(getBadgeSvg())}
+          </span>
+          <span className="VerifiedPopover-headerText">
+            {app.translator.trans('ramon-verified.lib.popover.headline')}
+          </span>
+        </span>
+
+        <span className="VerifiedPopover-body">
+          <span className="VerifiedPopover-user">
+            <span className="VerifiedPopover-avatar">
+              {avatarUrl
+                ? <img className="Avatar" src={avatarUrl} alt={displayName} />
+                : <span className="Avatar" aria-hidden="true">{(username[0] || 'U').toUpperCase()}</span>}
+            </span>
+            <span className="VerifiedPopover-userText">
+              <span className="VerifiedPopover-username">{username}</span>
+              <span className="VerifiedPopover-displayName">{displayName}</span>
+            </span>
+          </span>
+        </span>
+      </span>
     );
   }
 
@@ -224,6 +299,12 @@ export default class VerifiedSettingsPanel extends Component {
           <p className="helpText">{trans('settings.section_behaviour_help')}</p>
         </header>
 
+        <AdminToggle
+          settingKey="ramon-verified.requests_open"
+          label={trans('settings.requests_open_label')}
+          help={trans('settings.requests_open_help')}
+        />
+        <SubDivider />
         <AdminToggle
           settingKey="ramon-verified.show_tooltip"
           label={trans('settings.show_tooltip_label')}

@@ -35,6 +35,7 @@ return [
     new Extend\Locales(__DIR__.'/locale'),
 
     (new Extend\Settings())
+        ->default('ramon-verified.requests_open', true)
         ->default('ramon-verified.require_document', false)
         ->default('ramon-verified.lock_avatar', false)
         ->default('ramon-verified.custom_color_enabled', false)
@@ -43,6 +44,7 @@ return [
         ->default('ramon-verified.badge_svg_path', '')
         ->default('ramon-verified.badge_svg_content', '')
         ->default('ramon-verified.badge_size', '1.2')
+        ->serializeToForum('ramonVerifiedRequestsOpen',       'ramon-verified.requests_open',        'boolval')
         ->serializeToForum('ramonVerifiedRequireDocument',    'ramon-verified.require_document',     'boolval')
         ->serializeToForum('ramonVerifiedLockAvatar',         'ramon-verified.lock_avatar',          'boolval')
         ->serializeToForum('ramonVerifiedCustomColorEnabled', 'ramon-verified.custom_color_enabled', 'boolval')
