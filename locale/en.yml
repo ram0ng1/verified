@@ -1,0 +1,143 @@
+ramon-verified:
+  lib:
+    tooltip: "Verified account"
+    tooltip_with_date: "Verified account · since {date}"
+    popover:
+      pill: "Verified"
+      headline: "This account has a <strong>verified identity</strong>."
+      verified_on: "Verified {date}"
+
+  forum:
+    settings:
+      heading: "Verification"
+      verified_label: "Your account is verified"
+      verified_sublabel: "Your identity has been confirmed by an administrator."
+      pending_label: "Verification under review"
+      pending_sublabel: "An administrator will get back to you soon."
+      avatar_locked_label: "Avatar locked"
+      avatar_locked_sublabel: "Verified accounts can't change their avatar. Submit a new verification request to update it."
+      request_button: "Request verification"
+
+    avatar:
+      locked_tooltip: "Your avatar is locked because your account is verified. Submit a new verification request to change it."
+      locked_label: "Avatar locked"
+      locked_help: "Verified accounts can't change their avatar. Submit a new verification request to update it."
+      locked_alert: "Your avatar is locked because your account is verified."
+
+    user_controls:
+      verify_button: "Verify user"
+      revoke_button: "Revoke verification"
+      verify_prompt: "Optional note for the audit log:"
+      revoke_prompt: "Reason for revocation (visible in the audit log):"
+      verify_success: "User has been verified."
+      revoke_success: "Verification revoked."
+
+    request_modal:
+      title: "Request verification"
+      intro: "Tell us why your account should be verified. An administrator will review your request."
+      reason_label: "Why should this account be verified?"
+      reason_placeholder: "Optional — share context that might help (notable role, public profile, organization, etc.)"
+      document_type_label: "Document type"
+      document_type_rg: "ID card (RG)"
+      document_type_cpf: "Tax ID (CPF)"
+      document_type_passport: "Passport"
+      document_type_driver: "Driver's license"
+      document_type_other: "Other"
+      document_label: "Identity document"
+      document_help: "PNG, JPG, WEBP or PDF. Max 8 MB. Documents are stored privately and only seen by administrators."
+      uploading: "Uploading…"
+      uploaded: "Attached: {name}"
+      file_too_large: "Document is too large (max 8 MB)."
+      bad_type: "Unsupported file type."
+      upload_failed: "Upload failed. Please try again."
+      document_required: "An identity document is required."
+      submit_button: "Submit request"
+      success: "Verification request submitted!"
+
+  admin:
+    preview:
+      helper: "Live preview — this is how the badge will appear next to a user's name."
+      meta_sample: "2 days ago"
+
+    settings:
+      section_appearance: "Appearance"
+      section_appearance_help: "Customize how the verified badge looks across your forum."
+      section_behaviour: "Behaviour"
+      section_behaviour_help: "Control what users must provide and what they can change after being verified."
+      show_tooltip_label: "Show verified info popover"
+      show_tooltip_help: "When enabled, hovering the badge shows a card with verification details. Disable for a silent badge."
+      require_document_label: "Require identity document"
+      require_document_help: "Users must upload an identity document (RG, CPF, passport, etc.) when requesting verification."
+      lock_avatar_label: "Lock avatar after verification"
+      lock_avatar_help: "Verified users cannot change their avatar. They must submit a new verification request to update it."
+      badge_size_label: "Badge size"
+      badge_size_help: "Multiplier relative to the surrounding text. 1.0 matches the username; higher values make the badge stand out more."
+      custom_color_label: "Use a custom color"
+      custom_color_help: "Off: the badge follows your forum's primary color. On: pick a custom color below."
+      badge_color_label: "Badge color"
+      badge_color_help: "Pick a color, or paste a hex (e.g. #1d9bf0), rgb(), rgba(), hsl() or hsla() value."
+      badge_color_reset: "Clear"
+      custom_svg_label: "Custom SVG"
+      custom_svg_help: "Upload an SVG to replace the default Twitter-style badge. Use fill=\"currentColor\" so the color above is honoured. Scripts and event handlers are stripped automatically."
+
+    permissions:
+      request_label: "Request verification"
+      verify_users_label: "Verify users directly"
+
+    requests:
+      title: "Verification requests"
+      description: "Review and act on verification requests submitted by users."
+      tab_pending: "Pending"
+      tab_approved: "Approved"
+      tab_rejected: "Rejected"
+      status_pending: "Pending"
+      status_approved: "Approved"
+      status_rejected: "Rejected"
+      empty_pending: "No pending requests."
+      empty_approved: "No approved requests yet."
+      empty_rejected: "No rejected requests."
+      document_label: "Document"
+      view_document: "View document"
+      admin_note_label: "Note"
+      handled_by: "Handled by {handlerName} · {date}"
+      approve_button: "Approve"
+      reject_button: "Reject"
+      revoke_button: "Revoke"
+      approve_prompt: "Optional note for the audit log:"
+      reject_prompt: "Reason for rejection (shown to the user):"
+      revoke_prompt: "Reason for revocation (shown in the audit log):"
+      approve_success: "User has been verified."
+      reject_success: "Request rejected."
+      revoke_success: "Verification revoked."
+
+  notifications:
+    user_verified_text: "Your account has been verified."
+    user_verified_preference: "Someone verifies my account"
+
+  email:
+    verified:
+      subject: "Your account has been verified"
+      html:
+        body: "Hi <strong>{username}</strong>,<br><br>Your account on <strong>{forumTitle}</strong> has been verified by an administrator. The verified badge is now displayed next to your name across the forum."
+        preview: "Your account on {forumTitle} has been verified."
+      plain:
+        body: |
+          Hi {username},
+
+          Your account on {forumTitle} has been verified by an administrator. The verified badge is now displayed next to your name across the forum.
+
+  api:
+    already_verified: "This user is already verified."
+    already_pending: "There is already a pending verification request for this user."
+    document_required: "An identity document is required to request verification."
+    no_file: "No document was uploaded."
+    upload_failed: "The document could not be saved. Please try again."
+    file_too_large: "The document is too large (8 MB maximum)."
+    bad_extension: "Unsupported file extension."
+    bad_mime: "Unsupported file type."
+    not_found: "Verification request not found."
+    user_missing: "The associated user no longer exists."
+    avatar_locked: "Your avatar is locked because your account is verified. Submit a new verification request to update it."
+    revoked_default_note: "Verification revoked by administrator."
+    not_verified: "This user is not verified."
+    verified_by_admin_note: "Verified directly by an administrator."

@@ -1,0 +1,476 @@
+// Verified — admin panel styles
+//
+// Design intent: a single column of well-spaced "cards" with quiet borders,
+// generous whitespace and clear typographic hierarchy. Inspired by the
+// avocado theme's admin layout.
+
+.VerifiedAdmin {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  margin: 0 auto;
+  max-width: 880px;
+}
+
+.VerifiedAdmin-card {
+  background: var(--body-bg);
+  border: 1px solid var(--control-bg);
+  border-radius: 10px;
+  padding: 22px 24px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.02);
+
+  &--requests {
+    padding: 0;
+    overflow: hidden;
+  }
+}
+
+.VerifiedAdmin-cardHeader {
+  margin-bottom: 18px;
+
+  h3 {
+    font-size: 16px;
+    font-weight: 600;
+    margin: 0 0 4px;
+    letter-spacing: -0.01em;
+  }
+
+  > .helpText {
+    margin: 0;
+    font-size: 13px;
+  }
+}
+
+.VerifiedAdmin-divider {
+  height: 1px;
+  background: var(--control-bg);
+  margin: 18px -24px;
+  opacity: 0.6;
+}
+
+.VerifiedAdmin-row {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+
+  > .helpText {
+    margin: 4px 0 0;
+    font-size: 13px;
+  }
+}
+
+// Indented sub-group revealed by a parent toggle (avocado pattern).
+.VerifiedAdmin-subGroup {
+  margin-left: 14px;
+  padding-left: 14px;
+  border-left: 2px solid var(--control-bg);
+}
+
+.VerifiedAdmin-label {
+  font-weight: 600;
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--muted-color);
+  margin: 0;
+}
+
+// ── Preview card ────────────────────────────────────────────────────────────
+.VerifiedAdmin-preview {
+  padding: 22px 24px;
+
+  // Mimic the real Post-header layout: 14px bold heading-coloured username,
+  // 10px gap, then a muted meta line.
+  &-line {
+    line-height: 1.6;
+    margin-bottom: 6px;
+    font-family: inherit;
+  }
+
+  &-name {
+    font-weight: bold;
+    color: var(--heading-color);
+  }
+
+  &-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    vertical-align: middle;
+    margin-left: 5px;
+    color: var(--primary-color);
+    line-height: 0;
+
+    svg {
+      width: 100%;
+      height: 100%;
+      display: block;
+    }
+  }
+
+  &-meta {
+    margin-left: 10px;
+    color: var(--muted-color);
+  }
+}
+
+// ── Range slider for badge size ─────────────────────────────────────────────
+.VerifiedAdmin-rangeInput {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 6px;
+  background: var(--control-bg);
+  border-radius: 3px;
+  outline: none;
+  cursor: pointer;
+
+  &::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    background: var(--primary-color);
+    border: 2px solid var(--body-bg);
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+    cursor: pointer;
+  }
+
+  &::-moz-range-thumb {
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    background: var(--primary-color);
+    border: 2px solid var(--body-bg);
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+    cursor: pointer;
+  }
+}
+
+.VerifiedAdmin-sizeValue {
+  margin-left: auto;
+  font-family: SFMono-Regular, Menlo, Consolas, monospace;
+  font-weight: 500;
+  text-transform: none;
+  letter-spacing: 0;
+  color: var(--text-color);
+  font-size: 13px;
+}
+
+.VerifiedAdmin-row > .VerifiedAdmin-label {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+// ── Color picker ────────────────────────────────────────────────────────────
+.VerifiedAdmin-colorRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.VerifiedAdmin-colorPicker {
+  width: 38px;
+  height: 38px;
+  border: 1px solid var(--control-bg);
+  border-radius: 8px;
+  padding: 2px;
+  background: transparent;
+  cursor: pointer;
+
+  &::-webkit-color-swatch-wrapper { padding: 0; }
+  &::-webkit-color-swatch { border: none; border-radius: 6px; }
+  &::-moz-color-swatch { border: none; border-radius: 6px; }
+}
+
+.VerifiedAdmin-colorInput {
+  flex: 1;
+  min-width: 160px;
+  font-family: SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 13px;
+}
+
+.VerifiedAdmin-clearBtn {
+  font-size: 13px;
+  padding: 6px 10px;
+  border-radius: 6px;
+
+  .icon {
+    margin-right: 4px;
+  }
+}
+
+// ── Toggle rows (avocado pattern: Switch with label as child) ───────────────
+.VerifiedAdmin-toggle {
+  margin-bottom: 0;
+
+  > .Checkbox {
+    font-weight: 600;
+    font-size: 14px;
+  }
+
+  > .helpText {
+    margin: 6px 0 0;
+    font-size: 13px;
+  }
+}
+
+// ── Requests panel ──────────────────────────────────────────────────────────
+.VerifiedRequests {
+  > .VerifiedAdmin-cardHeader {
+    padding: 22px 24px 16px;
+    margin-bottom: 0;
+  }
+}
+
+.VerifiedRequests-tabs {
+  display: flex;
+  border-top: 1px solid var(--control-bg);
+  border-bottom: 1px solid var(--control-bg);
+  background: fade(#000, 1.5%);
+}
+
+.VerifiedRequests-tab {
+  flex: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 12px 16px;
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--muted-color);
+  cursor: pointer;
+  transition: color 0.12s, border-color 0.12s, background 0.12s;
+
+  &:hover {
+    color: var(--text-color);
+    background: fade(#000, 2%);
+  }
+
+  &.is-active {
+    color: var(--primary-color);
+    border-bottom-color: var(--primary-color);
+    background: var(--body-bg);
+  }
+}
+
+.VerifiedRequests-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 20px;
+  height: 18px;
+  padding: 0 6px;
+  border-radius: 9px;
+  background: var(--control-bg);
+  color: var(--muted-color);
+  font-size: 11px;
+  font-weight: 600;
+
+  .is-active & {
+    background: fade(#1d9bf0, 12%);
+    color: var(--primary-color);
+  }
+}
+
+.VerifiedRequests-body {
+  min-height: 120px;
+}
+
+.VerifiedRequests-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 40px 20px;
+  color: var(--muted-color);
+
+  > .icon {
+    font-size: 28px;
+    opacity: 0.4;
+  }
+
+  > span {
+    font-size: 13px;
+  }
+}
+
+.VerifiedRequests-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.VerifiedRequest {
+  display: flex;
+  gap: 16px;
+  padding: 18px 24px;
+  border-bottom: 1px solid var(--control-bg);
+
+  &:last-child {
+    border-bottom: none;
+  }
+
+  &-main {
+    flex: 1;
+    min-width: 0;
+  }
+
+  &-user {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 4px;
+
+    .username {
+      font-weight: 600;
+      font-size: 15px;
+    }
+  }
+
+  &-status {
+    display: inline-flex;
+    align-items: center;
+    padding: 2px 8px;
+    border-radius: 999px;
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    line-height: 16px;
+
+    &--pending {
+      background: fade(#f0a500, 14%);
+      color: #b67800;
+    }
+    &--approved {
+      background: fade(#27ae60, 14%);
+      color: #1f8d4d;
+    }
+    &--rejected {
+      background: fade(#e74c3c, 14%);
+      color: #c0392b;
+    }
+  }
+
+  &-meta {
+    margin: 2px 0 0;
+    font-size: 12px;
+  }
+
+  &-reason {
+    margin: 10px 0 6px;
+    padding: 10px 12px;
+    background: fade(#000, 3%);
+    border-left: 3px solid var(--control-bg);
+    border-radius: 0 6px 6px 0;
+    font-size: 13px;
+    line-height: 1.45;
+    white-space: pre-wrap;
+    word-break: break-word;
+    color: var(--text-color);
+  }
+
+  &-document {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 8px;
+    padding: 6px 12px;
+    background: fade(#000, 3%);
+    border-radius: 6px;
+    font-size: 13px;
+
+    > .icon {
+      color: var(--muted-color);
+    }
+  }
+
+  &-docType {
+    font-weight: 600;
+    text-transform: uppercase;
+    font-size: 11px;
+    letter-spacing: 0.04em;
+  }
+
+  &-docLink {
+    margin-left: auto;
+    color: var(--primary-color);
+    font-weight: 500;
+    text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+
+    &:hover {
+      text-decoration: underline;
+    }
+
+    .icon {
+      font-size: 11px;
+    }
+  }
+
+  &-note {
+    margin-top: 8px;
+    padding: 8px 10px;
+    background: fade(#000, 2%);
+    border-radius: 6px;
+    font-size: 13px;
+    color: var(--muted-color);
+
+    strong {
+      color: var(--text-color);
+    }
+  }
+
+  &-actions {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    flex-shrink: 0;
+
+    .Button {
+      min-width: 110px;
+      padding: 6px 12px;
+      font-size: 13px;
+
+      .icon {
+        margin-right: 4px;
+        font-size: 11px;
+      }
+    }
+
+    .Button--danger {
+      background: transparent;
+      color: #c0392b;
+      border: 1px solid fade(#c0392b, 30%);
+
+      &:hover {
+        background: fade(#c0392b, 8%);
+      }
+    }
+  }
+}
+
+// Stack actions on narrow screens
+@media (max-width: 720px) {
+  .VerifiedRequest {
+    flex-direction: column;
+
+    &-actions {
+      flex-direction: row;
+      flex-wrap: wrap;
+    }
+  }
+
+}

@@ -1,0 +1,144 @@
+ramon-verified:
+  lib:
+    tooltip: "Conta verificada"
+    tooltip_with_date: "Conta verificada · desde {date}"
+    popover:
+      pill: "Verificado"
+      headline: "Esta conta tem <strong>identidade verificada</strong>."
+      verified_on: "Verificado {date}"
+
+
+  forum:
+    settings:
+      heading: "Verificação"
+      verified_label: "Sua conta está verificada"
+      verified_sublabel: "Sua identidade foi confirmada por um administrador."
+      pending_label: "Verificação em análise"
+      pending_sublabel: "Um administrador retornará em breve."
+      avatar_locked_label: "Avatar bloqueado"
+      avatar_locked_sublabel: "Contas verificadas não podem alterar o avatar. Envie uma nova solicitação de verificação para atualizar."
+      request_button: "Solicitar verificação"
+
+    avatar:
+      locked_tooltip: "Seu avatar está bloqueado porque sua conta é verificada. Para alterá-lo, envie uma nova solicitação de verificação."
+      locked_label: "Avatar bloqueado"
+      locked_help: "Contas verificadas não podem alterar o avatar. Envie uma nova solicitação de verificação para atualizar."
+      locked_alert: "Seu avatar está bloqueado porque sua conta é verificada."
+
+    user_controls:
+      verify_button: "Verificar usuário"
+      revoke_button: "Revogar verificação"
+      verify_prompt: "Observação opcional para o histórico:"
+      revoke_prompt: "Motivo da revogação (visível no histórico):"
+      verify_success: "Usuário verificado com sucesso."
+      revoke_success: "Verificação revogada."
+
+    request_modal:
+      title: "Solicitar verificação"
+      intro: "Conte por que sua conta deve ser verificada. Um administrador irá analisar a solicitação."
+      reason_label: "Por que esta conta deve ser verificada?"
+      reason_placeholder: "Opcional — explique o contexto (cargo público, perfil notório, organização etc.)"
+      document_type_label: "Tipo de documento"
+      document_type_rg: "RG"
+      document_type_cpf: "CPF"
+      document_type_passport: "Passaporte"
+      document_type_driver: "CNH"
+      document_type_other: "Outro"
+      document_label: "Documento de identidade"
+      document_help: "PNG, JPG, WEBP ou PDF. Até 8 MB. Os documentos ficam armazenados de forma privada e só são vistos por administradores."
+      uploading: "Enviando…"
+      uploaded: "Anexado: {name}"
+      file_too_large: "Documento muito grande (máximo 8 MB)."
+      bad_type: "Tipo de arquivo não suportado."
+      upload_failed: "Falha no envio. Tente novamente."
+      document_required: "É obrigatório anexar um documento de identidade."
+      submit_button: "Enviar solicitação"
+      success: "Solicitação de verificação enviada!"
+
+  admin:
+    preview:
+      helper: "Pré-visualização ao vivo — é assim que o selo aparecerá ao lado do nome dos usuários."
+      meta_sample: "há 2 dias"
+
+    settings:
+      section_appearance: "Aparência"
+      section_appearance_help: "Personalize como o selo de verificação aparece em seu fórum."
+      section_behaviour: "Comportamento"
+      section_behaviour_help: "Controle o que os usuários precisam enviar e o que podem alterar após verificação."
+      show_tooltip_label: "Mostrar popover de informações"
+      show_tooltip_help: "Quando ativo, ao passar o mouse no selo aparece um card com detalhes da verificação. Desative para um selo silencioso."
+      require_document_label: "Exigir documento de identidade"
+      require_document_help: "Os usuários devem anexar um documento (RG, CPF, passaporte etc.) ao solicitar verificação."
+      lock_avatar_label: "Bloquear avatar após verificação"
+      lock_avatar_help: "Usuários verificados não podem trocar de avatar. Para alterar, precisam abrir nova solicitação."
+      badge_size_label: "Tamanho do selo"
+      badge_size_help: "Multiplicador em relação ao tamanho do texto. 1.0 deixa o selo do mesmo tamanho do nome; valores maiores destacam mais."
+      custom_color_label: "Usar cor personalizada"
+      custom_color_help: "Desligado: o selo segue a cor primária do fórum. Ligado: escolha uma cor personalizada abaixo."
+      badge_color_label: "Cor do selo"
+      badge_color_help: "Escolha uma cor ou cole um valor hex (ex.: #1d9bf0), rgb(), rgba(), hsl() ou hsla()."
+      badge_color_reset: "Limpar"
+      custom_svg_label: "SVG personalizado"
+      custom_svg_help: "Envie um arquivo SVG para substituir o selo padrão. Use fill=\"currentColor\" para respeitar a cor configurada acima. Scripts e eventos inline são removidos automaticamente."
+
+    permissions:
+      request_label: "Solicitar verificação"
+      verify_users_label: "Verificar usuários diretamente"
+
+    requests:
+      title: "Solicitações de verificação"
+      description: "Revise e atue sobre as solicitações enviadas pelos usuários."
+      tab_pending: "Pendentes"
+      tab_approved: "Aprovadas"
+      tab_rejected: "Rejeitadas"
+      status_pending: "Pendente"
+      status_approved: "Aprovada"
+      status_rejected: "Rejeitada"
+      empty_pending: "Nenhuma solicitação pendente."
+      empty_approved: "Nenhuma solicitação aprovada ainda."
+      empty_rejected: "Nenhuma solicitação rejeitada."
+      document_label: "Documento"
+      view_document: "Ver documento"
+      admin_note_label: "Observação"
+      handled_by: "Tratado por {handlerName} · {date}"
+      approve_button: "Aprovar"
+      reject_button: "Rejeitar"
+      revoke_button: "Revogar"
+      approve_prompt: "Observação opcional para o histórico:"
+      reject_prompt: "Motivo da rejeição (mostrado ao usuário):"
+      revoke_prompt: "Motivo da revogação (mostrado no histórico):"
+      approve_success: "Usuário verificado com sucesso."
+      reject_success: "Solicitação rejeitada."
+      revoke_success: "Verificação revogada."
+
+  notifications:
+    user_verified_text: "Sua conta foi verificada."
+    user_verified_preference: "Alguém verifica minha conta"
+
+  email:
+    verified:
+      subject: "Sua conta foi verificada"
+      html:
+        body: "Olá <strong>{username}</strong>,<br><br>Sua conta no <strong>{forumTitle}</strong> foi verificada por um administrador. O selo de verificação agora aparece ao lado do seu nome em todo o fórum."
+        preview: "Sua conta no {forumTitle} foi verificada."
+      plain:
+        body: |
+          Olá {username},
+
+          Sua conta no {forumTitle} foi verificada por um administrador. O selo de verificação agora aparece ao lado do seu nome em todo o fórum.
+
+  api:
+    already_verified: "Este usuário já é verificado."
+    already_pending: "Já existe uma solicitação de verificação pendente para este usuário."
+    document_required: "É obrigatório anexar um documento de identidade."
+    no_file: "Nenhum documento foi enviado."
+    upload_failed: "Não foi possível salvar o documento. Tente novamente."
+    file_too_large: "O documento é maior que o permitido (8 MB)."
+    bad_extension: "Extensão de arquivo não suportada."
+    bad_mime: "Tipo de arquivo não suportado."
+    not_found: "Solicitação de verificação não encontrada."
+    user_missing: "O usuário relacionado não existe mais."
+    avatar_locked: "Seu avatar está bloqueado porque sua conta é verificada. Envie uma nova solicitação de verificação para alterá-lo."
+    revoked_default_note: "Verificação revogada pelo administrador."
+    not_verified: "Este usuário não é verificado."
+    verified_by_admin_note: "Verificado diretamente por um administrador."
