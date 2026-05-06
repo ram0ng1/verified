@@ -32,5 +32,13 @@ app.initializers.add(EXT_ID, () => {
         permission: 'verified.verifyUsers',
       },
       'moderate'
+    )
+    .registerPermission(
+      {
+        icon: 'fas fa-certificate',
+        label: app.translator.trans('ramon-verified.admin.permissions.auto_verified_label'),
+        permission: 'verified.autoVerified',
+      },
+      'start'
     );
 });

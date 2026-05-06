@@ -19,7 +19,7 @@ class UserResourceFields
     {
         return [
             Schema\Boolean::make('isVerified')
-                ->property('is_verified'),
+                ->get(fn (User $user) => $this->isVerified($user)),
 
             Schema\DateTime::make('verifiedAt')
                 ->property('verified_at')
@@ -33,7 +33,7 @@ class UserResourceFields
                         return false;
                     }
 
-                    if ((bool) $user->is_verified) {
+                    if ($this->isVerified($user)) {
                         return false;
                     }
 
@@ -87,5 +87,18 @@ class UserResourceFields
                     return (bool) $user->is_verified;
                 }),
         ];
+    }
+
+    /**
+     * A user is "verified" when they were explicitly verified by an admin
+     * OR when they belong to a group that grants the auto-verify permission.
+     */
+    protected function isVerified(User $user): bool
+    {
+        if ((bool) $user->is_verified) {
+            return true;
+        }
+
+        return $user->hasPermission('verified.autoVerified');
     }
 }

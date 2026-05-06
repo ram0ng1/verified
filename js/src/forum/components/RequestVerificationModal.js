@@ -4,13 +4,35 @@ import Button from 'flarum/common/components/Button';
 import Form from 'flarum/common/components/Form';
 import Stream from 'flarum/common/utils/Stream';
 import extractText from 'flarum/common/utils/extractText';
+import getBadgeSvg from '../../common/utils/getBadgeSvg';
+
+// Fallback list used only when the admin has cleared the configured list
+// or the forum payload doesn't carry one. Mirrors the historical hardcoded
+// defaults so existing forums see no behavioural change.
+const FALLBACK_DOCUMENT_TYPES = [
+  { id: 'rg',       label: 'RG' },
+  { id: 'cpf',      label: 'CPF' },
+  { id: 'passport', label: 'Passport' },
+  { id: 'driver',   label: "Driver's license" },
+  { id: 'other',    label: 'Other' },
+];
+
+function getDocumentTypes() {
+  const fromForum = app.forum.attribute('ramonVerifiedDocumentTypes');
+  if (Array.isArray(fromForum) && fromForum.length > 0) return fromForum;
+  return FALLBACK_DOCUMENT_TYPES;
+}
 
 export default class RequestVerificationModal extends FormModal {
   oninit(vnode) {
     super.oninit(vnode);
 
+    const types = getDocumentTypes();
+
     this.reason = Stream('');
-    this.documentType = Stream('rg');
+    // Default to the first configured type. Admin may have reordered or
+    // renamed `rg`, so we can't hardcode an id here.
+    this.documentType = Stream(types[0] ? types[0].id : '');
     this.documentPath = Stream('');
     this.fileName = Stream('');
     this.uploading = false;
@@ -18,7 +40,7 @@ export default class RequestVerificationModal extends FormModal {
   }
 
   className() {
-    return 'VerifiedRequestModal Modal--small';
+    return 'VerifiedRequestModal';
   }
 
   title() {
@@ -28,15 +50,29 @@ export default class RequestVerificationModal extends FormModal {
   content() {
     const requireDoc = !!app.forum.attribute('ramonVerifiedRequireDocument');
 
-    return (
-      <div className="Modal-body">
-        <Form className="Form">
-          <p className="helpText">{app.translator.trans('ramon-verified.forum.request_modal.intro')}</p>
+    return [
+      <div className="Modal-body VerifiedRequestModal-body">
+        <div className="VerifiedRequestModal-hero">
+          <div className="VerifiedRequestModal-hero-icon" aria-hidden="true">
+            <span className="VerifiedRequestModal-hero-iconBadge">
+              {m.trust(getBadgeSvg())}
+            </span>
+          </div>
+          <h2 className="VerifiedRequestModal-hero-title">
+            {app.translator.trans('ramon-verified.forum.request_modal.title')}
+          </h2>
+          <p className="VerifiedRequestModal-hero-text">
+            {app.translator.trans('ramon-verified.forum.request_modal.intro')}
+          </p>
+        </div>
 
-          <div className="Form-group">
-            <label>{app.translator.trans('ramon-verified.forum.request_modal.reason_label')}</label>
+        <Form className="Form VerifiedRequestModal-form">
+          <div className="Form-group VerifiedRequestModal-field">
+            <label className="VerifiedRequestModal-fieldLabel">
+              {app.translator.trans('ramon-verified.forum.request_modal.reason_label')}
+            </label>
             <textarea
-              className="FormControl"
+              className="FormControl VerifiedRequestModal-textarea"
               rows="4"
               maxlength="1000"
               placeholder={extractText(app.translator.trans('ramon-verified.forum.request_modal.reason_placeholder'))}
@@ -46,43 +82,56 @@ export default class RequestVerificationModal extends FormModal {
           </div>
 
           {requireDoc ? this.documentFields() : null}
-
-          <div className="Form-group Form-controls">
-            <Button
-              className="Button Button--primary Button--block"
-              type="submit"
-              loading={this.loading}
-              disabled={this.uploading || (requireDoc && !this.documentPath())}
-            >
-              {app.translator.trans('ramon-verified.forum.request_modal.submit_button')}
-            </Button>
-          </div>
         </Form>
-      </div>
-    );
+      </div>,
+
+      <div className="VerifiedRequestModal-footer">
+        <Button
+          className="Button Button--primary VerifiedRequestModal-submit"
+          type="submit"
+          loading={this.loading}
+          disabled={this.uploading || (requireDoc && !this.documentPath())}
+        >
+          {app.translator.trans('ramon-verified.forum.request_modal.submit_button')}
+        </Button>
+      </div>,
+    ];
   }
 
   documentFields() {
+    const disabled = this.loading || this.uploading;
+
     return [
-      <div className="Form-group">
-        <label>{app.translator.trans('ramon-verified.forum.request_modal.document_type_label')}</label>
-        <select
-          className="FormControl"
-          value={this.documentType()}
-          onchange={(e) => this.documentType(e.target.value)}
-          disabled={this.loading || this.uploading}
-        >
-          <option value="rg">{app.translator.trans('ramon-verified.forum.request_modal.document_type_rg')}</option>
-          <option value="cpf">{app.translator.trans('ramon-verified.forum.request_modal.document_type_cpf')}</option>
-          <option value="passport">{app.translator.trans('ramon-verified.forum.request_modal.document_type_passport')}</option>
-          <option value="driver">{app.translator.trans('ramon-verified.forum.request_modal.document_type_driver')}</option>
-          <option value="other">{app.translator.trans('ramon-verified.forum.request_modal.document_type_other')}</option>
-        </select>
+      <div className="Form-group VerifiedRequestModal-field">
+        <label className="VerifiedRequestModal-fieldLabel">
+          {app.translator.trans('ramon-verified.forum.request_modal.document_type_label')}
+        </label>
+        <div className="VerifiedRequestModal-pillGroup" role="radiogroup">
+          {getDocumentTypes().map((type) => {
+            const active = this.documentType() === type.id;
+            return (
+              <button
+                type="button"
+                className={'VerifiedRequestModal-pill' + (active ? ' is-active' : '')}
+                role="radio"
+                aria-checked={active ? 'true' : 'false'}
+                disabled={disabled}
+                onclick={() => this.documentType(type.id)}
+              >
+                {type.label}
+              </button>
+            );
+          })}
+        </div>
       </div>,
-      <div className="Form-group">
-        <label>{app.translator.trans('ramon-verified.forum.request_modal.document_label')}</label>
+      <div className="Form-group VerifiedRequestModal-field">
+        <label className="VerifiedRequestModal-fieldLabel">
+          {app.translator.trans('ramon-verified.forum.request_modal.document_label')}
+        </label>
         {this.renderFileField()}
-        <p className="helpText">{app.translator.trans('ramon-verified.forum.request_modal.document_help')}</p>
+        <p className="VerifiedRequestModal-fieldHint">
+          {app.translator.trans('ramon-verified.forum.request_modal.document_help')}
+        </p>
       </div>,
     ];
   }

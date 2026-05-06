@@ -51,6 +51,125 @@ class AdminToggle extends Component {
   }
 }
 
+// Editable document-type list. Each row = `{ id, label }`. Persisted as a
+// JSON string in the `ramon-verified.document_types` setting; the backend
+// parses it back into a real array when serialising to the forum payload,
+// so the forum-side modal can iterate it directly.
+class DocumentTypesEditor extends Component {
+  oninit(vnode) {
+    super.oninit(vnode);
+    this.types = this.parse(getStr('ramon-verified.document_types'));
+    this._timer = null;
+  }
+
+  parse(raw) {
+    if (!raw) return [];
+    try {
+      const parsed = JSON.parse(raw);
+      return Array.isArray(parsed)
+        ? parsed
+            .filter((r) => r && typeof r === 'object')
+            .map((r) => ({ id: String(r.id || ''), label: String(r.label || '') }))
+        : [];
+    } catch (e) {
+      return [];
+    }
+  }
+
+  serialize() {
+    // Filter out blank rows so we don't persist half-edited entries — but
+    // keep them in the local state so the editor doesn't yank out a row the
+    // admin is mid-typing on.
+    return JSON.stringify(this.types.filter((r) => r.id.trim() && r.label.trim()));
+  }
+
+  flushNow() {
+    const raw = this.serialize();
+    app.data.settings['ramon-verified.document_types'] = raw;
+    saveSetting({ 'ramon-verified.document_types': raw });
+  }
+
+  flushSoon() {
+    clearTimeout(this._timer);
+    this._timer = setTimeout(() => this.flushNow(), 400);
+  }
+
+  add() {
+    this.types = this.types.concat([{ id: '', label: '' }]);
+    m.redraw();
+  }
+
+  remove(idx) {
+    this.types = this.types.filter((_, i) => i !== idx);
+    m.redraw();
+    this.flushNow();
+  }
+
+  update(idx, field, value) {
+    this.types = this.types.map((r, i) => (i === idx ? { ...r, [field]: value } : r));
+    this.flushSoon();
+    m.redraw();
+  }
+
+  view() {
+    return (
+      <div className="VerifiedAdmin-row VerifiedAdmin-types">
+        <div className="VerifiedAdmin-types-header">
+          <span className="VerifiedAdmin-types-headerId">{trans('settings.document_type_id_header')}</span>
+          <span className="VerifiedAdmin-types-headerLabel">{trans('settings.document_type_label_header')}</span>
+        </div>
+
+        <div className="VerifiedAdmin-types-list">
+          {this.types.length === 0 ? (
+            <p className="VerifiedAdmin-types-empty helpText">
+              {trans('settings.document_types_empty')}
+            </p>
+          ) : (
+            this.types.map((row, idx) => (
+              <div className="VerifiedAdmin-types-row" key={idx}>
+                <input
+                  type="text"
+                  className="FormControl VerifiedAdmin-types-input VerifiedAdmin-types-id"
+                  value={row.id}
+                  placeholder="rg"
+                  spellcheck="false"
+                  autocomplete="off"
+                  oninput={(e) => this.update(idx, 'id', e.target.value)}
+                />
+                <input
+                  type="text"
+                  className="FormControl VerifiedAdmin-types-input VerifiedAdmin-types-label"
+                  value={row.label}
+                  placeholder={extractText(trans('settings.document_type_label_placeholder'))}
+                  oninput={(e) => this.update(idx, 'label', e.target.value)}
+                />
+                <button
+                  type="button"
+                  className="VerifiedAdmin-types-remove"
+                  onclick={() => this.remove(idx)}
+                  aria-label={extractText(trans('settings.document_type_remove'))}
+                  title={extractText(trans('settings.document_type_remove'))}
+                >
+                  <i className="icon fas fa-times" />
+                </button>
+              </div>
+            ))
+          )}
+        </div>
+
+        <button
+          type="button"
+          className="VerifiedAdmin-types-add"
+          onclick={() => this.add()}
+        >
+          <i className="icon fas fa-plus" />
+          {trans('settings.document_type_add')}
+        </button>
+      </div>
+    );
+  }
+}
+
 // ─── The panel ───────────────────────────────────────────────────────────────
 
 /**
@@ -65,11 +184,16 @@ export default class VerifiedSettingsPanel extends Component {
   }
 
   view() {
+    // Document types only matter when documents are actually required —
+    // hide the whole section otherwise to keep the panel uncluttered.
+    const requireDoc = getBool('ramon-verified.require_document');
+
     return (
       <div className="VerifiedAdmin">
         {this.previewCard()}
         {this.appearanceCard()}
         {this.behaviourCard()}
+        {requireDoc ? this.documentTypesCard() : null}
         {this.requestsCard()}
       </div>
     );
@@ -322,6 +446,21 @@ export default class VerifiedSettingsPanel extends Component {
           label={trans('settings.lock_avatar_label')}
           help={trans('settings.lock_avatar_help')}
         />
+      </section>
+    );
+  }
+
+  // ---- Document types card ----------------------------------------------
+
+  documentTypesCard() {
+    return (
+      <section className="VerifiedAdmin-card">
+        <header className="VerifiedAdmin-cardHeader">
+          <h3>{trans('settings.section_document_types')}</h3>
+          <p className="helpText">{trans('settings.section_document_types_help')}</p>
+        </header>
+
+        <DocumentTypesEditor />
       </section>
     );
   }

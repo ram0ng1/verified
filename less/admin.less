@@ -223,6 +223,99 @@
   }
 }
 
+// ── Document-types editor ──────────────────────────────────────────────────
+//
+// Admin can rename / reorder / add / remove document types (RG, CPF…).
+// Two-column rows: short ID input + wider label input + remove button.
+.VerifiedAdmin-types {
+  &-header {
+    display: grid;
+    grid-template-columns: 110px 1fr 32px;
+    gap: 8px;
+    padding: 0 4px 6px;
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--muted-color);
+  }
+
+  &-list {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  &-row {
+    display: grid;
+    grid-template-columns: 110px 1fr 32px;
+    gap: 8px;
+    align-items: center;
+  }
+
+  &-input.FormControl {
+    height: 34px;
+    padding: 4px 10px;
+    font-size: 13px;
+    border-radius: 6px;
+  }
+
+  &-id.FormControl {
+    font-family: SFMono-Regular, Menlo, Consolas, monospace;
+    color: var(--muted-color);
+  }
+
+  &-remove {
+    width: 32px;
+    height: 32px;
+    border: 0;
+    border-radius: 6px;
+    background: transparent;
+    color: var(--muted-color);
+    cursor: pointer;
+    transition: background 0.2s ease, color 0.2s ease;
+
+    &:hover, &:focus {
+      background: fade(#e74c3c, 8%);
+      color: #c0392b;
+    }
+
+    .icon {
+      margin: 0;
+      font-size: 12px;
+    }
+  }
+
+  &-empty {
+    padding: 12px 4px;
+    margin: 0;
+    font-style: italic;
+  }
+
+  &-add {
+    align-self: flex-start;
+    margin-top: 6px;
+    padding: 6px 12px;
+    border: 0;
+    border-radius: 6px;
+    background: transparent;
+    color: var(--primary-color);
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: background 0.2s ease;
+
+    &:hover, &:focus {
+      background: fade(#1d9bf0, 8%);
+    }
+
+    .icon {
+      margin-right: 6px;
+      font-size: 11px;
+    }
+  }
+}
+
 // ── Requests panel ──────────────────────────────────────────────────────────
 .VerifiedRequests {
   > .VerifiedAdmin-cardHeader {
@@ -253,11 +346,12 @@
   font-weight: 500;
   color: var(--muted-color);
   cursor: pointer;
-  transition: color 0.12s, border-color 0.12s, background 0.12s;
+  transition: color 0.2s ease, border-color 0.2s ease;
 
+  // Color shift only on hover — the tab's strong signal is the active
+  // bottom border, so hover stays muted to keep the row calm.
   &:hover {
     color: var(--text-color);
-    background: fade(#000, 2%);
   }
 
   &.is-active {
@@ -408,6 +502,15 @@
   }
 
   &-docLink {
+    // Rendered as a <button> (opens DocumentPreviewModal). Reset native
+    // button styles so it reads as a link.
+    appearance: none;
+    -webkit-appearance: none;
+    border: 0;
+    background: transparent;
+    padding: 0;
+    cursor: pointer;
+    font: inherit;
     margin-left: auto;
     color: var(--primary-color);
     font-weight: 500;
@@ -478,4 +581,290 @@
     }
   }
 
+}
+
+// ── Approved tab — toolbar / search / pagination ───────────────────────────
+.VerifiedRequests-toolbar {
+  padding: 14px 24px;
+  border-bottom: 1px solid var(--control-bg);
+}
+
+// Filled-chip search — no border in idle state, soft tinted background.
+// Native search-input affordances (the browser-injected X clear button,
+// search results decoration) are stripped so they don't collide with our
+// own clear button. Focus deepens to a clean white surface with a primary
+// border ring.
+.VerifiedRequests-search {
+  position: relative;
+  display: flex;
+  align-items: center;
+
+  &-icon {
+    position: absolute;
+    left: 12px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: var(--muted-color);
+    font-size: 12px;
+    pointer-events: none;
+    z-index: 1;
+  }
+
+  &-input.FormControl {
+    width: 100%;
+    height: 36px;
+    padding: 0 36px 0 34px;
+    margin: 0;
+    line-height: 36px;
+    border: 1px solid transparent;
+    border-radius: 8px;
+    background: fade(#000, 4.5%);
+    font-size: 13px;
+    color: var(--text-color);
+    box-shadow: none;
+    transition: background 0.18s ease, border-color 0.18s ease;
+    appearance: textfield;
+    -webkit-appearance: textfield;
+
+    // Kill native search artifacts (Chrome/Safari ship their own X).
+    &::-webkit-search-cancel-button,
+    &::-webkit-search-decoration,
+    &::-webkit-search-results-button,
+    &::-webkit-search-results-decoration {
+      -webkit-appearance: none;
+      display: none;
+    }
+
+    &::placeholder {
+      color: var(--muted-color);
+      opacity: 1;
+    }
+
+    &:hover:not(:focus) {
+      background: fade(#000, 6%);
+    }
+
+    &:focus {
+      outline: none;
+      background: var(--body-bg);
+      border-color: fade(#1d9bf0, 50%);
+      box-shadow: 0 0 0 3px fade(#1d9bf0, 12%);
+    }
+  }
+
+  &-clear {
+    position: absolute;
+    right: 6px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 24px;
+    height: 24px;
+    padding: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: transparent;
+    border: 0;
+    border-radius: 4px;
+    color: var(--muted-color);
+    cursor: pointer;
+    z-index: 1;
+    transition: background 0.18s ease, color 0.18s ease;
+
+    &:hover, &:focus {
+      background: fade(#000, 8%);
+      color: var(--text-color);
+    }
+
+    .icon {
+      font-size: 11px;
+      margin: 0;
+    }
+  }
+}
+
+.VerifiedRequests-list.is-refreshing {
+  opacity: 0.6;
+  pointer-events: none;
+  transition: opacity 0.12s;
+}
+
+.VerifiedRequests-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 24px;
+  border-top: 1px solid var(--control-bg);
+
+  &-info {
+    font-size: 12px;
+    color: var(--muted-color);
+    text-align: center;
+    flex: 1;
+  }
+
+  &-btn.Button {
+    min-width: 0;
+    padding: 6px 10px;
+    font-size: 13px;
+    color: var(--muted-color);
+    background: transparent;
+    border: 0;
+    transition: color 0.2s ease, background 0.2s ease;
+
+    // Color shift only — no fill bump.
+    &:hover:not(:disabled) {
+      color: var(--text-color);
+      background: transparent;
+    }
+
+    &:disabled {
+      color: var(--muted-color);
+      opacity: 0.4;
+    }
+
+    .icon {
+      font-size: 11px;
+      margin: 0 4px;
+    }
+  }
+}
+
+// ── Document preview modal ─────────────────────────────────────────────────
+//
+// Replaces the old "open document in new tab" UX. The modal shows the
+// document inline (image via <img>, PDF via <iframe>) plus a button to
+// download the original file. Sized to fit a portrait ID card or A4 PDF
+// without needing to scroll the modal itself.
+.DocumentPreviewModal {
+  .Modal-dialog {
+    max-width: 720px;
+  }
+
+  &-body {
+    padding: 0;
+  }
+
+  &-meta {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 14px 24px;
+    border-bottom: 1px solid var(--control-bg);
+    font-size: 13px;
+
+    &-label {
+      font-weight: 600;
+      color: var(--muted-color);
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      font-size: 11px;
+    }
+
+    &-value {
+      font-weight: 600;
+      color: var(--text-color);
+    }
+  }
+
+  &-frame {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 280px;
+    max-height: 70vh;
+    padding: 16px;
+    background: fade(#000, 4%);
+    overflow: auto;
+
+    &--pdf {
+      padding: 0;
+      min-height: 70vh;
+    }
+  }
+
+  &-loading {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 60px;
+  }
+
+  &-img {
+    display: block;
+    max-width: 100%;
+    max-height: 70vh;
+    width: auto;
+    height: auto;
+    border-radius: 6px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+    opacity: 0;
+    transition: opacity 0.2s ease;
+
+    &.is-loaded {
+      opacity: 1;
+    }
+  }
+
+  &-pdf {
+    display: block;
+    width: 100%;
+    height: 70vh;
+    border: 0;
+    background: #fff;
+  }
+
+  &-empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    padding: 40px;
+    color: var(--muted-color);
+    text-align: center;
+
+    > .icon {
+      font-size: 32px;
+      opacity: 0.5;
+    }
+
+    > span {
+      font-size: 13px;
+    }
+  }
+}
+
+// ── Auto-verified user row ─────────────────────────────────────────────────
+.VerifiedRequest-status--auto {
+  background: fade(#1d9bf0, 12%);
+  color: var(--primary-color);
+}
+
+.VerifiedRequest-autoNotice {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 6px;
+  padding: 6px 10px;
+  background: fade(#000, 2.5%);
+  border-radius: 6px;
+  font-size: 12px;
+  color: var(--muted-color);
+
+  > .icon {
+    font-size: 11px;
+    color: var(--primary-color);
+  }
+}
+
+.VerifiedRequest-autoHint {
+  font-size: 12px;
+  font-style: italic;
+  color: var(--muted-color);
+  text-align: right;
+  max-width: 140px;
+  align-self: center;
 }

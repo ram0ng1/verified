@@ -6,6 +6,7 @@ ramon-verified:
       pill: "Verificado"
       headline: "Esta conta tem a <strong>identidade verificada</strong>."
       verified_on: "Verificado {date}"
+      verified_no_date: "Conta verificada automaticamente."
 
 
   forum:
@@ -94,10 +95,19 @@ ramon-verified:
       badge_color_reset: "Limpar"
       custom_svg_label: "SVG personalizado"
       custom_svg_help: "Envie um arquivo SVG para substituir o selo padrão. Use fill=\"currentColor\" para respeitar a cor configurada acima. Scripts e eventos inline são removidos automaticamente."
+      section_document_types: "Tipos de documento"
+      section_document_types_help: "Gerencie os tipos de documento que os usuários podem escolher ao solicitar verificação. O padrão (RG, CPF, Passaporte, CNH, Outro) reflete o contexto brasileiro — fique à vontade para renomear ou substituir conforme seu fórum."
+      document_type_id_header: "ID"
+      document_type_label_header: "Rótulo"
+      document_type_label_placeholder: "Rótulo exibido"
+      document_type_add: "Adicionar tipo de documento"
+      document_type_remove: "Remover tipo de documento"
+      document_types_empty: "Nenhum tipo de documento configurado. Os usuários não verão opções ao enviar o documento."
 
     permissions:
       request_label: "Solicitar verificação"
       verify_users_label: "Verificar usuários diretamente"
+      auto_verified_label: "Receber selo verificado automaticamente"
 
     requests:
       title: "Solicitações de verificação"
@@ -109,10 +119,23 @@ ramon-verified:
       status_approved: "Aprovada"
       status_rejected: "Rejeitada"
       empty_pending: "Nenhuma solicitação pendente."
-      empty_approved: "Nenhuma solicitação aprovada ainda."
+      empty_approved: "Nenhum usuário aprovado ainda."
       empty_rejected: "Nenhuma solicitação rejeitada."
+      empty_search: "Nenhum usuário verificado encontrado para \"{query}\"."
+      search_placeholder: "Buscar usuários verificados…"
+      search_clear: "Limpar busca"
+      status_auto: "Verificado por grupo"
+      auto_via_groups: "Verificado pelo grupo: {groups}"
+      auto_via_group_unknown: "Verificado automaticamente por permissão de grupo."
+      auto_actions_hint: "Gerencie em Permissões"
+      pagination_prev: "Anterior"
+      pagination_next: "Próximo"
+      pagination_info: "Página {page} de {lastPage} · {total} no total"
       document_label: "Documento"
       view_document: "Ver documento"
+      document_preview_title: "Visualização do documento"
+      preview_unavailable: "Este formato não pode ser pré-visualizado."
+      preview_failed: "Não foi possível carregar a pré-visualização."
       admin_note_label: "Observação"
       handled_by: "Tratado por {handlerName} · {date}"
       approve_button: "Aprovar"
@@ -136,6 +159,11 @@ ramon-verified:
           Olá {username},
 
           Sua conta no {forumTitle} foi verificada por um administrador. O selo de verificação agora aparece ao lado do seu nome em todo o fórum.
+
+  gdpr:
+    export_description: "Solicitações de verificação, documentos de identidade enviados (RG, CPF, passaporte etc.) e seu status atual de verificação. Inclui também solicitações que você processou como administrador."
+    anonymize_description: "Os documentos de identidade enviados são deletados. Texto da justificativa e notas administrativas são removidos das suas solicitações, mas o histórico (status e datas) é mantido para que outros dados do fórum que dependem disso permaneçam consistentes."
+    delete_description: "Todas as suas solicitações de verificação e documentos enviados são apagados permanentemente. Seu status de verificação é redefinido."
 
   api:
     already_verified: "Este usuário já é verificado."

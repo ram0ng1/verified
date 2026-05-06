@@ -63,15 +63,13 @@ export default class VerifiedPopover extends Component {
               </span>
             </span>
 
-            {verifiedAt
-              ? (
-                <span className="VerifiedPopover-meta">
-                  {app.translator.trans('ramon-verified.lib.popover.verified_on', {
+            <span className="VerifiedPopover-meta">
+              {verifiedAt
+                ? app.translator.trans('ramon-verified.lib.popover.verified_on', {
                     date: extractText(humanTime(verifiedAt)),
-                  })}
-                </span>
-              )
-              : null}
+                  })
+                : app.translator.trans('ramon-verified.lib.popover.verified_no_date')}
+            </span>
           </span>
         </span>
       </span>

@@ -6,6 +6,7 @@ ramon-verified:
       pill: "Verified"
       headline: "This account has a <strong>verified identity</strong>."
       verified_on: "Verified {date}"
+      verified_no_date: "Automatically verified account"
 
   forum:
     settings:
@@ -93,10 +94,19 @@ ramon-verified:
       badge_color_reset: "Clear"
       custom_svg_label: "Custom SVG"
       custom_svg_help: "Upload an SVG to replace the default Twitter-style badge. Use fill=\"currentColor\" so the color above is honoured. Scripts and event handlers are stripped automatically."
+      section_document_types: "Document types"
+      section_document_types_help: "Manage the document types users can pick when requesting verification. The default list (RG, CPF, Passport, Driver's license, Other) reflects Brazilian context — feel free to rename or replace it for your own forum."
+      document_type_id_header: "ID"
+      document_type_label_header: "Label"
+      document_type_label_placeholder: "Display label"
+      document_type_add: "Add document type"
+      document_type_remove: "Remove document type"
+      document_types_empty: "No document types configured. Users won't see any options when uploading a document."
 
     permissions:
       request_label: "Request verification"
       verify_users_label: "Verify users directly"
+      auto_verified_label: "Receive the verified badge automatically"
 
     requests:
       title: "Verification requests"
@@ -108,10 +118,23 @@ ramon-verified:
       status_approved: "Approved"
       status_rejected: "Rejected"
       empty_pending: "No pending requests."
-      empty_approved: "No approved requests yet."
+      empty_approved: "No approved users yet."
       empty_rejected: "No rejected requests."
+      empty_search: "No verified users match \"{query}\"."
+      search_placeholder: "Search verified users…"
+      search_clear: "Clear search"
+      status_auto: "Auto-verified"
+      auto_via_groups: "Verified through group: {groups}"
+      auto_via_group_unknown: "Verified automatically through a group permission."
+      auto_actions_hint: "Manage in Permissions"
+      pagination_prev: "Previous"
+      pagination_next: "Next"
+      pagination_info: "Page {page} of {lastPage} · {total} total"
       document_label: "Document"
       view_document: "View document"
+      document_preview_title: "Document preview"
+      preview_unavailable: "This file format can't be previewed."
+      preview_failed: "Couldn't load the document preview."
       admin_note_label: "Note"
       handled_by: "Handled by {handlerName} · {date}"
       approve_button: "Approve"
@@ -135,6 +158,11 @@ ramon-verified:
           Hi {username},
 
           Your account on {forumTitle} has been verified by an administrator. The verified badge is now displayed next to your name across the forum.
+
+  gdpr:
+    export_description: "Verification requests, the identity documents you submitted (RG, CPF, passport, etc.), and your current verified status. Includes any verification requests you handled as an administrator."
+    anonymize_description: "Submitted identity documents are deleted. Reason text and administrator notes are stripped from your verification requests, but the audit trail (status and dates) is kept so other forum data referencing it stays consistent."
+    delete_description: "All your verification requests and uploaded identity documents are permanently deleted. Your verified status is reset."
 
   api:
     already_verified: "This user is already verified."
