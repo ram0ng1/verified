@@ -23,6 +23,7 @@ use Ramon\Verified\Api\UserResourceFields;
 use Ramon\Verified\Console\PurgeDocumentsCommand;
 use Ramon\Verified\Event\UserVerified;
 use Ramon\Verified\Listener\EnforceAvatarLock;
+use Ramon\Verified\Listener\PurgeDocumentOnRequestDelete;
 use Ramon\Verified\Listener\SendNotificationWhenUserIsVerified;
 use Ramon\Verified\Models\VerificationRequest;
 use Ramon\Verified\Notification\UserVerifiedBlueprint;
@@ -129,7 +130,14 @@ return [
 
     (new Extend\Event())
         ->listen(AvatarSaving::class, EnforceAvatarLock::class)
-        ->listen(UserVerified::class, SendNotificationWhenUserIsVerified::class),
+        ->listen(UserVerified::class, SendNotificationWhenUserIsVerified::class)
+        // Hard-delete cleanup: when a VerificationRequest row is deleted (a
+        // user dropping their pending request, an admin purge, etc.) wipe the
+        // backing document file too. Without this hook, an attacker could
+        // upload + submit + delete in a loop, leaving every uploaded file
+        // orphaned on disk. Eloquent dispatches model events as string-keyed
+        // names (`eloquent.deleting: ClassName`), not the global event class.
+        ->listen('eloquent.deleting: '.VerificationRequest::class, PurgeDocumentOnRequestDelete::class),
 
     (new Extend\Console())
         ->command(PurgeDocumentsCommand::class)

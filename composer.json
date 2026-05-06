@@ -5,8 +5,7 @@
         "flarum",
         "verified",
         "badge",
-        "verification",
-        "kyc"
+        "verification"
     ],
     "type": "flarum-extension",
     "license": "MIT",
@@ -31,8 +30,8 @@
             "title": "Verified",
             "category": "feature",
             "icon": {
-                "name": "fas fa-certificate",
-                "backgroundColor": "#1d9bf0",
+                "image": "icon.svg",
+                "backgroundColor": "#fff",
                 "color": "#fff"
             }
         }

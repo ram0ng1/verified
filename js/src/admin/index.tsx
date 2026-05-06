@@ -8,7 +8,7 @@ export { default as extend } from '../common/extend';
 const EXT_ID = 'ramon-verified';
 
 // Settings auto-save (avocado pattern) — hide the default submit button.
-override(ExtensionPage.prototype, 'submitButton', function (original) {
+override(ExtensionPage.prototype, 'submitButton', function (this: any, original: () => unknown) {
   if (this.extension && this.extension.id === EXT_ID) return null;
   return original();
 });

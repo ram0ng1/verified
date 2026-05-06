@@ -12,24 +12,20 @@
  * inherits the CSS `color` applied by the parent `.VerifiedBadge` element.
  */
 
-// Twitter/X-style verified seal — split into two paths so the checkmark
-// is explicitly WHITE rather than a cutout that lets the parent background
-// bleed through. This keeps the checkmark visible against dark heroes
-// (e.g. avocado's coloured user-page hero) and any other tinted surface.
 const SEAL_PATH =
   'M20.396 11c-.018-.646-.215-1.275-.57-1.816-.354-.54-.852-.972-1.438-1.246.223-.607.27-1.264.14-1.897-.131-.634-.437-1.218-.882-1.687-.47-.445-1.053-.75-1.687-.882-.633-.13-1.29-.083-1.897.14-.273-.587-.704-1.086-1.245-1.44S11.647 1.62 11 1.604c-.646.017-1.273.213-1.813.568s-.969.854-1.24 1.44c-.608-.223-1.267-.272-1.902-.14-.635.13-1.22.436-1.69.882-.445.47-.749 1.055-.878 1.688-.13.633-.08 1.29.144 1.896-.587.274-1.087.705-1.443 1.245-.356.54-.555 1.17-.574 1.817.02.647.218 1.276.574 1.817.356.54.856.972 1.443 1.245-.224.606-.274 1.263-.144 1.896.13.634.433 1.218.877 1.688.47.443 1.054.747 1.687.878.633.132 1.29.084 1.897-.136.274.586.705 1.084 1.246 1.439.54.354 1.17.551 1.816.569.647-.016 1.276-.213 1.817-.567s.972-.854 1.245-1.44c.604.239 1.266.296 1.903.164.636-.132 1.22-.447 1.68-.907.46-.46.776-1.044.908-1.681s.075-1.299-.165-1.903c.586-.274 1.084-.705 1.439-1.246.354-.54.551-1.17.569-1.816z';
 const CHECK_PATH = 'M9.662 14.85l-3.429-3.428 1.293-1.302 2.072 2.072 4.4-4.794 1.347 1.246z';
 
-export const DEFAULT_VERIFIED_SVG =
+export const DEFAULT_VERIFIED_SVG: string =
   `<svg viewBox="0 0 22 22" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false">` +
     `<path d="${SEAL_PATH}" fill="currentColor"></path>` +
     `<path d="${CHECK_PATH}" fill="#fff"></path>` +
   `</svg>`;
 
-let cachedCustomSvg = null;
-let cachedFromAttribute = null;
+let cachedCustomSvg: string | null = null;
+let cachedFromAttribute: string | null = null;
 
-function normalisePath(path) {
+function normalisePath(path: string): string {
   return String(path)
     .replace(/\\/g, '/')
     .replace(/\/+/g, '/')
@@ -42,11 +38,13 @@ function normalisePath(path) {
     .join('/');
 }
 
-export function resolveAssetUrl(assetPath) {
+export function resolveAssetUrl(assetPath: string | null | undefined): string | null {
   if (!assetPath) return null;
   if (/^https?:\/\//i.test(assetPath)) return assetPath;
   if (/^[a-z][a-z0-9+.-]*:/i.test(assetPath)) return null;
-  const base = app.forum.attribute('assetsBaseUrl') || (app.forum.attribute('baseUrl') || '') + '/assets';
+  const base =
+    (app.forum.attribute<string>('assetsBaseUrl') as string | undefined) ||
+    ((app.forum.attribute<string>('baseUrl') as string | undefined) || '') + '/assets';
   return base.replace(/\/+$/, '') + '/' + normalisePath(assetPath);
 }
 
@@ -55,7 +53,7 @@ export function resolveAssetUrl(assetPath) {
  * handlers on upload, but we re-validate before injecting via `m.trust`
  * so a tampered settings row can't smuggle XSS through the frontend.
  */
-export function sanitizeSvg(raw) {
+export function sanitizeSvg(raw: unknown): string | null {
   if (typeof raw !== 'string') return null;
   const trimmed = raw.trim();
   if (!trimmed) return null;
@@ -80,18 +78,19 @@ export function sanitizeSvg(raw) {
     ]);
 
     const walker = doc.createTreeWalker(root, 1 /* SHOW_ELEMENT */);
-    const toRemove = [];
-    let node = walker.currentNode;
+    const toRemove: Element[] = [];
+    let node: Node | null = walker.currentNode;
     while (node) {
       const name = node.nodeName.toLowerCase();
       if (!ALLOWED.has(name)) {
-        toRemove.push(node);
+        toRemove.push(node as Element);
       } else {
-        for (const attr of Array.from(node.attributes)) {
+        const el = node as Element;
+        for (const attr of Array.from(el.attributes)) {
           const an = attr.name.toLowerCase();
-          if (an.startsWith('on')) node.removeAttribute(attr.name);
+          if (an.startsWith('on')) el.removeAttribute(attr.name);
           else if ((an === 'href' || an === 'xlink:href') && /javascript:/i.test(attr.value)) {
-            node.removeAttribute(attr.name);
+            el.removeAttribute(attr.name);
           }
         }
       }
@@ -110,19 +109,17 @@ export function sanitizeSvg(raw) {
  * - Forum context: settings serialised via `Extend\Settings::serializeToForum`
  *   live on `app.forum.attribute(<camelCaseAlias>)`.
  * - Admin context: every setting is exposed as `app.data.settings[<dottedKey>]`.
- *
- * The admin's live preview reads through these helpers, so they need to
- * work the same in both contexts.
  */
-function readSetting(forumAttr, adminKey) {
+function readSetting(forumAttr: string, adminKey: string): unknown {
   try {
     if (typeof app !== 'undefined') {
       if (app.forum && typeof app.forum.attribute === 'function') {
         const v = app.forum.attribute(forumAttr);
         if (v !== undefined && v !== null) return v;
       }
-      if (app.data && app.data.settings && adminKey in app.data.settings) {
-        return app.data.settings[adminKey];
+      const data = (app as unknown as { data?: { settings?: Record<string, unknown> } }).data;
+      if (data && data.settings && adminKey in data.settings) {
+        return data.settings[adminKey];
       }
     }
   } catch (e) {
@@ -131,7 +128,7 @@ function readSetting(forumAttr, adminKey) {
   return undefined;
 }
 
-function isTruthy(v) {
+function isTruthy(v: unknown): boolean {
   return v === true || v === 'true' || v === 1 || v === '1';
 }
 
@@ -140,7 +137,7 @@ function isTruthy(v) {
  * setting on every call (cheap), with a one-shot sanitiser cache keyed
  * on the raw attribute value so we don't re-parse on every render.
  */
-export default function getBadgeSvg() {
+export default function getBadgeSvg(): string {
   try {
     const raw = readSetting('ramonVerifiedBadgeSvgContent', 'ramon-verified.badge_svg_content');
     if (typeof raw === 'string' && raw.trim()) {
@@ -160,10 +157,10 @@ export default function getBadgeSvg() {
   return DEFAULT_VERIFIED_SVG;
 }
 
-export function getBadgeSize() {
+export function getBadgeSize(): string {
   try {
     const raw = readSetting('ramonVerifiedBadgeSize', 'ramon-verified.badge_size');
-    const num = parseFloat(raw);
+    const num = parseFloat(raw as string);
     if (Number.isFinite(num) && num > 0) {
       const clamped = Math.max(0.6, Math.min(num, 3));
       return clamped.toFixed(2) + 'em';
@@ -174,7 +171,7 @@ export function getBadgeSize() {
   return '1.2em';
 }
 
-export function getBadgeColor() {
+export function getBadgeColor(): string | null {
   try {
     const enabled = readSetting('ramonVerifiedCustomColorEnabled', 'ramon-verified.custom_color_enabled');
     if (!isTruthy(enabled)) return null;

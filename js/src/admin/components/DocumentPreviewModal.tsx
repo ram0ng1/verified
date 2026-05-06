@@ -1,27 +1,23 @@
 import app from 'flarum/admin/app';
-import Modal from 'flarum/common/components/Modal';
+import Modal, { IInternalModalAttrs } from 'flarum/common/components/Modal';
 import LoadingIndicator from 'flarum/common/components/LoadingIndicator';
+import type Mithril from 'mithril';
 
-/**
- * Inline preview for a verification document (image or PDF). Replaces the
- * old "open in new tab" link with a contained modal so reviewing happens
- * in-place without context-switching the admin's tabs.
- *
- * Receives via attrs:
- *   - url       : the /api/verified/documents/{id} download URL
- *   - filename  : original filename or stored token (used to detect type)
- *   - typeLabel : human-readable document type (e.g. "Driver's license")
- *
- * The file type is detected from the URL/filename extension. Images render
- * inline via <img>; PDFs via <iframe> (every evergreen browser handles PDF
- * embedding natively). Anything else falls back to a "preview unavailable"
- * card with a direct download link.
- */
-const trans = (key, params) => app.translator.trans(`ramon-verified.admin.requests.${key}`, params);
+export interface DocumentPreviewModalAttrs extends IInternalModalAttrs {
+  /** Download URL: `/api/verified/documents/{id}` */
+  url: string;
+  /** Original filename or stored token (used to detect type). */
+  filename?: string | null;
+  /** Human-readable document type label. */
+  typeLabel?: string | null;
+}
+
+const trans = (key: string, params?: Record<string, unknown>) =>
+  app.translator.trans(`ramon-verified.admin.requests.${key}`, params ?? {});
 
 const IMAGE_EXTS = ['png', 'jpg', 'jpeg', 'webp', 'gif'];
 
-function detectExtension(url, filename) {
+function detectExtension(url: string | undefined, filename: string | undefined | null): string {
   const candidate = filename || url || '';
   const stripped = String(candidate).split('?')[0].split('#')[0];
   const dotIdx = stripped.lastIndexOf('.');
@@ -29,26 +25,34 @@ function detectExtension(url, filename) {
   return stripped.slice(dotIdx + 1).toLowerCase();
 }
 
-export default class DocumentPreviewModal extends Modal {
-  oninit(vnode) {
+/**
+ * Inline preview for a verification document (image or PDF). Replaces the
+ * old "open in new tab" link with a contained modal so reviewing happens
+ * in-place without context-switching the admin's tabs.
+ */
+export default class DocumentPreviewModal extends Modal<DocumentPreviewModalAttrs> {
+  protected imageLoaded: boolean = false;
+  protected imageError: boolean = false;
+
+  oninit(vnode: Mithril.Vnode<DocumentPreviewModalAttrs, this>) {
     super.oninit(vnode);
     this.imageLoaded = false;
     this.imageError = false;
   }
 
-  className() {
+  className(): string {
     return 'DocumentPreviewModal';
   }
 
-  title() {
+  title(): Mithril.Children {
     return trans('document_preview_title');
   }
 
-  content() {
+  content(): Mithril.Children {
     const { url, filename, typeLabel } = this.attrs;
     const ext = detectExtension(url, filename);
     const isImage = IMAGE_EXTS.indexOf(ext) !== -1;
-    const isPdf   = ext === 'pdf';
+    const isPdf = ext === 'pdf';
 
     return (
       <div className="Modal-body DocumentPreviewModal-body">
@@ -70,7 +74,7 @@ export default class DocumentPreviewModal extends Modal {
     );
   }
 
-  renderImage(url) {
+  renderImage(url: string): Mithril.Children {
     return [
       !this.imageLoaded && !this.imageError ? (
         <div className="DocumentPreviewModal-loading">
@@ -95,19 +99,19 @@ export default class DocumentPreviewModal extends Modal {
     ];
   }
 
-  renderPdf(url) {
-    // Browsers render PDFs natively in <iframe>. The download URL is the
-    // same — disposition header makes it inline by default.
+  renderPdf(url: string): Mithril.Children {
     return (
       <iframe
         src={url}
         className="DocumentPreviewModal-pdf"
-        title={trans('document_preview_title')}
+        title={typeof trans('document_preview_title') === 'string'
+          ? (trans('document_preview_title') as unknown as string)
+          : 'Document preview'}
       />
     );
   }
 
-  renderUnsupported() {
+  renderUnsupported(): Mithril.Children {
     return (
       <div className="DocumentPreviewModal-empty">
         <i className="icon fas fa-file" />

@@ -76,6 +76,86 @@ class DocumentRetention
     }
 
     /**
+     * Unlink the document file referenced by a request without saving the
+     * model. Used by `deleting` model hooks where the row is about to be
+     * removed entirely (so there is no point persisting a `document_path =
+     * null` on a row that won't exist a moment later).
+     */
+    public function purgeFileForRequest(VerificationRequest $request): void
+    {
+        if (! $request->document_path) {
+            return;
+        }
+
+        $absolute = $this->resolveAbsolutePath((string) $request->document_path, (int) $request->user_id);
+        if ($absolute !== null && is_file($absolute)) {
+            @unlink($absolute);
+        }
+    }
+
+    /**
+     * Sweep stray document files in a user's verified-documents directory
+     * that are NOT referenced by any non-rejected request row. Returns the
+     * number of files unlinked.
+     *
+     * Called from the upload controller before storing a new file: this
+     * keeps a malicious user from racking up disk usage by repeatedly
+     * uploading + deleting pending requests, and also cleans up any
+     * "uploaded but never submitted" leftovers.
+     */
+    public function sweepOrphans(int $userId): int
+    {
+        $base = realpath(rtrim($this->paths->storage, '/\\').DIRECTORY_SEPARATOR.'verified-documents');
+        if ($base === false) {
+            return 0;
+        }
+
+        $userDir = $base.DIRECTORY_SEPARATOR.$userId;
+        if (! is_dir($userDir)) {
+            return 0;
+        }
+
+        // Files referenced by any request row that is NOT rejected — those
+        // are still "alive" (pending review or already approved with audit).
+        // Rejected rows are audit history; the file should already be gone
+        // anyway thanks to retention modes.
+        $referenced = VerificationRequest::query()
+            ->where('user_id', $userId)
+            ->whereNotNull('document_path')
+            ->where('status', '!=', VerificationRequest::STATUS_REJECTED)
+            ->pluck('document_path')
+            ->all();
+
+        $referencedFilenames = [];
+        foreach ($referenced as $path) {
+            if (! is_string($path)) continue;
+            $filename = basename($path);
+            // Defensive — only trust filenames that match our generator's
+            // shape so a malicious row can't shield arbitrary files.
+            if (preg_match('/^[a-f0-9]{32}\.(png|jpg|jpeg|webp|pdf)$/i', $filename)) {
+                $referencedFilenames[$filename] = true;
+            }
+        }
+
+        $purged = 0;
+        $entries = @scandir($userDir) ?: [];
+        foreach ($entries as $entry) {
+            if ($entry === '.' || $entry === '..') continue;
+            // Skip anything whose name doesn't match our generator — leave
+            // unknown files untouched rather than guessing.
+            if (! preg_match('/^[a-f0-9]{32}\.(png|jpg|jpeg|webp|pdf)$/i', $entry)) continue;
+            if (isset($referencedFilenames[$entry])) continue;
+
+            $full = $userDir.DIRECTORY_SEPARATOR.$entry;
+            if (is_file($full) && @unlink($full)) {
+                $purged++;
+            }
+        }
+
+        return $purged;
+    }
+
+    /**
      * Run the time-based purge. Removes documents from every handled
      * request older than the configured retention window. Returns the
      * number of requests purged (used for console output).

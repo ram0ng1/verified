@@ -13,6 +13,7 @@ use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Message\UploadedFileInterface;
 use Psr\Http\Server\RequestHandlerInterface;
 use Ramon\Verified\Crypto\DocumentCipher;
+use Ramon\Verified\Documents\DocumentRetention;
 use Ramon\Verified\Models\VerificationRequest;
 
 /**
@@ -39,7 +40,8 @@ class UploadDocumentController implements RequestHandlerInterface
         protected Paths $paths,
         protected SettingsRepositoryInterface $settings,
         protected TranslatorInterface $translator,
-        protected DocumentCipher $cipher
+        protected DocumentCipher $cipher,
+        protected DocumentRetention $retention
     ) {
     }
 
@@ -140,6 +142,12 @@ class UploadDocumentController implements RequestHandlerInterface
                 ]);
             }
         }
+
+        // Sweep any of this user's old documents that aren't referenced by
+        // a live (pending or approved) request row before storing the new
+        // one. This shuts down the disk-fill loop where an attacker could
+        // upload-submit-delete repeatedly to leak storage.
+        $this->retention->sweepOrphans($userId);
 
         $filename = bin2hex(random_bytes(16)).'.'.$extension;
         $dest = $dir.DIRECTORY_SEPARATOR.$filename;

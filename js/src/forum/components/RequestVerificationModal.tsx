@@ -1,15 +1,22 @@
 import app from 'flarum/forum/app';
-import FormModal from 'flarum/common/components/FormModal';
+import FormModal, { IFormModalAttrs } from 'flarum/common/components/FormModal';
 import Button from 'flarum/common/components/Button';
 import Form from 'flarum/common/components/Form';
 import Stream from 'flarum/common/utils/Stream';
 import extractText from 'flarum/common/utils/extractText';
+import type Mithril from 'mithril';
+import type MithrilStream from 'mithril/stream';
 import getBadgeSvg from '../../common/utils/getBadgeSvg';
+
+interface DocumentType {
+  id: string;
+  label: string;
+}
 
 // Fallback list used only when the admin has cleared the configured list
 // or the forum payload doesn't carry one. Mirrors the historical hardcoded
 // defaults so existing forums see no behavioural change.
-const FALLBACK_DOCUMENT_TYPES = [
+const FALLBACK_DOCUMENT_TYPES: DocumentType[] = [
   { id: 'rg',       label: 'RG' },
   { id: 'cpf',      label: 'CPF' },
   { id: 'passport', label: 'Passport' },
@@ -17,14 +24,21 @@ const FALLBACK_DOCUMENT_TYPES = [
   { id: 'other',    label: 'Other' },
 ];
 
-function getDocumentTypes() {
-  const fromForum = app.forum.attribute('ramonVerifiedDocumentTypes');
+function getDocumentTypes(): DocumentType[] {
+  const fromForum = app.forum.attribute<DocumentType[]>('ramonVerifiedDocumentTypes');
   if (Array.isArray(fromForum) && fromForum.length > 0) return fromForum;
   return FALLBACK_DOCUMENT_TYPES;
 }
 
 export default class RequestVerificationModal extends FormModal {
-  oninit(vnode) {
+  protected reason!: MithrilStream<string>;
+  protected documentType!: MithrilStream<string>;
+  protected documentPath!: MithrilStream<string>;
+  protected fileName!: MithrilStream<string>;
+  protected uploading: boolean = false;
+  protected uploadError: string | null = null;
+
+  oninit(vnode: Mithril.Vnode<IFormModalAttrs, this>) {
     super.oninit(vnode);
 
     const types = getDocumentTypes();
@@ -39,15 +53,15 @@ export default class RequestVerificationModal extends FormModal {
     this.uploadError = null;
   }
 
-  className() {
+  className(): string {
     return 'VerifiedRequestModal';
   }
 
-  title() {
+  title(): Mithril.Children {
     return app.translator.trans('ramon-verified.forum.request_modal.title');
   }
 
-  content() {
+  content(): Mithril.Children {
     const requireDoc = !!app.forum.attribute('ramonVerifiedRequireDocument');
 
     return [
@@ -73,8 +87,8 @@ export default class RequestVerificationModal extends FormModal {
             </label>
             <textarea
               className="FormControl VerifiedRequestModal-textarea"
-              rows="4"
-              maxlength="1000"
+              rows={4}
+              maxlength={1000}
               placeholder={extractText(app.translator.trans('ramon-verified.forum.request_modal.reason_placeholder'))}
               bidi={this.reason}
               disabled={this.loading || this.uploading}
@@ -98,7 +112,7 @@ export default class RequestVerificationModal extends FormModal {
     ];
   }
 
-  documentFields() {
+  documentFields(): Mithril.Children {
     const disabled = this.loading || this.uploading;
 
     return [
@@ -136,13 +150,7 @@ export default class RequestVerificationModal extends FormModal {
     ];
   }
 
-  /**
-   * Drop-zone style file input. The native <input type="file"> is hidden
-   * (visually-only — still keyboard-focusable) and a styled <label> acts
-   * as the click target. Once a file is selected/uploaded, we swap to a
-   * "selected file" card with the filename, size and a remove button.
-   */
-  renderFileField() {
+  renderFileField(): Mithril.Children {
     const disabled = this.loading || this.uploading;
 
     if (this.uploading) {
@@ -188,7 +196,10 @@ export default class RequestVerificationModal extends FormModal {
           type="file"
           className="VerifiedRequestModal-fileDrop-input"
           accept="image/png,image/jpeg,image/webp,application/pdf"
-          onchange={(e) => this.uploadDocument(e.target.files && e.target.files[0])}
+          onchange={(e: Event) => {
+            const input = e.target as HTMLInputElement;
+            this.uploadDocument(input.files && input.files[0]);
+          }}
           disabled={disabled}
         />
         <i className="icon fas fa-cloud-arrow-up VerifiedRequestModal-fileDrop-icon" aria-hidden="true" />
@@ -205,25 +216,21 @@ export default class RequestVerificationModal extends FormModal {
     ];
   }
 
-  /**
-   * Pick an icon class based on the file extension — visual cue in the
-   * "selected" state.
-   */
-  fileIcon(name) {
-    const ext = (name || '').split('.').pop().toLowerCase();
+  fileIcon(name: string): string {
+    const ext = (name || '').split('.').pop()!.toLowerCase();
     if (ext === 'pdf') return 'fas fa-file-pdf';
     if (['png', 'jpg', 'jpeg', 'webp', 'gif'].indexOf(ext) !== -1) return 'fas fa-file-image';
     return 'fas fa-file';
   }
 
-  clearFile() {
+  clearFile(): void {
     this.fileName('');
     this.documentPath('');
     this.uploadError = null;
     m.redraw();
   }
 
-  uploadDocument(file) {
+  uploadDocument(file: File | null | undefined): void {
     if (!file) return;
 
     const MAX = 8 * 1024 * 1024;
@@ -250,10 +257,10 @@ export default class RequestVerificationModal extends FormModal {
     body.append('document', file);
 
     app
-      .request({
+      .request<{ documentPath?: string }>({
         method: 'POST',
         url: app.forum.attribute('apiUrl') + '/verified/documents',
-        serialize: (raw) => raw,
+        serialize: (raw: unknown) => raw,
         body,
       })
       .then((res) => {
@@ -266,7 +273,7 @@ export default class RequestVerificationModal extends FormModal {
         }
         m.redraw();
       })
-      .catch((err) => {
+      .catch((err: { response?: { errors?: Array<{ detail?: string }> } }) => {
         this.uploading = false;
         const msg =
           (err && err.response && err.response.errors && err.response.errors[0] && err.response.errors[0].detail) ||
@@ -276,7 +283,7 @@ export default class RequestVerificationModal extends FormModal {
       });
   }
 
-  onsubmit(e) {
+  onsubmit(e: SubmitEvent): void {
     e.preventDefault();
 
     if (this.uploading) return;
@@ -290,7 +297,7 @@ export default class RequestVerificationModal extends FormModal {
 
     this.loading = true;
 
-    const data = {
+    const data: Record<string, string> = {
       reason: this.reason(),
     };
 
@@ -303,7 +310,6 @@ export default class RequestVerificationModal extends FormModal {
       .createRecord('verification-requests')
       .save(data, { errorHandler: this.onerror.bind(this) })
       .then(() => {
-        // Update the user model so the settings page reflects the change.
         if (app.session.user) {
           app.session.user.pushAttributes({ hasPendingVerificationRequest: true, canRequestVerification: false });
         }

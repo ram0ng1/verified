@@ -1,36 +1,44 @@
 import app from 'flarum/admin/app';
-import Component from 'flarum/common/Component';
+import Component, { ComponentAttrs } from 'flarum/common/Component';
 import Switch from 'flarum/common/components/Switch';
 import UploadImageButton from 'flarum/common/components/UploadImageButton';
 import extractText from 'flarum/common/utils/extractText';
+import type Mithril from 'mithril';
 import VerificationRequestsSection from './VerificationRequestsSection';
 import EncryptionCard from './EncryptionCard';
 import getBadgeSvg, { getBadgeColor, resolveAssetUrl } from '../../common/utils/getBadgeSvg';
 
-const trans = (key) => app.translator.trans(`ramon-verified.admin.${key}`);
+const trans = (key: string) => app.translator.trans(`ramon-verified.admin.${key}`);
 
-const isOn = (raw) => raw === true || raw === 'true' || raw === 1 || raw === '1';
-const getBool = (key) => isOn(app.data.settings[key]);
-const getStr = (key) => String(app.data.settings[key] ?? '');
+const isOn = (raw: unknown): boolean => raw === true || raw === 'true' || raw === 1 || raw === '1';
 
-function saveSetting(payload) {
-  const apiUrl = (app.forum.attribute('apiUrl') || '/api').replace(/\/+$/, '');
+const settings = (): Record<string, unknown> =>
+  ((app as unknown as { data: { settings: Record<string, unknown> } }).data.settings) || {};
+
+const getBool = (key: string): boolean => isOn(settings()[key]);
+const getStr = (key: string): string => String(settings()[key] ?? '');
+
+function saveSetting(payload: Record<string, unknown>): Promise<unknown> {
+  const apiUrl = (app.forum.attribute<string>('apiUrl') || '/api').replace(/\/+$/, '');
   return app.request({ method: 'POST', url: `${apiUrl}/settings`, body: payload });
 }
 
 // ─── Tiny helpers used by the panel ──────────────────────────────────────────
 
-const SubDivider = {
-  view() {
+class SubDivider extends Component<ComponentAttrs> {
+  view(): Mithril.Children {
     return <div className="VerifiedAdmin-divider" />;
-  },
-};
+  }
+}
 
-// Self-contained boolean toggle — same pattern as avocado's AdminToggle.
-// Mutates app.data.settings synchronously so the next view() pass sees the
-// new value, then persists to /api/settings.
-class AdminToggle extends Component {
-  view() {
+interface AdminToggleAttrs extends ComponentAttrs {
+  settingKey: string;
+  label: Mithril.Children;
+  help?: Mithril.Children;
+}
+
+class AdminToggle extends Component<AdminToggleAttrs> {
+  view(): Mithril.Children {
     const { settingKey, label, help } = this.attrs;
     const value = getBool(settingKey);
 
@@ -38,8 +46,8 @@ class AdminToggle extends Component {
       <div className="Form-group VerifiedAdmin-toggle">
         <Switch
           state={value}
-          onchange={(checked) => {
-            app.data.settings[settingKey] = checked;
+          onchange={(checked: boolean) => {
+            settings()[settingKey] = checked;
             m.redraw();
             saveSetting({ [settingKey]: checked ? '1' : '0' });
           }}
@@ -52,24 +60,28 @@ class AdminToggle extends Component {
   }
 }
 
-// Editable document-type list. Each row = `{ id, label }`. Persisted as a
-// JSON string in the `ramon-verified.document_types` setting; the backend
-// parses it back into a real array when serialising to the forum payload,
-// so the forum-side modal can iterate it directly.
-class DocumentTypesEditor extends Component {
-  oninit(vnode) {
+interface DocumentTypeRow {
+  id: string;
+  label: string;
+}
+
+class DocumentTypesEditor extends Component<ComponentAttrs> {
+  protected types: DocumentTypeRow[] = [];
+  private _timer: ReturnType<typeof setTimeout> | null = null;
+
+  oninit(vnode: Mithril.Vnode<ComponentAttrs, this>) {
     super.oninit(vnode);
     this.types = this.parse(getStr('ramon-verified.document_types'));
     this._timer = null;
   }
 
-  parse(raw) {
+  parse(raw: string): DocumentTypeRow[] {
     if (!raw) return [];
     try {
       const parsed = JSON.parse(raw);
       return Array.isArray(parsed)
         ? parsed
-            .filter((r) => r && typeof r === 'object')
+            .filter((r: unknown): r is Record<string, unknown> => !!r && typeof r === 'object')
             .map((r) => ({ id: String(r.id || ''), label: String(r.label || '') }))
         : [];
     } catch (e) {
@@ -77,42 +89,39 @@ class DocumentTypesEditor extends Component {
     }
   }
 
-  serialize() {
-    // Filter out blank rows so we don't persist half-edited entries — but
-    // keep them in the local state so the editor doesn't yank out a row the
-    // admin is mid-typing on.
+  serialize(): string {
     return JSON.stringify(this.types.filter((r) => r.id.trim() && r.label.trim()));
   }
 
-  flushNow() {
+  flushNow(): void {
     const raw = this.serialize();
-    app.data.settings['ramon-verified.document_types'] = raw;
+    settings()['ramon-verified.document_types'] = raw;
     saveSetting({ 'ramon-verified.document_types': raw });
   }
 
-  flushSoon() {
-    clearTimeout(this._timer);
+  flushSoon(): void {
+    if (this._timer) clearTimeout(this._timer);
     this._timer = setTimeout(() => this.flushNow(), 400);
   }
 
-  add() {
+  add(): void {
     this.types = this.types.concat([{ id: '', label: '' }]);
     m.redraw();
   }
 
-  remove(idx) {
+  remove(idx: number): void {
     this.types = this.types.filter((_, i) => i !== idx);
     m.redraw();
     this.flushNow();
   }
 
-  update(idx, field, value) {
+  update(idx: number, field: 'id' | 'label', value: string): void {
     this.types = this.types.map((r, i) => (i === idx ? { ...r, [field]: value } : r));
     this.flushSoon();
     m.redraw();
   }
 
-  view() {
+  view(): Mithril.Children {
     return (
       <div className="VerifiedAdmin-row VerifiedAdmin-types">
         <div className="VerifiedAdmin-types-header">
@@ -135,14 +144,14 @@ class DocumentTypesEditor extends Component {
                   placeholder="rg"
                   spellcheck="false"
                   autocomplete="off"
-                  oninput={(e) => this.update(idx, 'id', e.target.value)}
+                  oninput={(e: Event) => this.update(idx, 'id', (e.target as HTMLInputElement).value)}
                 />
                 <input
                   type="text"
                   className="FormControl VerifiedAdmin-types-input VerifiedAdmin-types-label"
                   value={row.label}
                   placeholder={extractText(trans('settings.document_type_label_placeholder'))}
-                  oninput={(e) => this.update(idx, 'label', e.target.value)}
+                  oninput={(e: Event) => this.update(idx, 'label', (e.target as HTMLInputElement).value)}
                 />
                 <button
                   type="button"
@@ -175,19 +184,20 @@ class DocumentTypesEditor extends Component {
 
 /**
  * Single-column, card-based admin panel for the Verified extension.
- * Replaces the default extension settings grid.
  */
-export default class VerifiedSettingsPanel extends Component {
-  oninit(vnode) {
+export default class VerifiedSettingsPanel extends Component<ComponentAttrs> {
+  private _colorTimer: ReturnType<typeof setTimeout> | null = null;
+  private _sizeTimer: ReturnType<typeof setTimeout> | null = null;
+  private _retentionDaysTimer: ReturnType<typeof setTimeout> | null = null;
+
+  oninit(vnode: Mithril.Vnode<ComponentAttrs, this>) {
     super.oninit(vnode);
     this._colorTimer = null;
     this._sizeTimer = null;
     this._retentionDaysTimer = null;
   }
 
-  view() {
-    // Document types only matter when documents are actually required —
-    // hide the whole section otherwise to keep the panel uncluttered.
+  view(): Mithril.Children {
     const requireDoc = getBool('ramon-verified.require_document');
 
     return (
@@ -204,18 +214,15 @@ export default class VerifiedSettingsPanel extends Component {
 
   // ---- Preview card ------------------------------------------------------
 
-  previewCard() {
+  previewCard(): Mithril.Children {
     const color = getBadgeColor();
     const sizeRaw = parseFloat(getStr('ramon-verified.badge_size'));
     const size = Number.isFinite(sizeRaw) && sizeRaw > 0 ? sizeRaw : 1.2;
     const showTooltip = getBool('ramon-verified.show_tooltip');
 
-    // Match the real-world rendering exactly. The post-header username uses
-    // 14px bold (`.PostUser-name a` in core's Post.less), so the badge here
-    // inherits the same em-scale.
-    const lineStyle = { fontSize: '14px' };
+    const lineStyle: Record<string, string> = { fontSize: '14px' };
 
-    const badgeStyle = {
+    const badgeStyle: Record<string, string> = {
       width: size + 'em',
       height: size + 'em',
     };
@@ -223,11 +230,6 @@ export default class VerifiedSettingsPanel extends Component {
 
     const tooltipText = extractText(app.translator.trans('ramon-verified.lib.tooltip'));
 
-    // When the rich popover is enabled, render the full anchor + popover
-    // structure so admins can hover the preview badge and see exactly
-    // what their users will see. When disabled, render a plain badge with
-    // the native browser `title` tooltip — same fallback the forum-side
-    // VerifiedBadge component uses.
     const badgeNode = showTooltip
       ? (
         <span className="VerifiedPopover-anchor">
@@ -236,7 +238,7 @@ export default class VerifiedSettingsPanel extends Component {
             style={badgeStyle}
             role="img"
             aria-label={tooltipText}
-            tabIndex="0"
+            tabIndex={0}
           >
             {m.trust(getBadgeSvg())}
           </span>
@@ -269,13 +271,7 @@ export default class VerifiedSettingsPanel extends Component {
     );
   }
 
-  /**
-   * Mini popover panel for the admin preview. Mirrors the structure of
-   * VerifiedPopover so the same CSS shows it on hover, but uses static
-   * sample data (admin's own user info) so we don't depend on the forum
-   * `app.forum` attributes that aren't all available in admin context.
-   */
-  previewPopover(color) {
+  previewPopover(color: string | null): Mithril.Children {
     const u = app.session.user;
     const username = u ? u.username() : 'user';
     const displayName = u ? u.displayName() : 'User';
@@ -286,7 +282,7 @@ export default class VerifiedSettingsPanel extends Component {
         <span className="VerifiedPopover-arrow" aria-hidden="true" />
 
         <span className="VerifiedPopover-header">
-          <span className="VerifiedPopover-headerIcon" style={color ? { color } : null}>
+          <span className="VerifiedPopover-headerIcon" style={color ? { color } : undefined}>
             {m.trust(getBadgeSvg())}
           </span>
           <span className="VerifiedPopover-headerText">
@@ -313,7 +309,7 @@ export default class VerifiedSettingsPanel extends Component {
 
   // ---- Appearance card ---------------------------------------------------
 
-  appearanceCard() {
+  appearanceCard(): Mithril.Children {
     const path = getStr('ramon-verified.badge_svg_path');
     const customColorEnabled = getBool('ramon-verified.custom_color_enabled');
 
@@ -357,7 +353,7 @@ export default class VerifiedSettingsPanel extends Component {
     );
   }
 
-  sizeSliderRow() {
+  sizeSliderRow(): Mithril.Children {
     const raw = parseFloat(getStr('ramon-verified.badge_size'));
     const value = Number.isFinite(raw) && raw > 0 ? raw : 1.2;
     const clamped = Math.max(0.6, Math.min(value, 3));
@@ -375,14 +371,14 @@ export default class VerifiedSettingsPanel extends Component {
           max="3"
           step="0.05"
           value={clamped}
-          oninput={(e) => this.queueSize(e.target.value)}
+          oninput={(e: Event) => this.queueSize((e.target as HTMLInputElement).value)}
         />
         <p className="helpText">{trans('settings.badge_size_help')}</p>
       </div>
     );
   }
 
-  colorPickerRow() {
+  colorPickerRow(): Mithril.Children {
     const colorValue = getStr('ramon-verified.badge_color');
 
     return (
@@ -392,21 +388,21 @@ export default class VerifiedSettingsPanel extends Component {
           <input
             type="color"
             className="VerifiedAdmin-colorPicker"
-            value={/^#[0-9a-f]{6}$/i.test(colorValue) ? colorValue : (app.forum.attribute('themePrimaryColor') || '#1d9bf0')}
-            oninput={(e) => this.queueColor(e.target.value)}
+            value={/^#[0-9a-f]{6}$/i.test(colorValue) ? colorValue : (app.forum.attribute<string>('themePrimaryColor') || '#1d9bf0')}
+            oninput={(e: Event) => this.queueColor((e.target as HTMLInputElement).value)}
           />
           <input
             type="text"
             className="FormControl VerifiedAdmin-colorInput"
             value={colorValue}
-            placeholder={app.forum.attribute('themePrimaryColor') || '#1d9bf0'}
-            oninput={(e) => this.queueColor(e.target.value)}
+            placeholder={app.forum.attribute<string>('themePrimaryColor') || '#1d9bf0'}
+            oninput={(e: Event) => this.queueColor((e.target as HTMLInputElement).value)}
           />
           <button
             type="button"
             className="Button Button--text VerifiedAdmin-clearBtn"
             onclick={() => this.queueColor('', true)}
-            title={trans('settings.badge_color_reset')}
+            title={extractText(trans('settings.badge_color_reset'))}
           >
             <i className="icon fas fa-rotate-left" /> {trans('settings.badge_color_reset')}
           </button>
@@ -418,7 +414,7 @@ export default class VerifiedSettingsPanel extends Component {
 
   // ---- Behaviour card ----------------------------------------------------
 
-  behaviourCard() {
+  behaviourCard(): Mithril.Children {
     return (
       <section className="VerifiedAdmin-card">
         <header className="VerifiedAdmin-cardHeader">
@@ -455,9 +451,9 @@ export default class VerifiedSettingsPanel extends Component {
     );
   }
 
-  retentionRow() {
+  retentionRow(): Mithril.Children {
     const mode = (() => {
-      const raw = String(app.data.settings['ramon-verified.document_retention'] ?? 'keep');
+      const raw = String(settings()['ramon-verified.document_retention'] ?? 'keep');
       return ['keep', 'delete_immediate', 'delete_after_days'].includes(raw) ? raw : 'keep';
     })();
     const daysRaw = parseInt(getStr('ramon-verified.document_retention_days'), 10);
@@ -469,9 +465,9 @@ export default class VerifiedSettingsPanel extends Component {
         <select
           className="FormControl"
           value={mode}
-          onchange={(e) => {
-            const next = e.target.value;
-            app.data.settings['ramon-verified.document_retention'] = next;
+          onchange={(e: Event) => {
+            const next = (e.target as HTMLSelectElement).value;
+            settings()['ramon-verified.document_retention'] = next;
             saveSetting({ 'ramon-verified.document_retention': next });
             m.redraw();
           }}
@@ -491,7 +487,7 @@ export default class VerifiedSettingsPanel extends Component {
               max="3650"
               step="1"
               value={days}
-              oninput={(e) => this.queueRetentionDays(e.target.value)}
+              oninput={(e: Event) => this.queueRetentionDays((e.target as HTMLInputElement).value)}
             />
             <p className="helpText">{trans('settings.retention_days_help')}</p>
           </div>
@@ -502,14 +498,14 @@ export default class VerifiedSettingsPanel extends Component {
     );
   }
 
-  queueRetentionDays(value) {
+  queueRetentionDays(value: string): void {
     const num = parseInt(value, 10);
     if (!Number.isFinite(num)) return;
     const clamped = Math.max(1, Math.min(num, 3650));
 
-    app.data.settings['ramon-verified.document_retention_days'] = String(clamped);
+    settings()['ramon-verified.document_retention_days'] = String(clamped);
 
-    clearTimeout(this._retentionDaysTimer);
+    if (this._retentionDaysTimer) clearTimeout(this._retentionDaysTimer);
     this._retentionDaysTimer = setTimeout(
       () => saveSetting({ 'ramon-verified.document_retention_days': String(clamped) }),
       400
@@ -520,7 +516,7 @@ export default class VerifiedSettingsPanel extends Component {
 
   // ---- Document types card ----------------------------------------------
 
-  documentTypesCard() {
+  documentTypesCard(): Mithril.Children {
     return (
       <section className="VerifiedAdmin-card">
         <header className="VerifiedAdmin-cardHeader">
@@ -535,7 +531,7 @@ export default class VerifiedSettingsPanel extends Component {
 
   // ---- Requests card -----------------------------------------------------
 
-  requestsCard() {
+  requestsCard(): Mithril.Children {
     return (
       <section className="VerifiedAdmin-card VerifiedAdmin-card--requests">
         <VerificationRequestsSection />
@@ -545,11 +541,11 @@ export default class VerifiedSettingsPanel extends Component {
 
   // ---- Helpers -----------------------------------------------------------
 
-  queueColor(value, immediate = false) {
+  queueColor(value: string, immediate: boolean = false): void {
     const trimmed = (value || '').trim();
-    app.data.settings['ramon-verified.badge_color'] = trimmed;
+    settings()['ramon-verified.badge_color'] = trimmed;
 
-    clearTimeout(this._colorTimer);
+    if (this._colorTimer) clearTimeout(this._colorTimer);
     const flush = () => saveSetting({ 'ramon-verified.badge_color': trimmed });
     if (immediate) flush();
     else this._colorTimer = setTimeout(flush, 500);
@@ -557,19 +553,17 @@ export default class VerifiedSettingsPanel extends Component {
     m.redraw();
   }
 
-  queueSize(value) {
+  queueSize(value: string): void {
     const num = parseFloat(value);
     if (!Number.isFinite(num)) return;
     const clamped = Math.max(0.6, Math.min(num, 3)).toFixed(2);
 
-    app.data.settings['ramon-verified.badge_size'] = clamped;
-    // Override the global custom property too so the preview badge resizes
-    // immediately without waiting for the next page load.
+    settings()['ramon-verified.badge_size'] = clamped;
     if (typeof document !== 'undefined') {
       document.documentElement.style.setProperty('--verified-size', clamped + 'em');
     }
 
-    clearTimeout(this._sizeTimer);
+    if (this._sizeTimer) clearTimeout(this._sizeTimer);
     this._sizeTimer = setTimeout(
       () => saveSetting({ 'ramon-verified.badge_size': clamped }),
       400

@@ -1,28 +1,76 @@
 import app from 'flarum/admin/app';
-import Component from 'flarum/common/Component';
+import Component, { ComponentAttrs } from 'flarum/common/Component';
 import Button from 'flarum/common/components/Button';
 import LoadingIndicator from 'flarum/common/components/LoadingIndicator';
 import humanTime from 'flarum/common/utils/humanTime';
 import extractText from 'flarum/common/utils/extractText';
 import username from 'flarum/common/helpers/username';
+import type Mithril from 'mithril';
+import type User from 'flarum/common/models/User';
+import type VerificationRequest from '../../common/models/VerificationRequest';
 import DocumentPreviewModal from './DocumentPreviewModal';
 
-const TABS = ['pending', 'approved', 'rejected'];
+type RequestTab = 'pending' | 'approved' | 'rejected';
+const TABS: RequestTab[] = ['pending', 'approved', 'rejected'];
 const APPROVED_PAGE_SIZE = 15;
 const SEARCH_DEBOUNCE_MS = 250;
 
-const trans = (key, params) => app.translator.trans(`ramon-verified.admin.requests.${key}`, params);
+const trans = (key: string, params?: Record<string, unknown>) =>
+  app.translator.trans(`ramon-verified.admin.requests.${key}`, params ?? {});
 
-export default class VerificationRequestsSection extends Component {
-  oninit(vnode) {
+interface ApprovedRequestSummary {
+  id: string | number;
+  documentPath?: string | null;
+  documentType?: string | null;
+  reason?: string | null;
+  adminNote?: string | null;
+  createdAt?: string | null;
+  handledAt?: string | null;
+  handler?: { displayName?: string; username?: string } | null;
+}
+
+interface ApprovedGroup {
+  id: string | number;
+  name?: string;
+}
+
+interface ApprovedUserRow {
+  id: string | number;
+  username?: string;
+  displayName?: string;
+  source?: 'request' | 'group';
+  request?: ApprovedRequestSummary | null;
+  autoVerifiedGroups?: ApprovedGroup[];
+}
+
+interface ApprovedState {
+  loading: boolean;
+  rows: ApprovedUserRow[];
+  total: number;
+  offset: number;
+  query: string;
+}
+
+export default class VerificationRequestsSection extends Component<ComponentAttrs> {
+  protected tab: RequestTab = 'pending';
+  protected loading: boolean = false;
+  protected requests: VerificationRequest[] = [];
+  protected busy: Record<string, boolean> = {};
+  protected approved: ApprovedState = {
+    loading: false,
+    rows: [],
+    total: 0,
+    offset: 0,
+    query: '',
+  };
+  private _searchTimer: ReturnType<typeof setTimeout> | null = null;
+
+  oninit(vnode: Mithril.Vnode<ComponentAttrs, this>) {
     super.oninit(vnode);
     this.tab = 'pending';
     this.loading = false;
     this.requests = [];
     this.busy = {};
-
-    // Approved tab state — driven by the dedicated paginated endpoint so
-    // group-permission verifications (which have no request row) show up too.
     this.approved = {
       loading: false,
       rows: [],
@@ -33,12 +81,10 @@ export default class VerificationRequestsSection extends Component {
     this._searchTimer = null;
 
     this.load();
-    // Load the approved count immediately so the tab badge is accurate even
-    // before the user clicks the tab. The cost is one extra GET on mount.
     this.loadApproved();
   }
 
-  view() {
+  view(): Mithril.Children {
     const counts = this.countByStatus();
 
     return (
@@ -70,7 +116,7 @@ export default class VerificationRequestsSection extends Component {
     );
   }
 
-  renderRequestTab() {
+  renderRequestTab(): Mithril.Children {
     if (this.loading) {
       return (
         <div className="VerifiedRequests-empty">
@@ -94,7 +140,7 @@ export default class VerificationRequestsSection extends Component {
 
   // ── Approved tab ─────────────────────────────────────────────────────────
 
-  renderApprovedTab() {
+  renderApprovedTab(): Mithril.Children {
     const { loading, rows, total, offset, query } = this.approved;
     const placeholder = extractText(trans('search_placeholder'));
 
@@ -107,7 +153,7 @@ export default class VerificationRequestsSection extends Component {
             className="FormControl VerifiedRequests-search-input"
             placeholder={placeholder}
             value={query}
-            oninput={(e) => this.onSearchInput(e.target.value)}
+            oninput={(e: Event) => this.onSearchInput((e.target as HTMLInputElement).value)}
           />
           {query ? (
             <button
@@ -145,7 +191,7 @@ export default class VerificationRequestsSection extends Component {
     ];
   }
 
-  renderApprovedItem(row) {
+  renderApprovedItem(row: ApprovedUserRow): Mithril.Children {
     const busy = !!this.busy['user-' + row.id];
     const isGroupOnly = row.source === 'group';
 
@@ -196,7 +242,7 @@ export default class VerificationRequestsSection extends Component {
     );
   }
 
-  renderRequestMeta(req) {
+  renderRequestMeta(req: ApprovedRequestSummary): Mithril.Children {
     const docPath = req.documentPath;
     const docUrl = docPath ? app.forum.attribute('apiUrl') + '/verified/documents/' + req.id : null;
     const created = req.createdAt ? new Date(req.createdAt) : null;
@@ -205,7 +251,7 @@ export default class VerificationRequestsSection extends Component {
 
     return [
       <div className="VerifiedRequest-meta helpText">
-        <span title={created && created.toString()}>{humanTime(created)}</span>
+        <span title={created ? created.toString() : ''}>{humanTime(created)}</span>
         {handlerName && handled ? (
           <span>
             {' · '}
@@ -219,7 +265,7 @@ export default class VerificationRequestsSection extends Component {
 
       req.reason ? <blockquote className="VerifiedRequest-reason">{req.reason}</blockquote> : null,
 
-      docPath ? (
+      docPath && docUrl ? (
         <div className="VerifiedRequest-document">
           <i className="icon fas fa-id-card" />
           <span className="VerifiedRequest-docType">{this.formatDocType(req.documentType)}</span>
@@ -246,7 +292,7 @@ export default class VerificationRequestsSection extends Component {
     ];
   }
 
-  renderPagination(offset, total) {
+  renderPagination(offset: number, total: number): Mithril.Children {
     const page = Math.floor(offset / APPROVED_PAGE_SIZE) + 1;
     const lastPage = Math.max(1, Math.ceil(total / APPROVED_PAGE_SIZE));
     const canPrev = offset > 0;
@@ -281,7 +327,7 @@ export default class VerificationRequestsSection extends Component {
 
   // ── Tab + data control ──────────────────────────────────────────────────
 
-  switchTab(status) {
+  switchTab(status: RequestTab): void {
     if (this.tab === status) return;
     this.tab = status;
 
@@ -292,28 +338,28 @@ export default class VerificationRequestsSection extends Component {
     m.redraw();
   }
 
-  onSearchInput(value) {
+  onSearchInput(value: string): void {
     this.approved.query = value;
     this.approved.offset = 0;
 
-    clearTimeout(this._searchTimer);
+    if (this._searchTimer) clearTimeout(this._searchTimer);
     this._searchTimer = setTimeout(() => this.loadApproved(), SEARCH_DEBOUNCE_MS);
 
     m.redraw();
   }
 
-  goToPage(offset) {
+  goToPage(offset: number): void {
     this.approved.offset = Math.max(0, offset);
     this.loadApproved();
   }
 
-  loadApproved() {
+  loadApproved(): void {
     const { query, offset } = this.approved;
     this.approved.loading = true;
     m.redraw();
 
     app
-      .request({
+      .request<{ data?: ApprovedUserRow[]; meta?: { total?: number } }>({
         method: 'GET',
         url: app.forum.attribute('apiUrl') + '/verified/approved-users',
         params: {
@@ -334,7 +380,7 @@ export default class VerificationRequestsSection extends Component {
       });
   }
 
-  revokeUser(row) {
+  revokeUser(row: ApprovedUserRow): void {
     const note = window.prompt(extractText(trans('revoke_prompt')));
     if (note === null) return;
 
@@ -350,8 +396,6 @@ export default class VerificationRequestsSection extends Component {
       .then(() => {
         delete this.busy['user-' + row.id];
         app.alerts.show({ type: 'success' }, trans('revoke_success'));
-        // Reload both lists (revoke writes a rejection row that should appear
-        // in the rejected tab; approved list needs the row gone).
         this.load();
         this.loadApproved();
       })
@@ -361,12 +405,7 @@ export default class VerificationRequestsSection extends Component {
       });
   }
 
-  /**
-   * Tab-aware filtering for request-driven tabs (pending, rejected).
-   * The approved tab uses a dedicated paginated endpoint and does NOT
-   * pass through this method.
-   */
-  filteredRequests() {
+  filteredRequests(): VerificationRequest[] {
     if (this.tab === 'pending') {
       return this.requests.filter((r) => r.status() === 'pending');
     }
@@ -383,36 +422,28 @@ export default class VerificationRequestsSection extends Component {
     return [];
   }
 
-  /**
-   * Returns a Map<userId, latestRequest> keyed by user id, where the value
-   * is the most recent verification request for that user (latest by
-   * createdAt, falling back to id).
-   */
-  latestRequestPerUser() {
-    const map = new Map();
+  latestRequestPerUser(): Map<string, VerificationRequest> {
+    const map = new Map<string, VerificationRequest>();
     for (const req of this.requests) {
       const user = req.user();
       if (!user) continue;
-      const userId = user.id();
+      const userId = String(user.id() ?? '');
+      if (!userId) continue;
       const existing = map.get(userId);
       if (!existing) {
         map.set(userId, req);
         continue;
       }
-      const a = req.createdAt() ? req.createdAt().getTime() : 0;
-      const b = existing.createdAt() ? existing.createdAt().getTime() : 0;
-      if (a > b || (a === b && parseInt(req.id(), 10) > parseInt(existing.id(), 10))) {
+      const a = req.createdAt() ? (req.createdAt() as Date).getTime() : 0;
+      const b = existing.createdAt() ? (existing.createdAt() as Date).getTime() : 0;
+      if (a > b || (a === b && parseInt(String(req.id() ?? '0'), 10) > parseInt(String(existing.id() ?? '0'), 10))) {
         map.set(userId, req);
       }
     }
     return map;
   }
 
-  countByStatus() {
-    // Pending and rejected counts are derived from the requests list we
-    // already loaded. Approved comes from the dedicated endpoint's `total`
-    // (so it accounts for group-permission verifications without a request
-    // row, AND covers users beyond the current page).
+  countByStatus(): Record<RequestTab, number> {
     const pendingCount = this.requests.filter((r) => r.status() === 'pending').length;
 
     const latestPerUser = this.latestRequestPerUser();
@@ -430,12 +461,13 @@ export default class VerificationRequestsSection extends Component {
     };
   }
 
-  renderItem(req) {
-    const user = req.user();
-    const handler = req.handler();
+  renderItem(req: VerificationRequest): Mithril.Children {
+    const user = req.user() as User | false;
+    const handler = req.handler() as User | false;
     const docPath = req.documentPath();
-    const docUrl = docPath ? app.forum.attribute('apiUrl') + '/verified/documents/' + req.id() : null;
-    const busy = !!this.busy[req.id()];
+    const reqId = String(req.id() ?? '');
+    const docUrl = docPath && reqId ? app.forum.attribute('apiUrl') + '/verified/documents/' + reqId : null;
+    const busy = !!this.busy[reqId];
 
     return (
       <li className="VerifiedRequest" key={req.id()}>
@@ -448,14 +480,11 @@ export default class VerificationRequestsSection extends Component {
           </div>
 
           <div className="VerifiedRequest-meta helpText">
-            <span title={req.createdAt() && req.createdAt().toString()}>{humanTime(req.createdAt())}</span>
+            <span title={req.createdAt() ? (req.createdAt() as Date).toString() : ''}>{humanTime(req.createdAt())}</span>
             {handler && typeof handler.displayName === 'function' && req.handledAt() ? (
               <span>
                 {' · '}
                 {trans('handled_by', {
-                  // Don't use the key `user` — Flarum's Translator auto-wraps
-                  // params named `user` with the username() helper, which expects
-                  // a User model, not a string.
                   handlerName: handler.displayName(),
                   date: extractText(humanTime(req.handledAt())),
                 })}
@@ -467,7 +496,7 @@ export default class VerificationRequestsSection extends Component {
             <blockquote className="VerifiedRequest-reason">{req.reason()}</blockquote>
           ) : null}
 
-          {docPath ? (
+          {docPath && docUrl ? (
             <div className="VerifiedRequest-document">
               <i className="icon fas fa-id-card" />
               <span className="VerifiedRequest-docType">{this.formatDocType(req.documentType())}</span>
@@ -511,18 +540,14 @@ export default class VerificationRequestsSection extends Component {
     );
   }
 
-  formatDocType(type) {
+  formatDocType(type: string | null | undefined): string {
     if (!type) return '';
-    // Admin-configurable labels — read from the forum payload so a forum
-    // outside Brazil (or one that's renamed RG → e.g. "National ID") sees
-    // the right label here too. Fall back to the historical hardcoded list
-    // for stored requests whose id no longer exists in config.
-    const configured = app.forum.attribute('ramonVerifiedDocumentTypes');
+    const configured = app.forum.attribute<Array<{ id: string; label: string }>>('ramonVerifiedDocumentTypes');
     if (Array.isArray(configured)) {
       const match = configured.find((t) => t && t.id === type);
       if (match) return match.label;
     }
-    const fallback = {
+    const fallback: Record<string, string> = {
       rg: 'RG',
       cpf: 'CPF',
       passport: 'Passport',
@@ -532,20 +557,24 @@ export default class VerificationRequestsSection extends Component {
     return fallback[type] || type;
   }
 
-  load() {
+  load(): void {
     this.loading = true;
     this.requests = [];
 
     app.store
-      .find('verification-requests', {
+      .find<VerificationRequest[]>('verification-requests', {
         sort: '-createdAt',
         page: { limit: 100 },
         include: 'user,handler',
       })
       .then((res) => {
         this.loading = false;
-        const list = Array.isArray(res) ? res.slice() : [];
-        list.sort((a, b) => (b.createdAt() || 0) - (a.createdAt() || 0));
+        const list: VerificationRequest[] = Array.isArray(res) ? res.slice() : [];
+        list.sort((a, b) => {
+          const av = a.createdAt() ? (a.createdAt() as Date).getTime() : 0;
+          const bv = b.createdAt() ? (b.createdAt() as Date).getTime() : 0;
+          return bv - av;
+        });
         this.requests = list;
         m.redraw();
       })
@@ -555,8 +584,8 @@ export default class VerificationRequestsSection extends Component {
       });
   }
 
-  act(req, action) {
-    let note = null;
+  act(req: VerificationRequest, action: 'approve' | 'reject' | 'revoke'): void {
+    let note: string | null = null;
     if (action === 'reject' || action === 'revoke') {
       note = window.prompt(extractText(trans(action + '_prompt')));
       if (note === null) return;
@@ -566,26 +595,27 @@ export default class VerificationRequestsSection extends Component {
       note = ans;
     }
 
-    this.busy[req.id()] = true;
+    const reqId = String(req.id() ?? '');
+    if (!reqId) return;
+
+    this.busy[reqId] = true;
     m.redraw();
 
     app
-      .request({
+      .request<{ data?: unknown }>({
         method: 'POST',
-        url: app.forum.attribute('apiUrl') + '/verification-requests/' + req.id() + '/' + action,
+        url: app.forum.attribute('apiUrl') + '/verification-requests/' + reqId + '/' + action,
         body: { meta: { adminNote: note || '' } },
       })
       .then((res) => {
-        delete this.busy[req.id()];
-        if (res && res.data) app.store.pushPayload(res);
+        delete this.busy[reqId];
+        if (res && res.data) app.store.pushPayload(res as any);
         this.load();
-        // Approve/revoke change the approved-users list — refresh it so the
-        // tab badge and the approved tab both reflect the new state.
         if (action === 'approve' || action === 'revoke') this.loadApproved();
         app.alerts.show({ type: 'success' }, trans(action + '_success'));
       })
       .catch(() => {
-        delete this.busy[req.id()];
+        delete this.busy[reqId];
         m.redraw();
       });
   }

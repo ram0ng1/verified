@@ -7,7 +7,7 @@ import extractText from 'flarum/common/utils/extractText';
 import type Mithril from 'mithril';
 
 const trans = (key: string, params?: Record<string, unknown>) =>
-  app.translator.trans(`ramon-verified.admin.encryption.${key}`, params);
+  app.translator.trans(`ramon-verified.admin.encryption.${key}`, params ?? {});
 
 const apiUrl = () => (app.forum.attribute<string>('apiUrl') || '/api').replace(/\/+$/, '');
 

@@ -51,9 +51,24 @@ class UploadBadgeSvgController extends UploadImageController
 
     private function sanitizeSvg(string $content): string
     {
+        // Defense in depth against XXE / billion-laughs. PHP 8+ libxml2
+        // already refuses to expand external entities unless `LIBXML_NOENT`
+        // is set, and we never pass it. Reject any SVG that even DECLARES
+        // a DOCTYPE or ENTITY before parsing — matches the frontend
+        // sanitiser, and keeps the door shut even on older libxml2 builds
+        // that may behave differently.
+        if (preg_match('/<!DOCTYPE/i', $content) || preg_match('/<!ENTITY/i', $content)) {
+            throw new ValidationException([
+                'badge_svg' => 'SVG must not contain DOCTYPE or ENTITY declarations.',
+            ]);
+        }
+
         $prev = libxml_use_internal_errors(true);
 
         $dom = new \DOMDocument();
+        // LIBXML_NONET blocks network entity resolution; we deliberately do
+        // NOT pass LIBXML_NOENT (which would expand entities) or
+        // LIBXML_DTDLOAD (which would fetch external DTDs).
         if (! $dom->loadXML($content, LIBXML_NONET | LIBXML_NOBLANKS)) {
             libxml_use_internal_errors($prev);
             throw new ValidationException([
