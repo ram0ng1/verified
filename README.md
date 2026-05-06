@@ -11,9 +11,6 @@
   <a href="https://packagist.org/packages/ramon/verified">
     <img alt="Total Downloads" src="https://img.shields.io/packagist/dt/ramon/verified.svg?style=flat-square">
   </a>
-  <a href="https://github.com/ram0ng1/verified/actions/workflows/release-management.yml">
-    <img alt="Release Workflow" src="https://github.com/ram0ng1/verified/actions/workflows/release-management.yml/badge.svg?style=flat-square">
-  </a>
   <a href="https://github.com/ram0ng1/verified/releases/latest">
     <img alt="GitHub Release" src="https://img.shields.io/github/v/release/ram0ng1/verified?style=flat-square&label=release&color=success">
   </a>
