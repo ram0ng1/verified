@@ -5,18 +5,23 @@ namespace Ramon\Verified\Api\Controller;
 use Flarum\Foundation\Paths;
 use Flarum\Http\Exception\RouteNotFoundException;
 use Flarum\Http\RequestUtil;
+use Flarum\Locale\TranslatorInterface;
 use Flarum\User\Exception\PermissionDeniedException;
 use Laminas\Diactoros\Response;
 use Laminas\Diactoros\Stream;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\RequestHandlerInterface;
+use Ramon\Verified\Crypto\DocumentCipher;
 use Ramon\Verified\Models\VerificationRequest;
+use RuntimeException;
 
 class DownloadDocumentController implements RequestHandlerInterface
 {
     public function __construct(
-        protected Paths $paths
+        protected Paths $paths,
+        protected DocumentCipher $cipher,
+        protected TranslatorInterface $translator
     ) {
     }
 
@@ -72,7 +77,38 @@ class DownloadDocumentController implements RequestHandlerInterface
             default => 'application/octet-stream',
         };
 
-        $stream = new Stream(fopen($absolute, 'rb'));
+        $isEncrypted = DocumentCipher::isEncryptedFile($absolute);
+
+        // Encrypted files require the private key to be present in
+        // config.php. If it's missing we surface a clear error rather than
+        // a generic 404 — the file IS there, it just can't be unsealed.
+        if ($isEncrypted && ! $this->cipher->canDecrypt()) {
+            throw new RuntimeException(
+                (string) $this->translator->trans('ramon-verified.api.encryption.private_key_missing')
+            );
+        }
+
+        if ($isEncrypted) {
+            $blob = file_get_contents($absolute);
+            if ($blob === false) {
+                throw new RouteNotFoundException();
+            }
+
+            $plaintext = $this->cipher->decrypt($blob);
+
+            $stream = new Stream('php://temp', 'r+');
+            $stream->write($plaintext);
+            $stream->rewind();
+
+            $contentLength = strlen($plaintext);
+
+            // Best-effort wipe of the in-memory plaintext after handing
+            // a copy to the response stream.
+            sodium_memzero($plaintext);
+        } else {
+            $stream = new Stream(fopen($absolute, 'rb'));
+            $contentLength = filesize($absolute);
+        }
 
         $disposition = $request->getQueryParams()['download'] ?? null
             ? 'attachment'
@@ -81,7 +117,7 @@ class DownloadDocumentController implements RequestHandlerInterface
         return (new Response())
             ->withBody($stream)
             ->withHeader('Content-Type', $mime)
-            ->withHeader('Content-Length', (string) filesize($absolute))
+            ->withHeader('Content-Length', (string) $contentLength)
             ->withHeader('Content-Disposition', $disposition.'; filename="document.'.$extension.'"')
             ->withHeader('X-Content-Type-Options', 'nosniff')
             ->withHeader('Cache-Control', 'private, no-store, max-age=0');

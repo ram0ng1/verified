@@ -4,6 +4,7 @@ import Switch from 'flarum/common/components/Switch';
 import UploadImageButton from 'flarum/common/components/UploadImageButton';
 import extractText from 'flarum/common/utils/extractText';
 import VerificationRequestsSection from './VerificationRequestsSection';
+import EncryptionCard from './EncryptionCard';
 import getBadgeSvg, { getBadgeColor, resolveAssetUrl } from '../../common/utils/getBadgeSvg';
 
 const trans = (key) => app.translator.trans(`ramon-verified.admin.${key}`);
@@ -181,6 +182,7 @@ export default class VerifiedSettingsPanel extends Component {
     super.oninit(vnode);
     this._colorTimer = null;
     this._sizeTimer = null;
+    this._retentionDaysTimer = null;
   }
 
   view() {
@@ -194,6 +196,7 @@ export default class VerifiedSettingsPanel extends Component {
         {this.appearanceCard()}
         {this.behaviourCard()}
         {requireDoc ? this.documentTypesCard() : null}
+        <EncryptionCard />
         {this.requestsCard()}
       </div>
     );
@@ -441,6 +444,8 @@ export default class VerifiedSettingsPanel extends Component {
           help={trans('settings.require_document_help')}
         />
         <SubDivider />
+        {this.retentionRow()}
+        <SubDivider />
         <AdminToggle
           settingKey="ramon-verified.lock_avatar"
           label={trans('settings.lock_avatar_label')}
@@ -448,6 +453,69 @@ export default class VerifiedSettingsPanel extends Component {
         />
       </section>
     );
+  }
+
+  retentionRow() {
+    const mode = (() => {
+      const raw = String(app.data.settings['ramon-verified.document_retention'] ?? 'keep');
+      return ['keep', 'delete_immediate', 'delete_after_days'].includes(raw) ? raw : 'keep';
+    })();
+    const daysRaw = parseInt(getStr('ramon-verified.document_retention_days'), 10);
+    const days = Number.isFinite(daysRaw) && daysRaw > 0 ? daysRaw : 30;
+
+    return (
+      <div className="Form-group VerifiedAdmin-row">
+        <label className="VerifiedAdmin-label">{trans('settings.retention_label')}</label>
+        <select
+          className="FormControl"
+          value={mode}
+          onchange={(e) => {
+            const next = e.target.value;
+            app.data.settings['ramon-verified.document_retention'] = next;
+            saveSetting({ 'ramon-verified.document_retention': next });
+            m.redraw();
+          }}
+        >
+          <option value="keep">{extractText(trans('settings.retention_keep'))}</option>
+          <option value="delete_immediate">{extractText(trans('settings.retention_delete_immediate'))}</option>
+          <option value="delete_after_days">{extractText(trans('settings.retention_delete_after_days'))}</option>
+        </select>
+
+        {mode === 'delete_after_days' && (
+          <div className="VerifiedAdmin-subGroup VerifiedAdmin-retentionDays">
+            <label className="VerifiedAdmin-label">{trans('settings.retention_days_label')}</label>
+            <input
+              type="number"
+              className="FormControl"
+              min="1"
+              max="3650"
+              step="1"
+              value={days}
+              oninput={(e) => this.queueRetentionDays(e.target.value)}
+            />
+            <p className="helpText">{trans('settings.retention_days_help')}</p>
+          </div>
+        )}
+
+        <p className="helpText">{trans('settings.retention_help')}</p>
+      </div>
+    );
+  }
+
+  queueRetentionDays(value) {
+    const num = parseInt(value, 10);
+    if (!Number.isFinite(num)) return;
+    const clamped = Math.max(1, Math.min(num, 3650));
+
+    app.data.settings['ramon-verified.document_retention_days'] = String(clamped);
+
+    clearTimeout(this._retentionDaysTimer);
+    this._retentionDaysTimer = setTimeout(
+      () => saveSetting({ 'ramon-verified.document_retention_days': String(clamped) }),
+      400
+    );
+
+    m.redraw();
   }
 
   // ---- Document types card ----------------------------------------------

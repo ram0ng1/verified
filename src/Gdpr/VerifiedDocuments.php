@@ -4,7 +4,9 @@ namespace Ramon\Verified\Gdpr;
 
 use Flarum\Foundation\Paths;
 use Flarum\Gdpr\Data\Type;
+use Ramon\Verified\Crypto\DocumentCipher;
 use Ramon\Verified\Models\VerificationRequest;
+use Throwable;
 
 /**
  * GDPR DataType — exposes the data this extension stores per user to
@@ -178,17 +180,59 @@ class VerifiedDocuments extends Type
         $dir = $this->getUserDocumentsDirectory();
         if (! is_dir($dir)) return [];
 
+        // Decrypt on the fly when the file is sealed. The data subject is
+        // entitled to receive their own data in clear — so we only export
+        // a file if we can produce its plaintext. If the private key is
+        // missing in config.php, encrypted files are skipped (logged via
+        // the export marker file below) rather than emitted as ciphertext.
+        $cipher = $this->resolveCipher();
+
         $out = [];
+        $skippedEncrypted = 0;
         $entries = @scandir($dir) ?: [];
+
         foreach ($entries as $entry) {
             if ($entry === '.' || $entry === '..') continue;
             $full = $dir.DIRECTORY_SEPARATOR.$entry;
             if (! is_file($full)) continue;
+
             $contents = @file_get_contents($full);
             if ($contents === false) continue;
+
+            if (DocumentCipher::isEncryptedBlob($contents)) {
+                if ($cipher === null || ! $cipher->canDecrypt()) {
+                    $skippedEncrypted++;
+                    continue;
+                }
+                try {
+                    $contents = $cipher->decrypt($contents);
+                } catch (Throwable $e) {
+                    $skippedEncrypted++;
+                    continue;
+                }
+            }
+
             $out[$entry] = $contents;
         }
+
+        // Surface skipped files so the export ZIP makes the gap explicit
+        // instead of looking like the user simply had nothing on file.
+        if ($skippedEncrypted > 0) {
+            $out['_encrypted_skipped.txt'] =
+                "{$skippedEncrypted} encrypted document file(s) could not be exported because\n"
+                ."the verification system's private key is not configured on this server.\n";
+        }
+
         return $out;
+    }
+
+    private function resolveCipher(): ?DocumentCipher
+    {
+        try {
+            return resolve(DocumentCipher::class);
+        } catch (Throwable $e) {
+            return null;
+        }
     }
 
     /**

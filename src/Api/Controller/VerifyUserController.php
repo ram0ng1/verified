@@ -12,6 +12,7 @@ use Laminas\Diactoros\Response\JsonResponse;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\RequestHandlerInterface;
+use Ramon\Verified\Documents\DocumentRetention;
 use Ramon\Verified\Event\UserVerified;
 use Ramon\Verified\Models\VerificationRequest;
 
@@ -28,7 +29,8 @@ class VerifyUserController implements RequestHandlerInterface
 {
     public function __construct(
         protected TranslatorInterface $translator,
-        protected Dispatcher $events
+        protected Dispatcher $events,
+        protected DocumentRetention $retention
     ) {
     }
 
@@ -124,6 +126,15 @@ class VerifyUserController implements RequestHandlerInterface
         $target->verified_at = $now;
         $target->verified_by = (int) $actor->id;
         $target->save();
+
+        // Run retention on every request row we just flipped to approved so
+        // delete_immediate forums don't keep document files around after a
+        // direct admin verify.
+        VerificationRequest::query()
+            ->where('user_id', $target->id)
+            ->where('handled_at', $now)
+            ->get()
+            ->each(fn (VerificationRequest $req) => $this->retention->onRequestHandled($req));
 
         $this->events->dispatch(new UserVerified($target, $actor));
 

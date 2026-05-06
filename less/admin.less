@@ -868,3 +868,141 @@
   max-width: 140px;
   align-self: center;
 }
+
+// ─── Encryption card ────────────────────────────────────────────────────────
+
+.EncryptionCard-status {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.EncryptionCard-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border-radius: 999px;
+  font-size: 13px;
+  background: fade(#000, 4%);
+
+  > .icon {
+    font-size: 11px;
+  }
+}
+
+.EncryptionCard-badge--ok {
+  background: fade(#1f9d55, 12%);
+  color: #1f7a45;
+
+  > .icon {
+    color: #1f9d55;
+  }
+}
+
+.EncryptionCard-badge--missing {
+  background: fade(#d62828, 10%);
+  color: #b1241f;
+
+  > .icon {
+    color: #d62828;
+  }
+}
+
+.EncryptionCard-badgeLabel {
+  font-weight: 600;
+}
+
+.EncryptionCard-badgeState {
+  opacity: 0.85;
+}
+
+.EncryptionCard-msg {
+  margin-top: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  align-items: flex-start;
+}
+
+.EncryptionCard-publicKey {
+  margin-top: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.EncryptionCard-publicKeyLabel {
+  font-weight: 600;
+  font-size: 13px;
+}
+
+.EncryptionCard-publicKeyRow {
+  display: flex;
+  align-items: stretch;
+  gap: 8px;
+}
+
+.EncryptionCard-publicKeyValue {
+  flex: 1;
+  margin: 0;
+  background: fade(#000, 6%);
+  padding: 10px 12px;
+  border-radius: 6px;
+  font-family: var(--code-font);
+  font-size: 12px;
+  user-select: all;
+  word-break: break-all;
+  white-space: pre-wrap;
+  overflow-x: auto;
+  max-height: 80px;
+}
+
+.EncryptionCard-rotateBtn {
+  margin-top: 8px;
+  align-self: flex-start;
+}
+
+.EncryptionReveal-snippet {
+  background: fade(#000, 6%);
+  padding: 12px 14px;
+  border-radius: 6px;
+  overflow-x: auto;
+  font-family: var(--code-font);
+  font-size: 13px;
+  user-select: all;
+  word-break: break-all;
+  white-space: pre-wrap;
+}
+
+.EncryptionReveal-label {
+  display: block;
+  margin-top: 12px;
+  margin-bottom: 4px;
+  font-weight: 600;
+}
+
+.EncryptionReveal-actions {
+  margin-top: 8px;
+}
+
+.EncryptionReveal-confirm {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin-top: 16px;
+  font-size: 14px;
+}
+
+.EncryptionReveal-close {
+  margin-top: 8px;
+}
+
+.EncryptionRegenerate-confirm {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 12px 0;
+  font-size: 14px;
+}

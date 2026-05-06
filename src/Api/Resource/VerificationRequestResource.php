@@ -14,6 +14,7 @@ use Flarum\Settings\SettingsRepositoryInterface;
 use Flarum\User\User;
 use Illuminate\Contracts\Events\Dispatcher;
 use Illuminate\Database\Eloquent\Builder;
+use Ramon\Verified\Documents\DocumentRetention;
 use Ramon\Verified\Event\UserVerified;
 use Ramon\Verified\Models\VerificationRequest;
 
@@ -25,7 +26,8 @@ class VerificationRequestResource extends AbstractDatabaseResource
     public function __construct(
         protected SettingsRepositoryInterface $settings,
         protected TranslatorInterface $translator,
-        protected Dispatcher $events
+        protected Dispatcher $events,
+        protected DocumentRetention $retention
     ) {
     }
 
@@ -176,6 +178,8 @@ class VerificationRequestResource extends AbstractDatabaseResource
                     $user->verified_by = (int) $actor->id;
                     $user->save();
 
+                    $this->retention->onRequestHandled($request);
+
                     $this->events->dispatch(new UserVerified($user, $actor));
 
                     return $request;
@@ -205,6 +209,8 @@ class VerificationRequestResource extends AbstractDatabaseResource
                     $request->updated_at = $now;
                     $request->admin_note = $this->extractNote($context);
                     $request->save();
+
+                    $this->retention->onRequestHandled($request);
 
                     return $request;
                 }),
@@ -243,6 +249,8 @@ class VerificationRequestResource extends AbstractDatabaseResource
                         $user->verified_by = null;
                         $user->save();
                     }
+
+                    $this->retention->onRequestHandled($request);
 
                     return $request;
                 }),

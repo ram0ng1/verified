@@ -12,12 +12,15 @@ use Flarum\User\User;
 use Ramon\Verified\Access\VerificationRequestPolicy;
 use Ramon\Verified\Api\Controller\DeleteBadgeSvgController;
 use Ramon\Verified\Api\Controller\DownloadDocumentController;
+use Ramon\Verified\Api\Controller\EncryptionStatusController;
+use Ramon\Verified\Api\Controller\GenerateKeypairController;
 use Ramon\Verified\Api\Controller\ListApprovedUsersController;
 use Ramon\Verified\Api\Controller\UploadBadgeSvgController;
 use Ramon\Verified\Api\Controller\UploadDocumentController;
 use Ramon\Verified\Api\Controller\VerifyUserController;
 use Ramon\Verified\Api\Resource\VerificationRequestResource;
 use Ramon\Verified\Api\UserResourceFields;
+use Ramon\Verified\Console\PurgeDocumentsCommand;
 use Ramon\Verified\Event\UserVerified;
 use Ramon\Verified\Listener\EnforceAvatarLock;
 use Ramon\Verified\Listener\SendNotificationWhenUserIsVerified;
@@ -38,6 +41,22 @@ return [
     (new Extend\Settings())
         ->default('ramon-verified.requests_open', true)
         ->default('ramon-verified.require_document', false)
+        // Document retention for handled requests. Modes:
+        //   keep              — never auto-delete (default; safest for forums
+        //                       that need the file as proof of verification)
+        //   delete_immediate  — wipe the file the moment a request is approved
+        //                       or rejected
+        //   delete_after_days — wipe N days after handling (set via
+        //                       ramon-verified.document_retention_days);
+        //                       enforced by a daily scheduled purge
+        ->default('ramon-verified.document_retention', 'keep')
+        ->default('ramon-verified.document_retention_days', 30)
+        // Encryption is opt-in. Storing the public key alone is enough to
+        // start encrypting on upload — but new uploads stay readable only
+        // while the matching private key is present in config.php under
+        // `verified-private-key`. The value here is the base64
+        // public key; an empty string means encryption is off.
+        ->default('ramon-verified.encryption_public_key', '')
         ->default('ramon-verified.lock_avatar', false)
         ->default('ramon-verified.custom_color_enabled', false)
         ->default('ramon-verified.show_tooltip', true)
@@ -52,6 +71,8 @@ return [
         ->default('ramon-verified.document_types', '[{"id":"rg","label":"RG"},{"id":"cpf","label":"CPF"},{"id":"passport","label":"Passport"},{"id":"driver","label":"Driver\'s license"},{"id":"other","label":"Other"}]')
         ->serializeToForum('ramonVerifiedRequestsOpen',       'ramon-verified.requests_open',        'boolval')
         ->serializeToForum('ramonVerifiedRequireDocument',    'ramon-verified.require_document',     'boolval')
+        ->serializeToForum('ramonVerifiedDocumentRetention',  'ramon-verified.document_retention')
+        ->serializeToForum('ramonVerifiedDocumentRetentionDays', 'ramon-verified.document_retention_days', 'intval')
         ->serializeToForum('ramonVerifiedLockAvatar',         'ramon-verified.lock_avatar',          'boolval')
         ->serializeToForum('ramonVerifiedCustomColorEnabled', 'ramon-verified.custom_color_enabled', 'boolval')
         ->serializeToForum('ramonVerifiedShowTooltip',        'ramon-verified.show_tooltip',         'boolval')
@@ -110,6 +131,16 @@ return [
         ->listen(AvatarSaving::class, EnforceAvatarLock::class)
         ->listen(UserVerified::class, SendNotificationWhenUserIsVerified::class),
 
+    (new Extend\Console())
+        ->command(PurgeDocumentsCommand::class)
+        // Run nightly. The command itself is a no-op unless the retention
+        // mode is `delete_after_days`, so this is safe to register
+        // unconditionally — admins on `keep` or `delete_immediate` pay
+        // nothing for it.
+        ->schedule(PurgeDocumentsCommand::class, function (\Illuminate\Console\Scheduling\Event $event) {
+            $event->dailyAt('03:30');
+        }),
+
     (new Extend\Routes('api'))
         ->post('/verified/documents', 'verified.documents.upload', UploadDocumentController::class)
         ->get('/verified/documents/{id:[0-9]+}', 'verified.documents.show', DownloadDocumentController::class)
@@ -117,7 +148,9 @@ return [
         ->delete('/verified/badge-svg', 'verified.badge_svg.delete', DeleteBadgeSvgController::class)
         ->post('/verified/users/{id:[0-9]+}/verify',   'verified.users.verify',   VerifyUserController::class)
         ->delete('/verified/users/{id:[0-9]+}/verify', 'verified.users.unverify', VerifyUserController::class)
-        ->get('/verified/approved-users', 'verified.approved.list', ListApprovedUsersController::class),
+        ->get('/verified/approved-users', 'verified.approved.list', ListApprovedUsersController::class)
+        ->get('/verified/encryption/status',          'verified.encryption.status',   EncryptionStatusController::class)
+        ->post('/verified/encryption/generate-keypair', 'verified.encryption.generate', GenerateKeypairController::class),
 
     // flarum/gdpr integration — register a DataType so user-data export,
     // anonymization, and erasure flows know about our verification requests

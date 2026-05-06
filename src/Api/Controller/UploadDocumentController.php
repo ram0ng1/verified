@@ -12,6 +12,7 @@ use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Message\UploadedFileInterface;
 use Psr\Http\Server\RequestHandlerInterface;
+use Ramon\Verified\Crypto\DocumentCipher;
 use Ramon\Verified\Models\VerificationRequest;
 
 /**
@@ -37,7 +38,8 @@ class UploadDocumentController implements RequestHandlerInterface
     public function __construct(
         protected Paths $paths,
         protected SettingsRepositoryInterface $settings,
-        protected TranslatorInterface $translator
+        protected TranslatorInterface $translator,
+        protected DocumentCipher $cipher
     ) {
     }
 
@@ -142,7 +144,30 @@ class UploadDocumentController implements RequestHandlerInterface
         $filename = bin2hex(random_bytes(16)).'.'.$extension;
         $dest = $dir.DIRECTORY_SEPARATOR.$filename;
 
-        $file->moveTo($dest);
+        if ($this->cipher->canEncrypt()) {
+            // Read the upload into memory once, encrypt, write the
+            // sealed-box payload to disk. The 8 MB MAX_BYTES cap above
+            // means worst case is ~8 MB resident; well within reason.
+            $stream = $file->getStream();
+            $stream->rewind();
+            $plaintext = $stream->getContents();
+
+            $encrypted = $this->cipher->encrypt($plaintext);
+
+            // Best-effort scrub — sodium doesn't do anything special with
+            // PHP strings, but explicit zeroing reduces the window during
+            // which the plaintext is in memory.
+            sodium_memzero($plaintext);
+
+            if (file_put_contents($dest, $encrypted, LOCK_EX) === false) {
+                throw new ValidationException([
+                    'document' => $this->translator->trans('ramon-verified.api.upload_failed'),
+                ]);
+            }
+        } else {
+            $file->moveTo($dest);
+        }
+
         @chmod($dest, 0640);
 
         // Token is a relative-path opaque identifier. It is never resolved client-side.
