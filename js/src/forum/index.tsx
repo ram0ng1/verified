@@ -167,6 +167,13 @@ export { default as extend } from './extend';
 // hero-rendering view; we need to wrap THAT view to inject our badge.
 app.initializers.add('ramon-verified', () => {
   // ----- Profile / hover card: append badge inside the identity h1 -----
+  //
+  // The same UserCard component renders both the full profile hero
+  // (`className="Hero UserHero"`) and the floating hover card you see when
+  // mousing over a username in a discussion list (`className="UserCard--popover"`).
+  // The hover card IS itself a popover, so nesting our own VerifiedPopover
+  // inside it would stack two popovers — there we render the bare badge with
+  // a simple title tooltip. On the profile hero we want the rich popover.
   extend('flarum/forum/components/UserCard', 'contentItems', function (this: any, items: any) {
     const user = this.attrs.user as User | undefined;
     if (!user || !user.isVerified || !user.isVerified()) return;
@@ -176,7 +183,12 @@ app.initializers.add('ramon-verified', () => {
     const identityItem = items.get('identity');
     if (!identityItem) return;
 
-    const badge = <VerifiedBadge user={user} className="VerifiedBadge--card" plain />;
+    const cardClass = String(this.attrs.className || '');
+    const isHoverPopover = cardClass.indexOf('UserCard--popover') !== -1;
+
+    const badge = (
+      <VerifiedBadge user={user} className="VerifiedBadge--card" plain={isHoverPopover} />
+    );
 
     items.setContent(
       'identity',
