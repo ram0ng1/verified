@@ -6,6 +6,7 @@ use Carbon\Carbon;
 use Flarum\Foundation\ValidationException;
 use Flarum\Http\RequestUtil;
 use Flarum\Locale\TranslatorInterface;
+use Flarum\Settings\SettingsRepositoryInterface;
 use Flarum\User\User;
 use Illuminate\Contracts\Events\Dispatcher;
 use Laminas\Diactoros\Response\JsonResponse;
@@ -15,6 +16,7 @@ use Psr\Http\Server\RequestHandlerInterface;
 use Ramon\Verified\Documents\DocumentRetention;
 use Ramon\Verified\Event\UserVerified;
 use Ramon\Verified\Models\VerificationRequest;
+use Ramon\Verified\TierConfig;
 
 /**
  * Lets an admin (or any actor with `verified.verifyUsers`) flip a user's
@@ -30,7 +32,8 @@ class VerifyUserController implements RequestHandlerInterface
     public function __construct(
         protected TranslatorInterface $translator,
         protected Dispatcher $events,
-        protected DocumentRetention $retention
+        protected DocumentRetention $retention,
+        protected SettingsRepositoryInterface $settings
     ) {
     }
 
@@ -65,6 +68,10 @@ class VerifyUserController implements RequestHandlerInterface
             ? mb_substr(trim($body['adminNote']), 0, 1000)
             : null;
 
+        $tierId = isset($body['tier']) && is_string($body['tier'])
+            ? trim($body['tier'])
+            : null;
+
         $method = strtoupper($request->getMethod());
         $now    = Carbon::now();
 
@@ -83,14 +90,16 @@ class VerifyUserController implements RequestHandlerInterface
             $actor->assertCan('verified.verifyUsers');
         }
 
-        return $this->verify($target, $actor, $note, $now);
+        return $this->verify($target, $actor, $note, $tierId, $now);
     }
 
-    private function verify(User $target, User $actor, ?string $note, Carbon $now): JsonResponse
+    private function verify(User $target, User $actor, ?string $note, ?string $tierId, Carbon $now): JsonResponse
     {
         if ((bool) $target->is_verified) {
             throw new ValidationException(['status' => $this->translator->trans('ramon-verified.api.already_verified')]);
         }
+
+        $resolvedTierId = $this->resolveTierId($tierId);
 
         // Mark any pending request handled, then create an audit row.
         VerificationRequest::query()
@@ -122,9 +131,10 @@ class VerifyUserController implements RequestHandlerInterface
             ]);
         }
 
-        $target->is_verified = true;
-        $target->verified_at = $now;
-        $target->verified_by = (int) $actor->id;
+        $target->is_verified  = true;
+        $target->verified_at  = $now;
+        $target->verified_by  = (int) $actor->id;
+        $target->verified_tier = $resolvedTierId;
         $target->save();
 
         // Run retention on every request row we just flipped to approved so
@@ -143,8 +153,9 @@ class VerifyUserController implements RequestHandlerInterface
                 'type' => 'users',
                 'id'   => (string) $target->id,
                 'attributes' => [
-                    'isVerified' => true,
-                    'verifiedAt' => $now->toRfc3339String(),
+                    'isVerified'   => true,
+                    'verifiedAt'   => $now->toRfc3339String(),
+                    'verifiedTier' => $resolvedTierId,
                 ],
             ],
         ], 200);
@@ -167,9 +178,10 @@ class VerifyUserController implements RequestHandlerInterface
             'updated_at'    => $now,
         ]);
 
-        $target->is_verified = false;
-        $target->verified_at = null;
-        $target->verified_by = null;
+        $target->is_verified   = false;
+        $target->verified_at   = null;
+        $target->verified_by   = null;
+        $target->verified_tier = null;
         $target->save();
 
         return new JsonResponse([
@@ -177,10 +189,34 @@ class VerifyUserController implements RequestHandlerInterface
                 'type' => 'users',
                 'id'   => (string) $target->id,
                 'attributes' => [
-                    'isVerified' => false,
-                    'verifiedAt' => null,
+                    'isVerified'   => false,
+                    'verifiedAt'   => null,
+                    'verifiedTier' => null,
                 ],
             ],
         ], 200);
+    }
+
+    /**
+     * Validate the tier id requested by the admin against the configured
+     * tier list. Falls back to the default tier (or, if absent, the first
+     * configured tier) so a missing/invalid input never blocks a verify.
+     */
+    private function resolveTierId(?string $requested): ?string
+    {
+        $tiers = TierConfig::fromSettings($this->settings);
+        if (empty($tiers)) {
+            // Admin emptied the tier list entirely. Persist null and let the
+            // resource fallback handle rendering — better than crashing.
+            return null;
+        }
+
+        if ($requested) {
+            $found = TierConfig::findById($tiers, $requested);
+            if ($found) return $found['id'];
+        }
+
+        $fallback = TierConfig::findById($tiers, TierConfig::DEFAULT_TIER_ID) ?? $tiers[0];
+        return $fallback['id'];
     }
 }

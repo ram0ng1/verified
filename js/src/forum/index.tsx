@@ -8,6 +8,7 @@ import type User from 'flarum/common/models/User';
 import VerifiedBadge from '../common/components/VerifiedBadge';
 import RequestVerificationModal from './components/RequestVerificationModal';
 import getBadgeSvg, { getBadgeColor, getBadgeSize, DEFAULT_VERIFIED_SVG } from '../common/utils/getBadgeSvg';
+import promptTier from '../common/utils/promptTier';
 
 // ─── Avocado theme integration helpers ────────────────────────────────────
 //
@@ -267,14 +268,26 @@ app.initializers.add('ramon-verified', () => {
     const isVerified = user.isVerified && user.isVerified();
 
     const performAction = (method: 'POST' | 'DELETE', promptKey: string, alertKey: string) => {
+      // On verify (POST), let the admin pick a tier first. On revoke (DELETE),
+      // tier is irrelevant — we're clearing it.
+      let tierId: string | null = null;
+      if (method === 'POST') {
+        const tier = promptTier();
+        if (!tier) return;
+        tierId = tier.id;
+      }
+
       const note = window.prompt(extractText(app.translator.trans('ramon-verified.forum.user_controls.' + promptKey)));
       if (note === null) return;
+
+      const body: Record<string, unknown> = { adminNote: note || '' };
+      if (tierId) body.tier = tierId;
 
       app
         .request<{ data?: { attributes?: Record<string, unknown> } }>({
           method,
           url: apiUrl + '/verified/users/' + user.id() + '/verify',
-          body: { adminNote: note || '' },
+          body,
         })
         .then((res) => {
           if (res && res.data && res.data.attributes) {

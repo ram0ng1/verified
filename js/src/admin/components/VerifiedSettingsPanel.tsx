@@ -6,6 +6,7 @@ import extractText from 'flarum/common/utils/extractText';
 import type Mithril from 'mithril';
 import VerificationRequestsSection from './VerificationRequestsSection';
 import EncryptionCard from './EncryptionCard';
+import TiersEditor from './TiersEditor';
 import getBadgeSvg, { getBadgeColor, resolveAssetUrl } from '../../common/utils/getBadgeSvg';
 
 const trans = (key: string) => app.translator.trans(`ramon-verified.admin.${key}`);
@@ -185,30 +186,98 @@ class DocumentTypesEditor extends Component<ComponentAttrs> {
 /**
  * Single-column, card-based admin panel for the Verified extension.
  */
+type PanelTab = 'general' | 'tiers' | 'requests';
+
+const TAB_DEFS: Array<{ id: PanelTab; icon: string; trans: string }> = [
+  { id: 'general',  icon: 'fas fa-cog',         trans: 'tabs.general' },
+  { id: 'tiers',    icon: 'fas fa-certificate', trans: 'tabs.tiers' },
+  { id: 'requests', icon: 'fas fa-inbox',       trans: 'tabs.requests' },
+];
+
 export default class VerifiedSettingsPanel extends Component<ComponentAttrs> {
-  private _colorTimer: ReturnType<typeof setTimeout> | null = null;
   private _sizeTimer: ReturnType<typeof setTimeout> | null = null;
   private _retentionDaysTimer: ReturnType<typeof setTimeout> | null = null;
 
+  protected currentTab: PanelTab = 'general';
+
   oninit(vnode: Mithril.Vnode<ComponentAttrs, this>) {
     super.oninit(vnode);
-    this._colorTimer = null;
     this._sizeTimer = null;
     this._retentionDaysTimer = null;
   }
 
   view(): Mithril.Children {
-    const requireDoc = getBool('ramon-verified.require_document');
-
     return (
       <div className="VerifiedAdmin">
+        {this.tabBar()}
+        {this.tabContent()}
+      </div>
+    );
+  }
+
+  tabBar(): Mithril.Children {
+    return (
+      <nav className="VerifiedAdmin-tabs" role="tablist" aria-label={extractText(trans('tabs.aria_label'))}>
+        {TAB_DEFS.map((t) => {
+          const active = this.currentTab === t.id;
+          return (
+            <button
+              type="button"
+              role="tab"
+              aria-selected={active}
+              key={t.id}
+              className={'VerifiedAdmin-tab' + (active ? ' VerifiedAdmin-tab--active' : '')}
+              onclick={() => {
+                this.currentTab = t.id;
+                m.redraw();
+              }}
+            >
+              <i className={'icon ' + t.icon} />
+              <span>{trans(t.trans)}</span>
+            </button>
+          );
+        })}
+      </nav>
+    );
+  }
+
+  tabContent(): Mithril.Children {
+    if (this.currentTab === 'tiers') {
+      return (
+        <div className="VerifiedAdmin-tabContent VerifiedAdmin-tabContent--tiers">
+          {this.tiersHeader()}
+          <TiersEditor />
+        </div>
+      );
+    }
+
+    if (this.currentTab === 'requests') {
+      return (
+        <div className="VerifiedAdmin-tabContent">
+          {this.requestsCard()}
+        </div>
+      );
+    }
+
+    // General tab
+    const requireDoc = getBool('ramon-verified.require_document');
+    return (
+      <div className="VerifiedAdmin-tabContent">
         {this.previewCard()}
         {this.appearanceCard()}
         {this.behaviourCard()}
         {requireDoc ? this.documentTypesCard() : null}
         <EncryptionCard />
-        {this.requestsCard()}
       </div>
+    );
+  }
+
+  tiersHeader(): Mithril.Children {
+    return (
+      <header className="VerifiedAdmin-tabHeader">
+        <h2>{trans('settings.tiers.section_title')}</h2>
+        <p>{trans('settings.tiers.section_help')}</p>
+      </header>
     );
   }
 
@@ -311,7 +380,10 @@ export default class VerifiedSettingsPanel extends Component<ComponentAttrs> {
 
   appearanceCard(): Mithril.Children {
     const path = getStr('ramon-verified.badge_svg_path');
-    const customColorEnabled = getBool('ramon-verified.custom_color_enabled');
+
+    // The "custom color" toggle and color-picker were removed — colors live
+    // per-tier now (Admin → Tiers → [tier] → Color), so a global color
+    // override would just compete with whatever each tier's user has chosen.
 
     return (
       <section className="VerifiedAdmin-card">
@@ -321,21 +393,6 @@ export default class VerifiedSettingsPanel extends Component<ComponentAttrs> {
         </header>
 
         {this.sizeSliderRow()}
-
-        <SubDivider />
-
-        <AdminToggle
-          settingKey="ramon-verified.custom_color_enabled"
-          label={trans('settings.custom_color_label')}
-          help={trans('settings.custom_color_help')}
-        />
-
-        {customColorEnabled && (
-          <>
-            <SubDivider />
-            {this.colorPickerRow()}
-          </>
-        )}
 
         <SubDivider />
 
@@ -378,39 +435,6 @@ export default class VerifiedSettingsPanel extends Component<ComponentAttrs> {
     );
   }
 
-  colorPickerRow(): Mithril.Children {
-    const colorValue = getStr('ramon-verified.badge_color');
-
-    return (
-      <div className="VerifiedAdmin-row VerifiedAdmin-subGroup">
-        <label className="VerifiedAdmin-label">{trans('settings.badge_color_label')}</label>
-        <div className="VerifiedAdmin-colorRow">
-          <input
-            type="color"
-            className="VerifiedAdmin-colorPicker"
-            value={/^#[0-9a-f]{6}$/i.test(colorValue) ? colorValue : (app.forum.attribute<string>('themePrimaryColor') || '#1d9bf0')}
-            oninput={(e: Event) => this.queueColor((e.target as HTMLInputElement).value)}
-          />
-          <input
-            type="text"
-            className="FormControl VerifiedAdmin-colorInput"
-            value={colorValue}
-            placeholder={app.forum.attribute<string>('themePrimaryColor') || '#1d9bf0'}
-            oninput={(e: Event) => this.queueColor((e.target as HTMLInputElement).value)}
-          />
-          <button
-            type="button"
-            className="Button Button--text VerifiedAdmin-clearBtn"
-            onclick={() => this.queueColor('', true)}
-            title={extractText(trans('settings.badge_color_reset'))}
-          >
-            <i className="icon fas fa-rotate-left" /> {trans('settings.badge_color_reset')}
-          </button>
-        </div>
-        <p className="helpText">{trans('settings.badge_color_help')}</p>
-      </div>
-    );
-  }
 
   // ---- Behaviour card ----------------------------------------------------
 
@@ -540,18 +564,6 @@ export default class VerifiedSettingsPanel extends Component<ComponentAttrs> {
   }
 
   // ---- Helpers -----------------------------------------------------------
-
-  queueColor(value: string, immediate: boolean = false): void {
-    const trimmed = (value || '').trim();
-    settings()['ramon-verified.badge_color'] = trimmed;
-
-    if (this._colorTimer) clearTimeout(this._colorTimer);
-    const flush = () => saveSetting({ 'ramon-verified.badge_color': trimmed });
-    if (immediate) flush();
-    else this._colorTimer = setTimeout(flush, 500);
-
-    m.redraw();
-  }
 
   queueSize(value: string): void {
     const num = parseFloat(value);

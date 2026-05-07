@@ -3,8 +3,8 @@
 namespace Ramon\Verified\Api\Controller;
 
 use Flarum\Group\Group;
-use Flarum\Group\Permission;
 use Flarum\Http\RequestUtil;
+use Flarum\Settings\SettingsRepositoryInterface;
 use Flarum\User\User;
 use Illuminate\Database\Eloquent\Builder;
 use Laminas\Diactoros\Response\JsonResponse;
@@ -12,26 +12,33 @@ use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\RequestHandlerInterface;
 use Ramon\Verified\Models\VerificationRequest;
+use Ramon\Verified\TierConfig;
 
 /**
  * Paginated, searchable list of every "approved" user — includes both users
  * verified manually (column `is_verified=1`) and users auto-verified through
- * group membership (the `verified.autoVerified` permission). The frontend
- * uses this to populate the admin "Approved" tab.
+ * tier `autoGroups` membership. The frontend uses this to populate the admin
+ * "Approved" tab.
  *
  * Inputs (query string):
  *   - q       : string — username/email search fragment.
+ *   - tier    : string — optional tier id filter (only return users on that tier).
  *   - offset  : int    — pagination offset, defaults to 0.
  *   - limit   : int    — page size, defaults to 15, capped at 50.
  *
  * Output (JSON):
- *   - data : list of users, each with { source, request?, groups? }
- *   - meta : { total, limit, offset }
+ *   - data : list of users, each with { source, verifiedTier, request?, autoVerifiedGroups }
+ *   - meta : { total, limit, offset, tiers }
  */
 class ListApprovedUsersController implements RequestHandlerInterface
 {
     public const DEFAULT_LIMIT = 15;
     public const MAX_LIMIT = 50;
+
+    public function __construct(
+        protected SettingsRepositoryInterface $settings
+    ) {
+    }
 
     public function handle(ServerRequestInterface $request): ResponseInterface
     {
@@ -39,26 +46,26 @@ class ListApprovedUsersController implements RequestHandlerInterface
         $actor->assertAdmin();
 
         $params = $request->getQueryParams();
-        $q      = isset($params['q']) ? trim((string) $params['q']) : '';
-        $offset = max(0, (int) ($params['offset'] ?? 0));
-        $limit  = (int) ($params['limit'] ?? self::DEFAULT_LIMIT);
+        $q          = isset($params['q']) ? trim((string) $params['q']) : '';
+        $tierFilter = isset($params['tier']) ? trim((string) $params['tier']) : '';
+        $offset     = max(0, (int) ($params['offset'] ?? 0));
+        $limit      = (int) ($params['limit'] ?? self::DEFAULT_LIMIT);
         if ($limit <= 0) $limit = self::DEFAULT_LIMIT;
         if ($limit > self::MAX_LIMIT) $limit = self::MAX_LIMIT;
 
-        // Group IDs whose members get the badge automatically.
-        $autoVerifiedGroupIds = Permission::query()
-            ->where('permission', 'verified.autoVerified')
-            ->pluck('group_id')
-            ->all();
+        $tiers = TierConfig::fromSettings($this->settings);
+
+        // Union of every group ID that auto-grants any tier.
+        $autoVerifiedGroupIds = [];
+        foreach ($tiers as $t) {
+            foreach ($t['autoGroups'] as $gid) $autoVerifiedGroupIds[$gid] = true;
+        }
+        $autoVerifiedGroupIds = array_keys($autoVerifiedGroupIds);
 
         $query = User::query()->where(function (Builder $w) use ($autoVerifiedGroupIds) {
             $w->where('is_verified', true);
 
             if (! empty($autoVerifiedGroupIds)) {
-                // No `select(...)` needed: EXISTS only cares about row presence,
-                // not which columns come back. Avoiding `DB::raw(1)` here keeps
-                // the controller free of the Laravel facade root, which Flarum
-                // doesn't bootstrap.
                 $w->orWhereExists(function ($sub) use ($autoVerifiedGroupIds) {
                     $sub->from('group_user')
                         ->whereColumn('group_user.user_id', 'users.id')
@@ -76,20 +83,48 @@ class ListApprovedUsersController implements RequestHandlerInterface
             });
         }
 
-        $total = (clone $query)->count();
+        // Tier filter is applied in PHP after we resolve each user's tier
+        // (because auto-tier comes from groups, not a direct DB column).
+        // To keep pagination meaningful when filtering, we fetch all matches
+        // for that tier first then slice. The `q` + tier filter scope is
+        // typically small enough that this isn't a perf concern.
+        if ($tierFilter !== '') {
+            $allMatching = $query
+                ->orderBy('is_verified', 'desc')
+                ->orderBy('verified_at', 'desc')
+                ->orderBy('username', 'asc')
+                ->get();
+            $allMatching->load('groups');
 
-        $users = $query
-            ->orderBy('is_verified', 'desc')
-            ->orderBy('verified_at', 'desc')
-            ->orderBy('username', 'asc')
-            ->skip($offset)
-            ->take($limit)
-            ->get();
+            $needle = strtolower($tierFilter);
+            $filtered = $allMatching->filter(function (User $user) use ($tiers, $needle) {
+                $tierId = $this->resolveTierId($user, $tiers);
+                return $tierId !== null && $tierId === $needle;
+            })->values();
+
+            $total = $filtered->count();
+            $users = $filtered->slice($offset, $limit)->values();
+        } else {
+            $total = (clone $query)->count();
+            $users = $query
+                ->orderBy('is_verified', 'desc')
+                ->orderBy('verified_at', 'desc')
+                ->orderBy('username', 'asc')
+                ->skip($offset)
+                ->take($limit)
+                ->get();
+            $users->load('groups');
+        }
 
         if ($users->isEmpty()) {
             return new JsonResponse([
                 'data' => [],
-                'meta' => ['total' => $total, 'limit' => $limit, 'offset' => $offset],
+                'meta' => [
+                    'total' => $total,
+                    'limit' => $limit,
+                    'offset' => $offset,
+                    'tiers' => $this->tiersMeta($tiers),
+                ],
             ]);
         }
 
@@ -104,10 +139,6 @@ class ListApprovedUsersController implements RequestHandlerInterface
             ->get()
             ->groupBy('user_id');
 
-        // Eager-load groups for users that are auto-verified, so the frontend
-        // can render "Verified through group: <name>" without N+1 queries.
-        $users->load('groups');
-
         // Pre-load handler users for the approved requests (one query).
         $handlerIds = [];
         foreach ($approvedRequests as $list) {
@@ -120,7 +151,7 @@ class ListApprovedUsersController implements RequestHandlerInterface
 
         $autoVerifiedGroupSet = array_flip($autoVerifiedGroupIds);
 
-        $data = $users->map(function (User $user) use ($approvedRequests, $handlers, $autoVerifiedGroupSet) {
+        $data = $users->map(function (User $user) use ($approvedRequests, $handlers, $autoVerifiedGroupSet, $tiers) {
             $latestRequest = $approvedRequests->has($user->id)
                 ? $approvedRequests[$user->id]->first()
                 : null;
@@ -143,13 +174,14 @@ class ListApprovedUsersController implements RequestHandlerInterface
                 ->all();
 
             $row = [
-                'id'           => (int) $user->id,
-                'username'     => (string) $user->username,
-                'displayName'  => $user->display_name ?: (string) $user->username,
-                'avatarUrl'    => $user->avatar_url,
-                'source'       => $source,
-                'isVerified'   => (bool) $user->is_verified,
-                'verifiedAt'   => $user->verified_at ? $user->verified_at->toRfc3339String() : null,
+                'id'                 => (int) $user->id,
+                'username'           => (string) $user->username,
+                'displayName'        => $user->display_name ?: (string) $user->username,
+                'avatarUrl'          => $user->avatar_url,
+                'source'             => $source,
+                'isVerified'         => (bool) $user->is_verified,
+                'verifiedAt'         => $user->verified_at ? $user->verified_at->toRfc3339String() : null,
+                'verifiedTier'       => $this->resolveTierId($user, $tiers),
                 'autoVerifiedGroups' => $autoGroups,
             ];
 
@@ -177,7 +209,62 @@ class ListApprovedUsersController implements RequestHandlerInterface
 
         return new JsonResponse([
             'data' => $data,
-            'meta' => ['total' => $total, 'limit' => $limit, 'offset' => $offset],
+            'meta' => [
+                'total' => $total,
+                'limit' => $limit,
+                'offset' => $offset,
+                'tiers' => $this->tiersMeta($tiers),
+            ],
         ]);
+    }
+
+    /**
+     * Same logic as `UserResourceFields::resolveTierId` — kept colocated so
+     * we don't need to instantiate that class here. Returns the tier id or
+     * null when the user has no tier and no legacy verified flag.
+     *
+     * @param array<int, array> $tiers
+     */
+    private function resolveTierId(User $user, array $tiers): ?string
+    {
+        if (empty($tiers)) return null;
+
+        $manual = is_string($user->verified_tier) && $user->verified_tier !== ''
+            ? strtolower($user->verified_tier)
+            : null;
+
+        if ($manual !== null) {
+            $tier = TierConfig::findById($tiers, $manual);
+            if ($tier) return $tier['id'];
+            $fallback = TierConfig::findById($tiers, TierConfig::DEFAULT_TIER_ID) ?? $tiers[0];
+            return $fallback['id'];
+        }
+
+        $userGroupIds = $user->groups->pluck('id')->map(fn ($id) => (int) $id)->all();
+        $autoTier = TierConfig::autoTierFor($tiers, $userGroupIds);
+        if ($autoTier) return $autoTier['id'];
+
+        if ((bool) $user->is_verified) {
+            $fallback = TierConfig::findById($tiers, TierConfig::DEFAULT_TIER_ID) ?? $tiers[0];
+            return $fallback['id'];
+        }
+
+        return null;
+    }
+
+    /**
+     * Tier metadata sent down with every page so the frontend can render
+     * tab/badge labels without re-reading settings.
+     *
+     * @param array<int, array> $tiers
+     * @return array<int, array{id:string,label:string,color:string}>
+     */
+    private function tiersMeta(array $tiers): array
+    {
+        return array_map(fn ($t) => [
+            'id'    => $t['id'],
+            'label' => $t['label'],
+            'color' => $t['color'],
+        ], $tiers);
     }
 }

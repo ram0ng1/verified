@@ -70,6 +70,13 @@ return [
         // (RG/CPF/Passport/CNH/Other); it's what shipped before this setting
         // existed, and forums outside Brazil can rewrite it freely.
         ->default('ramon-verified.document_types', '[{"id":"rg","label":"RG"},{"id":"cpf","label":"CPF"},{"id":"passport","label":"Passport"},{"id":"driver","label":"Driver\'s license"},{"id":"other","label":"Other"}]')
+        // Tier definitions — JSON-encoded list. Each tier:
+        //   { id, label, color (hex), description, learnMoreUrl, autoGroups }
+        // Default seeds three X-style tiers (blue / gold / partner). The admin
+        // edits this list from the panel — adding new tiers, removing seeded
+        // ones, or pointing each tier's "learn more" link wherever their
+        // forum's verification policy lives.
+        ->default('ramon-verified.tiers', '[{"id":"blue","label":"Verificado","color":"#1d9bf0","description":"Esta conta tem a <strong>identidade verificada</strong>.","learnMoreUrl":"","autoGroups":[]},{"id":"gold","label":"Ouro","color":"#d4af37","description":"Conta de organização com <strong>identidade verificada</strong>.","learnMoreUrl":"","autoGroups":[]},{"id":"partner","label":"Parceiro","color":"#9b59b6","description":"Conta afiliada ou parceira oficial com <strong>identidade verificada</strong>.","learnMoreUrl":"","autoGroups":[]}]')
         ->serializeToForum('ramonVerifiedRequestsOpen',       'ramon-verified.requests_open',        'boolval')
         ->serializeToForum('ramonVerifiedRequireDocument',    'ramon-verified.require_document',     'boolval')
         ->serializeToForum('ramonVerifiedDocumentRetention',  'ramon-verified.document_retention')
@@ -101,11 +108,13 @@ return [
                 ];
             }
             return $clean;
-        }),
+        })
+        ->serializeToForum('ramonVerifiedTiers', 'ramon-verified.tiers', [\Ramon\Verified\TierConfig::class, 'parseForFrontend']),
 
     (new Extend\Model(User::class))
         ->cast('is_verified', 'bool')
         ->cast('verified_at', 'datetime')
+        ->cast('verified_tier', 'string')
         ->hasMany('verificationRequests', VerificationRequest::class, 'user_id'),
 
     (new Extend\ApiResource(UserResource::class))

@@ -9,6 +9,7 @@ import type Mithril from 'mithril';
 import type User from 'flarum/common/models/User';
 import type VerificationRequest from '../../common/models/VerificationRequest';
 import DocumentPreviewModal from './DocumentPreviewModal';
+import promptTier from '../../common/utils/promptTier';
 
 type RequestTab = 'pending' | 'approved' | 'rejected';
 const TABS: RequestTab[] = ['pending', 'approved', 'rejected'];
@@ -39,8 +40,15 @@ interface ApprovedUserRow {
   username?: string;
   displayName?: string;
   source?: 'request' | 'group';
+  verifiedTier?: string | null;
   request?: ApprovedRequestSummary | null;
   autoVerifiedGroups?: ApprovedGroup[];
+}
+
+interface TierMeta {
+  id: string;
+  label: string;
+  color: string;
 }
 
 interface ApprovedState {
@@ -49,6 +57,8 @@ interface ApprovedState {
   total: number;
   offset: number;
   query: string;
+  tierFilter: string; // '' = all tiers
+  tiers: TierMeta[];
 }
 
 export default class VerificationRequestsSection extends Component<ComponentAttrs> {
@@ -62,6 +72,8 @@ export default class VerificationRequestsSection extends Component<ComponentAttr
     total: 0,
     offset: 0,
     query: '',
+    tierFilter: '',
+    tiers: [],
   };
   private _searchTimer: ReturnType<typeof setTimeout> | null = null;
 
@@ -77,6 +89,8 @@ export default class VerificationRequestsSection extends Component<ComponentAttr
       total: 0,
       offset: 0,
       query: '',
+      tierFilter: '',
+      tiers: [],
     };
     this._searchTimer = null;
 
@@ -141,7 +155,7 @@ export default class VerificationRequestsSection extends Component<ComponentAttr
   // ── Approved tab ─────────────────────────────────────────────────────────
 
   renderApprovedTab(): Mithril.Children {
-    const { loading, rows, total, offset, query } = this.approved;
+    const { loading, rows, total, offset, query, tiers, tierFilter } = this.approved;
     const placeholder = extractText(trans('search_placeholder'));
 
     return [
@@ -167,6 +181,39 @@ export default class VerificationRequestsSection extends Component<ComponentAttr
           ) : null}
         </div>
       </div>,
+
+      tiers.length > 0 ? (
+        <div className="VerifiedRequests-tierFilter" role="tablist" aria-label={extractText(trans('tier_filter_aria'))}>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={tierFilter === ''}
+            className={'VerifiedRequests-tierChip' + (tierFilter === '' ? ' is-active' : '')}
+            onclick={() => this.setTierFilter('')}
+          >
+            <i className="icon fas fa-globe" aria-hidden="true" />
+            <span>{trans('tier_filter_all')}</span>
+          </button>
+          {tiers.map((t) => {
+            const active = tierFilter === t.id;
+            const swatch = /^#[0-9a-f]{3,8}$/i.test(t.color) ? t.color : null;
+            return (
+              <button
+                type="button"
+                role="tab"
+                aria-selected={active}
+                key={t.id}
+                className={'VerifiedRequests-tierChip' + (active ? ' is-active' : '')}
+                style={swatch ? { '--tier-color': swatch } as Record<string, string> : undefined}
+                onclick={() => this.setTierFilter(t.id)}
+              >
+                <span className="VerifiedRequests-tierChipDot" aria-hidden="true" />
+                <span>{t.label}</span>
+              </button>
+            );
+          })}
+        </div>
+      ) : null,
 
       loading && rows.length === 0 ? (
         <div className="VerifiedRequests-empty">
@@ -194,12 +241,24 @@ export default class VerificationRequestsSection extends Component<ComponentAttr
   renderApprovedItem(row: ApprovedUserRow): Mithril.Children {
     const busy = !!this.busy['user-' + row.id];
     const isGroupOnly = row.source === 'group';
+    const tier = this.findTier(row.verifiedTier);
+    const tierSwatch = tier && /^#[0-9a-f]{3,8}$/i.test(tier.color) ? tier.color : null;
 
     return (
       <li className={'VerifiedRequest' + (isGroupOnly ? ' VerifiedRequest--auto' : '')} key={'user-' + row.id}>
         <div className="VerifiedRequest-main">
           <div className="VerifiedRequest-user">
             <span className="username">{row.displayName || row.username}</span>
+            {tier ? (
+              <span
+                className="VerifiedRequest-tierChip"
+                style={tierSwatch ? { '--tier-color': tierSwatch } as Record<string, string> : undefined}
+                title={tier.label}
+              >
+                <span className="VerifiedRequest-tierChipDot" aria-hidden="true" />
+                {tier.label}
+              </span>
+            ) : null}
             {isGroupOnly ? (
               <span className="VerifiedRequest-status VerifiedRequest-status--auto">
                 {trans('status_auto')}
@@ -353,25 +412,45 @@ export default class VerificationRequestsSection extends Component<ComponentAttr
     this.loadApproved();
   }
 
+  setTierFilter(tierId: string): void {
+    if (this.approved.tierFilter === tierId) return;
+    this.approved.tierFilter = tierId;
+    this.approved.offset = 0;
+    this.loadApproved();
+  }
+
+  /**
+   * Lookup the tier metadata loaded with the approved-users response so we
+   * can render a colored chip next to each row's name.
+   */
+  protected findTier(tierId: string | null | undefined): TierMeta | null {
+    if (!tierId) return null;
+    return this.approved.tiers.find((t) => t.id === tierId) || null;
+  }
+
   loadApproved(): void {
     const { query, offset } = this.approved;
     this.approved.loading = true;
     m.redraw();
 
+    const params: Record<string, string | number> = {
+      q: query,
+      offset,
+      limit: APPROVED_PAGE_SIZE,
+    };
+    if (this.approved.tierFilter) params.tier = this.approved.tierFilter;
+
     app
-      .request<{ data?: ApprovedUserRow[]; meta?: { total?: number } }>({
+      .request<{ data?: ApprovedUserRow[]; meta?: { total?: number; tiers?: TierMeta[] } }>({
         method: 'GET',
         url: app.forum.attribute('apiUrl') + '/verified/approved-users',
-        params: {
-          q: query,
-          offset,
-          limit: APPROVED_PAGE_SIZE,
-        },
+        params,
       })
       .then((res) => {
         this.approved.loading = false;
         this.approved.rows = (res && res.data) || [];
         this.approved.total = (res && res.meta && res.meta.total) || 0;
+        if (res && res.meta && res.meta.tiers) this.approved.tiers = res.meta.tiers;
         m.redraw();
       })
       .catch(() => {
@@ -586,10 +665,17 @@ export default class VerificationRequestsSection extends Component<ComponentAttr
 
   act(req: VerificationRequest, action: 'approve' | 'reject' | 'revoke'): void {
     let note: string | null = null;
+    let tierId: string | null = null;
+
     if (action === 'reject' || action === 'revoke') {
       note = window.prompt(extractText(trans(action + '_prompt')));
       if (note === null) return;
     } else if (action === 'approve') {
+      // Pick tier first — no point asking for a note then bailing on tier.
+      const tier = promptTier();
+      if (!tier) return;
+      tierId = tier.id;
+
       const ans = window.prompt(extractText(trans('approve_prompt')));
       if (ans === null) return;
       note = ans;
@@ -601,11 +687,14 @@ export default class VerificationRequestsSection extends Component<ComponentAttr
     this.busy[reqId] = true;
     m.redraw();
 
+    const body: Record<string, unknown> = { meta: { adminNote: note || '' } };
+    if (tierId) (body.meta as Record<string, unknown>).tier = tierId;
+
     app
       .request<{ data?: unknown }>({
         method: 'POST',
         url: app.forum.attribute('apiUrl') + '/verification-requests/' + reqId + '/' + action,
-        body: { meta: { adminNote: note || '' } },
+        body,
       })
       .then((res) => {
         delete this.busy[reqId];

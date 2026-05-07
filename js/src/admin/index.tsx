@@ -32,13 +32,9 @@ app.initializers.add(EXT_ID, () => {
         permission: 'verified.verifyUsers',
       },
       'moderate'
-    )
-    .registerPermission(
-      {
-        icon: 'fas fa-certificate',
-        label: app.translator.trans('ramon-verified.admin.permissions.auto_verified_label'),
-        permission: 'verified.autoVerified',
-      },
-      'start'
     );
+
+  // NOTE: `verified.autoVerified` is NOT registered with the standard
+  // PermissionGrid. Auto-verification is now per-tier — each tier in
+  // Admin → Tiers picks the groups that get its badge automatically.
 });

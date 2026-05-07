@@ -17,6 +17,7 @@ use Illuminate\Database\Eloquent\Builder;
 use Ramon\Verified\Documents\DocumentRetention;
 use Ramon\Verified\Event\UserVerified;
 use Ramon\Verified\Models\VerificationRequest;
+use Ramon\Verified\TierConfig;
 
 /**
  * @extends AbstractDatabaseResource<VerificationRequest>
@@ -173,9 +174,10 @@ class VerificationRequestResource extends AbstractDatabaseResource
                     $request->admin_note = $this->extractNote($context);
                     $request->save();
 
-                    $user->is_verified = true;
-                    $user->verified_at = $now;
-                    $user->verified_by = (int) $actor->id;
+                    $user->is_verified   = true;
+                    $user->verified_at   = $now;
+                    $user->verified_by   = (int) $actor->id;
+                    $user->verified_tier = $this->resolveTierFromContext($context);
                     $user->save();
 
                     $this->retention->onRequestHandled($request);
@@ -244,9 +246,10 @@ class VerificationRequestResource extends AbstractDatabaseResource
                     $request->save();
 
                     if ($user) {
-                        $user->is_verified = false;
-                        $user->verified_at = null;
-                        $user->verified_by = null;
+                        $user->is_verified   = false;
+                        $user->verified_at   = null;
+                        $user->verified_by   = null;
+                        $user->verified_tier = null;
                         $user->save();
                     }
 
@@ -332,5 +335,28 @@ class VerificationRequestResource extends AbstractDatabaseResource
         }
 
         return mb_substr($note, 0, 1000);
+    }
+
+    /**
+     * Pull the requested tier id from the approval body and map it onto a
+     * configured tier. Falls back to the default (`blue`) when the admin
+     * didn't pick one or picked one that no longer exists.
+     */
+    protected function resolveTierFromContext(Context $context): ?string
+    {
+        $body = $context->body();
+        $requested = $body['meta']['tier'] ?? $body['data']['attributes']['tier'] ?? null;
+        $requested = is_string($requested) ? trim($requested) : null;
+
+        $tiers = TierConfig::fromSettings($this->settings);
+        if (empty($tiers)) return null;
+
+        if ($requested) {
+            $found = TierConfig::findById($tiers, $requested);
+            if ($found) return $found['id'];
+        }
+
+        $fallback = TierConfig::findById($tiers, TierConfig::DEFAULT_TIER_ID) ?? $tiers[0];
+        return $fallback['id'];
     }
 }
