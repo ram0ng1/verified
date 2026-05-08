@@ -118,12 +118,27 @@ class UploadDocumentController implements RequestHandlerInterface
         $tmpPath = $file->getStream()->getMetadata('uri');
         $detectedMime = null;
 
-        if (is_string($tmpPath) && is_readable($tmpPath) && function_exists('finfo_open')) {
-            $finfo = finfo_open(FILEINFO_MIME_TYPE);
-            if ($finfo) {
-                $detectedMime = finfo_file($finfo, $tmpPath) ?: null;
-                finfo_close($finfo);
+        if (is_string($tmpPath) && is_readable($tmpPath)) {
+            if (function_exists('finfo_open')) {
+                $finfo = finfo_open(FILEINFO_MIME_TYPE);
+                if ($finfo) {
+                    $detectedMime = finfo_file($finfo, $tmpPath) ?: null;
+                    finfo_close($finfo);
+                }
+            } elseif (function_exists('mime_content_type')) {
+                // Fallback for hardened builds where ext-fileinfo is missing.
+                $detectedMime = mime_content_type($tmpPath) ?: null;
             }
+        }
+
+        // If we have NO server-side detection at all (extension lacks both
+        // finfo and mime_content_type) the only signals are the client MIME
+        // and the extension. Those alone aren't enough to keep the upload
+        // path honest, so refuse the upload rather than trust the client.
+        if ($detectedMime === null && ! function_exists('finfo_open') && ! function_exists('mime_content_type')) {
+            throw new ValidationException([
+                'document' => $this->translator->trans('ramon-verified.api.upload_failed'),
+            ]);
         }
 
         if ($detectedMime && ! in_array(strtolower($detectedMime), self::ALLOWED_MIMES, true)) {

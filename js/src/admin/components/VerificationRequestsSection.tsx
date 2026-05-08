@@ -79,21 +79,6 @@ export default class VerificationRequestsSection extends Component<ComponentAttr
 
   oninit(vnode: Mithril.Vnode<ComponentAttrs, this>) {
     super.oninit(vnode);
-    this.tab = 'pending';
-    this.loading = false;
-    this.requests = [];
-    this.busy = {};
-    this.approved = {
-      loading: false,
-      rows: [],
-      total: 0,
-      offset: 0,
-      query: '',
-      tierFilter: '',
-      tiers: [],
-    };
-    this._searchTimer = null;
-
     this.load();
     this.loadApproved();
   }

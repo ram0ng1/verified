@@ -1,9 +1,9 @@
 // Verified — forum styles
 //
 // The badge uses CSS `color` so the SVG path filled with `currentColor`
-// inherits the theme primary by default. Admins can override the color
-// via the `ramon-verified.badge_color` setting; in that case the JS
-// applies `style="color: <value>"` which wins over the CSS rules below.
+// inherits the theme primary by default. Tier configs may set a per-tier
+// color, which the JS applies via `style="color: <value>"` (winning over
+// the CSS rules below).
 
 @import 'badge.less';
 

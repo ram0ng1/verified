@@ -157,20 +157,12 @@ class RegenerateConfirmModal extends Modal<RegenerateConfirmAttrs> {
   }
 }
 
-interface EncryptionCardAttrs extends ComponentAttrs {}
-
-interface EncryptionCardState {
-  status: EncryptionStatus | null;
-  loading: boolean;
-  publicCopied: boolean;
-}
-
-export default class EncryptionCard extends Component<EncryptionCardAttrs> {
+export default class EncryptionCard extends Component<ComponentAttrs> {
   protected status: EncryptionStatus | null = null;
   protected loading = true;
   protected publicCopied = false;
 
-  oninit(vnode: Mithril.Vnode<EncryptionCardAttrs, this>) {
+  oninit(vnode: Mithril.Vnode<ComponentAttrs, this>) {
     super.oninit(vnode);
     this.refresh();
   }

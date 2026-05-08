@@ -276,6 +276,12 @@ class VerificationRequestResource extends AbstractDatabaseResource
                     return $actor->isAdmin() || $actor->id === (int) $request->user_id;
                 }),
             Schema\Str::make('reason')->nullable(),
+            // SECURITY NOTE: `adminNote` is intentionally readable by the
+            // request owner (so they see the rejection reason). If your forum
+            // uses this field for INTERNAL moderator-only memos, restrict it:
+            //   ->visible(fn (VerificationRequest $r, Context $ctx) =>
+            //       $ctx->getActor()->isAdmin())
+            // and surface user-facing feedback through a separate field.
             Schema\Str::make('adminNote')
                 ->property('admin_note')
                 ->nullable(),

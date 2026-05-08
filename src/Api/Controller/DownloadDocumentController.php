@@ -114,13 +114,23 @@ class DownloadDocumentController implements RequestHandlerInterface
             ? 'attachment'
             : 'inline';
 
-        return (new Response())
+        $response = (new Response())
             ->withBody($stream)
             ->withHeader('Content-Type', $mime)
             ->withHeader('Content-Length', (string) $contentLength)
             ->withHeader('Content-Disposition', $disposition.'; filename="document.'.$extension.'"')
             ->withHeader('X-Content-Type-Options', 'nosniff')
+            ->withHeader('X-Frame-Options', 'SAMEORIGIN')
             ->withHeader('Cache-Control', 'private, no-store, max-age=0');
+
+        // PDFs viewed inline can carry embedded scripts and form actions.
+        // CSP `sandbox` neutralises those without breaking the built-in
+        // browser PDF viewer (which renders fine inside a sandboxed frame).
+        if ($mime === 'application/pdf') {
+            $response = $response->withHeader('Content-Security-Policy', "sandbox");
+        }
+
+        return $response;
     }
 
     /**

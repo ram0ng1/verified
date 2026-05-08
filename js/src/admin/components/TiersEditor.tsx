@@ -52,8 +52,6 @@ export default class TiersEditor extends Component<ComponentAttrs> {
   oninit(vnode: Mithril.Vnode<ComponentAttrs, this>) {
     super.oninit(vnode);
     this.rows = this.parse(String(settings()[SETTING_KEY] ?? ''));
-    this._flushTimer = null;
-    this.expandedIdx = null;
   }
 
   parse(raw: string): TierRow[] {

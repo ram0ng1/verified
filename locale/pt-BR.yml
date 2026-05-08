@@ -107,11 +107,6 @@ ramon-verified:
       lock_avatar_help: "Usuários verificados não podem trocar de avatar. Para alterar, precisam abrir nova solicitação."
       badge_size_label: "Tamanho do selo"
       badge_size_help: "Multiplicador em relação ao tamanho do texto. 1.0 deixa o selo do mesmo tamanho do nome; valores maiores destacam mais."
-      custom_color_label: "Usar cor personalizada"
-      custom_color_help: "Desligado: o selo segue a cor primária do fórum. Ligado: escolha uma cor personalizada abaixo."
-      badge_color_label: "Cor do selo"
-      badge_color_help: "Escolha uma cor ou cole um valor hex (ex.: #1d9bf0), rgb(), rgba(), hsl() ou hsla()."
-      badge_color_reset: "Limpar"
       custom_svg_label: "SVG personalizado"
       custom_svg_help: "Envie um arquivo SVG para substituir o selo padrão. Use fill=\"currentColor\" para respeitar a cor configurada acima. Scripts e eventos inline são removidos automaticamente."
       tiers:

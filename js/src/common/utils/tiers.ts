@@ -11,7 +11,6 @@
  */
 
 import type User from 'flarum/common/models/User';
-import { getBadgeColor } from './getBadgeSvg';
 
 export interface VerifiedTier {
   id: string;
@@ -120,15 +119,6 @@ function normalise(row: unknown): VerifiedTier | null {
   return { id, label, color, description, learnMoreUrl, autoGroups };
 }
 
-export function findTierById(id: string | null | undefined): VerifiedTier | null {
-  if (!id) return null;
-  const needle = String(id).toLowerCase();
-  for (const t of getConfiguredTiers()) {
-    if (t.id === needle) return t;
-  }
-  return null;
-}
-
 /**
  * Resolve which tier applies to a given user.
  *
@@ -144,9 +134,8 @@ export function resolveTierForUser(user: User | null | undefined): VerifiedTier 
   const tiers = getConfiguredTiers();
   if (tiers.length === 0) return null;
 
-  const stored = (user as unknown as { verifiedTier?: () => string | null }).verifiedTier;
-  if (typeof stored === 'function') {
-    const id = stored.call(user);
+  if (typeof user.verifiedTier === 'function') {
+    const id = user.verifiedTier();
     if (id) {
       const found = tiers.find((t) => t.id === String(id).toLowerCase());
       if (found) return found;
@@ -157,11 +146,9 @@ export function resolveTierForUser(user: User | null | undefined): VerifiedTier 
 }
 
 /**
- * Effective badge color for a user. Tier color wins; falls back to the
- * legacy custom color (when admin has the global custom-color toggle on)
- * and finally to null (which lets CSS pick the theme primary).
+ * Effective badge color for a user. Returns the tier color when set;
+ * null lets CSS pick the theme primary.
  */
 export function getTierColor(tier: VerifiedTier | null): string | null {
-  if (tier && tier.color) return tier.color;
-  return getBadgeColor();
+  return (tier && tier.color) || null;
 }

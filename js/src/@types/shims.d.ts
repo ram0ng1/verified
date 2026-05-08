@@ -10,6 +10,7 @@ declare module 'flarum/common/models/User' {
   export default interface User {
     isVerified(): boolean | undefined;
     verifiedAt(): Date | null | undefined;
+    verifiedTier(): string | null | undefined;
     canRequestVerification(): boolean | undefined;
     hasPendingVerificationRequest(): boolean | undefined;
     isAvatarLocked(): boolean | undefined;

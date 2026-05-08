@@ -24,16 +24,33 @@ class UploadBadgeSvgController extends UploadImageController
 
     protected string $fileExtension = 'svg';
 
+    public const MAX_SVG_BYTES = 256 * 1024;
+
     #[\Override]
     protected function makeImage(UploadedFileInterface $file): EncodedImageInterface|StreamInterface
     {
-        if ($file->getSize() !== null && $file->getSize() > 256 * 1024) {
+        // Reject early when the reported size is over the cap. `getSize()` may
+        // return null for chunked uploads — in that case we still cap at read
+        // time below so a misreporting client can't OOM the worker.
+        $reportedSize = $file->getSize();
+        if ($reportedSize !== null && $reportedSize > self::MAX_SVG_BYTES) {
             throw new ValidationException([
                 'badge_svg' => 'SVG file is too large (max 256 KB).',
             ]);
         }
 
-        $sanitized = $this->sanitizeSvg((string) $file->getStream());
+        // Read at most MAX_SVG_BYTES + 1 so we can detect a stream that lied
+        // about its length without ever holding more than ~256 KB in memory.
+        $stream = $file->getStream();
+        $stream->rewind();
+        $content = $stream->read(self::MAX_SVG_BYTES + 1);
+        if (strlen($content) > self::MAX_SVG_BYTES) {
+            throw new ValidationException([
+                'badge_svg' => 'SVG file is too large (max 256 KB).',
+            ]);
+        }
+
+        $sanitized = $this->sanitizeSvg($content);
 
         // Persist the sanitised SVG content directly as a setting so the
         // forum frontend can render it inline on every page load — no fetch,
@@ -94,10 +111,10 @@ class UploadBadgeSvgController extends UploadImageController
     /**
      * Walks the SVG and rewrites every `fill` attribute (other than `none`,
      * `transparent`, or a whiteish value) to `currentColor`. This means the
-     * admin's badge_color setting (or the forum's primary colour) drives the
-     * visible colour of the uploaded artwork — while preserving any explicit
-     * WHITE inner shapes (typically the inner check on a verified-style
-     * seal), so the "middle white" stays white on dark backgrounds.
+     * tier color (or the forum's primary colour) drives the visible colour
+     * of the uploaded artwork — while preserving any explicit WHITE inner
+     * shapes (typically the inner check on a verified-style seal), so the
+     * "middle white" stays white on dark backgrounds.
      */
     private function replaceFillsWithCurrentColor(\DOMNode $node): void
     {
@@ -155,7 +172,17 @@ class UploadBadgeSvgController extends UploadImageController
 
     private function cleanNode(\DOMNode $node): void
     {
-        static $dangerous = ['script', 'foreignobject', 'iframe', 'object', 'embed', 'base', 'link', 'style'];
+        // - script/foreignobject/iframe/object/embed/base/link/style: classic
+        //   active-content vectors.
+        // - a: a verified badge has no business carrying a clickable link;
+        //   stripping it kills phishing-via-uploaded-badge.
+        // - animate/set/animateTransform/animateMotion: SMIL animations can
+        //   rewrite attributes (e.g. xlink:href) AFTER our static sanitiser
+        //   runs, smuggling javascript: URIs past the attribute scrub.
+        static $dangerous = [
+            'script', 'foreignobject', 'iframe', 'object', 'embed', 'base', 'link', 'style',
+            'a', 'animate', 'animatetransform', 'animatemotion', 'set',
+        ];
 
         $children = iterator_to_array($node->childNodes);
 

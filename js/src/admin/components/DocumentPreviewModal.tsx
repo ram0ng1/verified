@@ -34,12 +34,6 @@ export default class DocumentPreviewModal extends Modal<DocumentPreviewModalAttr
   protected imageLoaded: boolean = false;
   protected imageError: boolean = false;
 
-  oninit(vnode: Mithril.Vnode<DocumentPreviewModalAttrs, this>) {
-    super.oninit(vnode);
-    this.imageLoaded = false;
-    this.imageError = false;
-  }
-
   className(): string {
     return 'DocumentPreviewModal';
   }

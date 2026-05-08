@@ -7,7 +7,7 @@ import type Mithril from 'mithril';
 import type User from 'flarum/common/models/User';
 import VerifiedBadge from '../common/components/VerifiedBadge';
 import RequestVerificationModal from './components/RequestVerificationModal';
-import getBadgeSvg, { getBadgeColor, getBadgeSize, DEFAULT_VERIFIED_SVG } from '../common/utils/getBadgeSvg';
+import getBadgeSvg, { getBadgeSize } from '../common/utils/getBadgeSvg';
 import promptTier from '../common/utils/promptTier';
 
 // ─── Avocado theme integration helpers ────────────────────────────────────
@@ -66,16 +66,11 @@ function makeVerifiedVnode(user: User | null | undefined, className: string): Mi
     }
   }
 
-  let svg = DEFAULT_VERIFIED_SVG;
-  let color: string | null = null;
+  let svg = getBadgeSvg();
   let size = '1.2em';
   let tooltip = 'Verified';
 
   try {
-    const s = getBadgeSvg();
-    if (typeof s === 'string' && s) svg = s;
-    const c = getBadgeColor();
-    if (typeof c === 'string' && c) color = c;
     const z = getBadgeSize();
     if (typeof z === 'string' && z) size = z;
     if (typeof app !== 'undefined' && app.translator) {
@@ -86,14 +81,11 @@ function makeVerifiedVnode(user: User | null | undefined, className: string): Mi
     // defaults
   }
 
-  const style: Record<string, string> = { '--verified-size': size };
-  if (color) style.color = color;
-
   return m(
     'span',
     {
       className: ('VerifiedBadge ' + (className || '')).trim(),
-      style: style,
+      style: { '--verified-size': size },
       role: 'img',
       title: tooltip,
       'aria-label': tooltip,

@@ -6,6 +6,7 @@ use Flarum\Group\Group;
 use Flarum\Http\RequestUtil;
 use Flarum\Settings\SettingsRepositoryInterface;
 use Flarum\User\User;
+use Illuminate\Database\ConnectionInterface;
 use Illuminate\Database\Eloquent\Builder;
 use Laminas\Diactoros\Response\JsonResponse;
 use Psr\Http\Message\ResponseInterface;
@@ -36,7 +37,8 @@ class ListApprovedUsersController implements RequestHandlerInterface
     public const MAX_LIMIT = 50;
 
     public function __construct(
-        protected SettingsRepositoryInterface $settings
+        protected SettingsRepositoryInterface $settings,
+        protected ConnectionInterface $db
     ) {
     }
 
@@ -76,10 +78,15 @@ class ListApprovedUsersController implements RequestHandlerInterface
 
         if ($q !== '') {
             $like = '%'.str_replace(['\\', '%', '_'], ['\\\\', '\\%', '\\_'], $q).'%';
-            $query->where(function (Builder $w) use ($like) {
-                $w->where('username', 'like', $like)
-                  ->orWhere('email', 'like', $like)
-                  ->orWhere('display_name', 'like', $like);
+            $columns = $this->searchableColumns();
+            $query->where(function (Builder $w) use ($like, $columns) {
+                foreach ($columns as $i => $col) {
+                    if ($i === 0) {
+                        $w->where($col, 'like', $like);
+                    } else {
+                        $w->orWhere($col, 'like', $like);
+                    }
+                }
             });
         }
 
@@ -176,7 +183,7 @@ class ListApprovedUsersController implements RequestHandlerInterface
             $row = [
                 'id'                 => (int) $user->id,
                 'username'           => (string) $user->username,
-                'displayName'        => $user->display_name ?: (string) $user->username,
+                'displayName'        => (string) ($user->display_name ?: $user->nickname ?: $user->username),
                 'avatarUrl'          => $user->avatar_url,
                 'source'             => $source,
                 'isVerified'         => (bool) $user->is_verified,
@@ -266,5 +273,33 @@ class ListApprovedUsersController implements RequestHandlerInterface
             'label' => $t['label'],
             'color' => $t['color'],
         ], $tiers);
+    }
+
+    /**
+     * Resolve which columns on `users` to LIKE-search against. `username` and
+     * `email` are part of stock Flarum and always present. `nickname` and
+     * `display_name` only exist when the corresponding extension is installed
+     * (flarum/nicknames, custom forks); we probe at runtime so an admin search
+     * doesn't 500 on forums that lack them.
+     *
+     * NB: we go through the injected `ConnectionInterface` rather than the
+     * `Schema` facade — Flarum doesn't bootstrap Laravel's Facade root, so
+     * `Schema::hasColumn(...)` blows up with "A facade root has not been set".
+     *
+     * @return string[]
+     */
+    private function searchableColumns(): array
+    {
+        static $cached = null;
+        if ($cached !== null) return $cached;
+
+        $columns = ['username', 'email'];
+        $schema = $this->db->getSchemaBuilder();
+        foreach (['nickname', 'display_name'] as $optional) {
+            if ($schema->hasColumn('users', $optional)) {
+                $columns[] = $optional;
+            }
+        }
+        return $cached = $columns;
     }
 }

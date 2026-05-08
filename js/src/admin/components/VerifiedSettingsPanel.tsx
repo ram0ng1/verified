@@ -7,7 +7,7 @@ import type Mithril from 'mithril';
 import VerificationRequestsSection from './VerificationRequestsSection';
 import EncryptionCard from './EncryptionCard';
 import TiersEditor from './TiersEditor';
-import getBadgeSvg, { getBadgeColor, resolveAssetUrl } from '../../common/utils/getBadgeSvg';
+import getBadgeSvg, { resolveAssetUrl } from '../../common/utils/getBadgeSvg';
 
 const trans = (key: string) => app.translator.trans(`ramon-verified.admin.${key}`);
 
@@ -73,7 +73,6 @@ class DocumentTypesEditor extends Component<ComponentAttrs> {
   oninit(vnode: Mithril.Vnode<ComponentAttrs, this>) {
     super.oninit(vnode);
     this.types = this.parse(getStr('ramon-verified.document_types'));
-    this._timer = null;
   }
 
   parse(raw: string): DocumentTypeRow[] {
@@ -200,12 +199,6 @@ export default class VerifiedSettingsPanel extends Component<ComponentAttrs> {
 
   protected currentTab: PanelTab = 'general';
 
-  oninit(vnode: Mithril.Vnode<ComponentAttrs, this>) {
-    super.oninit(vnode);
-    this._sizeTimer = null;
-    this._retentionDaysTimer = null;
-  }
-
   view(): Mithril.Children {
     return (
       <div className="VerifiedAdmin">
@@ -284,7 +277,6 @@ export default class VerifiedSettingsPanel extends Component<ComponentAttrs> {
   // ---- Preview card ------------------------------------------------------
 
   previewCard(): Mithril.Children {
-    const color = getBadgeColor();
     const sizeRaw = parseFloat(getStr('ramon-verified.badge_size'));
     const size = Number.isFinite(sizeRaw) && sizeRaw > 0 ? sizeRaw : 1.2;
     const showTooltip = getBool('ramon-verified.show_tooltip');
@@ -295,7 +287,6 @@ export default class VerifiedSettingsPanel extends Component<ComponentAttrs> {
       width: size + 'em',
       height: size + 'em',
     };
-    if (color) badgeStyle.color = color;
 
     const tooltipText = extractText(app.translator.trans('ramon-verified.lib.tooltip'));
 
@@ -311,7 +302,7 @@ export default class VerifiedSettingsPanel extends Component<ComponentAttrs> {
           >
             {m.trust(getBadgeSvg())}
           </span>
-          {this.previewPopover(color)}
+          {this.previewPopover()}
         </span>
       )
       : (
@@ -340,7 +331,7 @@ export default class VerifiedSettingsPanel extends Component<ComponentAttrs> {
     );
   }
 
-  previewPopover(color: string | null): Mithril.Children {
+  previewPopover(): Mithril.Children {
     const u = app.session.user;
     const username = u ? u.username() : 'user';
     const displayName = u ? u.displayName() : 'User';
@@ -351,7 +342,7 @@ export default class VerifiedSettingsPanel extends Component<ComponentAttrs> {
         <span className="VerifiedPopover-arrow" aria-hidden="true" />
 
         <span className="VerifiedPopover-header">
-          <span className="VerifiedPopover-headerIcon" style={color ? { color } : undefined}>
+          <span className="VerifiedPopover-headerIcon">
             {m.trust(getBadgeSvg())}
           </span>
           <span className="VerifiedPopover-headerText">
