@@ -2,6 +2,7 @@ import app from 'flarum/admin/app';
 import { override } from 'flarum/common/extend';
 import ExtensionPage from 'flarum/admin/components/ExtensionPage';
 import VerifiedSettingsPanel from './components/VerifiedSettingsPanel';
+import installGlobalErrorHandler from '../common/utils/installGlobalErrorHandler';
 
 export { default as extend } from '../common/extend';
 
@@ -14,6 +15,8 @@ override(ExtensionPage.prototype, 'submitButton', function (this: any, original:
 });
 
 app.initializers.add(EXT_ID, () => {
+  installGlobalErrorHandler();
+
   app.registry
     .for(EXT_ID)
     .registerSetting(() => <VerifiedSettingsPanel />, 100, 'ramon-verified.panel')

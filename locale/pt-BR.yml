@@ -13,6 +13,10 @@ ramon-verified:
       hint: "Digite o número ou o ID do tier (ex.: 1 ou blue)."
       no_tiers: "Nenhum tier configurado. Adicione tiers em Admin → Verified antes de verificar usuários."
       invalid: "Tier inválido. Verificação cancelada."
+    errors:
+      generic: "Algo deu errado. Tente novamente."
+      network: "Erro de rede. Verifique sua conexão e tente novamente."
+      clipboard: "Não foi possível copiar para a área de transferência."
 
 
   forum:
@@ -43,6 +47,8 @@ ramon-verified:
       revoke_prompt: "Motivo da revogação (visível no histórico):"
       verify_success: "Usuário verificado com sucesso."
       revoke_success: "Verificação revogada."
+      verify_failed: "Não foi possível verificar o usuário. Tente novamente."
+      revoke_failed: "Não foi possível revogar a verificação. Tente novamente."
 
     request_modal:
       title: "Solicitar verificação"
@@ -242,6 +248,12 @@ ramon-verified:
       approve_success: "Usuário verificado com sucesso."
       reject_success: "Solicitação rejeitada."
       revoke_success: "Verificação revogada."
+      load_failed: "Não foi possível carregar as solicitações. Tente novamente."
+      load_approved_failed: "Não foi possível carregar a lista de usuários aprovados. Tente novamente."
+      decide_failed: "Não foi possível salvar a decisão. Tente novamente."
+      revoke_user_failed: "Não foi possível revogar a verificação. Tente novamente."
+      generate_keypair_failed: "Não foi possível gerar o par de chaves. Tente novamente."
+      status_load_failed: "Não foi possível carregar o status da criptografia."
 
   email:
     verified:

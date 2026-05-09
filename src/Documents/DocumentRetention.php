@@ -5,7 +5,9 @@ namespace Ramon\Verified\Documents;
 use Carbon\Carbon;
 use Flarum\Foundation\Paths;
 use Flarum\Settings\SettingsRepositoryInterface;
+use Illuminate\Support\Facades\Log;
 use Ramon\Verified\Models\VerificationRequest;
+use Throwable;
 
 /**
  * Centralised lifecycle for verification document files on disk.
@@ -66,7 +68,7 @@ class DocumentRetention
 
         $absolute = $this->resolveAbsolutePath((string) $request->document_path, (int) $request->user_id);
         if ($absolute !== null && is_file($absolute)) {
-            @unlink($absolute);
+            $this->safeUnlink($absolute, (int) $request->id);
         }
 
         // Clear the path even when the file was already missing — the row
@@ -89,8 +91,42 @@ class DocumentRetention
 
         $absolute = $this->resolveAbsolutePath((string) $request->document_path, (int) $request->user_id);
         if ($absolute !== null && is_file($absolute)) {
-            @unlink($absolute);
+            $this->safeUnlink($absolute, (int) $request->id);
         }
+    }
+
+    /**
+     * Wrap `unlink` so I/O failures get logged instead of being swallowed
+     * by the previous `@unlink` operator. We still tolerate the failure —
+     * retention sweep is best-effort — but ops needs a trail when files
+     * pile up because of permission or filesystem issues.
+     */
+    protected function safeUnlink(string $absolute, ?int $requestId = null): bool
+    {
+        try {
+            if (@unlink($absolute)) {
+                return true;
+            }
+        } catch (Throwable $e) {
+            Log::warning('verified: unlink threw exception', [
+                'path'       => $absolute,
+                'request_id' => $requestId,
+                'error'      => $e->getMessage(),
+            ]);
+            return false;
+        }
+
+        // The file may have been removed by something else between is_file()
+        // and unlink() — that's fine; only log when it is still there.
+        if (file_exists($absolute)) {
+            Log::warning('verified: failed to unlink document', [
+                'path'       => $absolute,
+                'request_id' => $requestId,
+            ]);
+            return false;
+        }
+
+        return true;
     }
 
     /**
@@ -147,7 +183,7 @@ class DocumentRetention
             if (isset($referencedFilenames[$entry])) continue;
 
             $full = $userDir.DIRECTORY_SEPARATOR.$entry;
-            if (is_file($full) && @unlink($full)) {
+            if (is_file($full) && $this->safeUnlink($full)) {
                 $purged++;
             }
         }
@@ -184,8 +220,18 @@ class DocumentRetention
             ->orderBy('id')
             ->chunk(200, function ($rows) use (&$purged) {
                 foreach ($rows as $row) {
-                    $this->purgeRequest($row);
-                    $purged++;
+                    // One bad row (filesystem error, locked file, lost
+                    // database connection mid-save) must not abort the
+                    // entire scheduled purge — log and keep going.
+                    try {
+                        $this->purgeRequest($row);
+                        $purged++;
+                    } catch (Throwable $e) {
+                        Log::warning('verified: purgeExpired failed for request', [
+                            'request_id' => (int) $row->id,
+                            'error'      => $e->getMessage(),
+                        ]);
+                    }
                 }
             });
 

@@ -9,6 +9,8 @@ import VerifiedBadge from '../common/components/VerifiedBadge';
 import RequestVerificationModal from './components/RequestVerificationModal';
 import getBadgeSvg, { getBadgeSize } from '../common/utils/getBadgeSvg';
 import promptTier from '../common/utils/promptTier';
+import apiCall from '../common/utils/apiCall';
+import installGlobalErrorHandler from '../common/utils/installGlobalErrorHandler';
 
 // ─── Avocado theme integration helpers ────────────────────────────────────
 //
@@ -159,6 +161,8 @@ export { default as extend } from './extend';
 // (priority 0). Avocado replaces UserPage.prototype.view with its own
 // hero-rendering view; we need to wrap THAT view to inject our badge.
 app.initializers.add('ramon-verified', () => {
+  installGlobalErrorHandler();
+
   // ----- Profile / hover card: append badge inside the identity h1 -----
   //
   // The same UserCard component renders both the full profile hero
@@ -259,7 +263,7 @@ app.initializers.add('ramon-verified', () => {
     const apiUrl = app.forum.attribute('apiUrl');
     const isVerified = user.isVerified && user.isVerified();
 
-    const performAction = (method: 'POST' | 'DELETE', promptKey: string, alertKey: string) => {
+    const performAction = async (method: 'POST' | 'DELETE', promptKey: string, alertKey: string) => {
       // On verify (POST), let the admin pick a tier first. On revoke (DELETE),
       // tier is irrelevant — we're clearing it.
       let tierId: string | null = null;
@@ -275,25 +279,34 @@ app.initializers.add('ramon-verified', () => {
       const body: Record<string, unknown> = { adminNote: note || '' };
       if (tierId) body.tier = tierId;
 
-      app
-        .request<{ data?: { attributes?: Record<string, unknown> } }>({
+      const errorKey = method === 'POST'
+        ? 'ramon-verified.forum.user_controls.verify_failed'
+        : 'ramon-verified.forum.user_controls.revoke_failed';
+
+      const res = await apiCall<{ data?: { attributes?: Record<string, unknown> } }>(
+        {
           method,
           url: apiUrl + '/verified/users/' + user.id() + '/verify',
           body,
-        })
-        .then((res) => {
-          if (res && res.data && res.data.attributes) {
-            user.pushAttributes(res.data.attributes);
-          } else {
-            user.pushAttributes({
-              isVerified: method === 'POST',
-              verifiedAt: method === 'POST' ? new Date().toISOString() : null,
-            });
-          }
-          app.alerts.show({ type: 'success' }, app.translator.trans('ramon-verified.forum.user_controls.' + alertKey));
-          m.redraw();
-        })
-        .catch(() => m.redraw());
+        },
+        { errorKey }
+      );
+
+      if (!res) {
+        m.redraw();
+        return;
+      }
+
+      if (res.data && res.data.attributes) {
+        user.pushAttributes(res.data.attributes);
+      } else {
+        user.pushAttributes({
+          isVerified: method === 'POST',
+          verifiedAt: method === 'POST' ? new Date().toISOString() : null,
+        });
+      }
+      app.alerts.show({ type: 'success' }, app.translator.trans('ramon-verified.forum.user_controls.' + alertKey));
+      m.redraw();
     };
 
     if (isVerified) {

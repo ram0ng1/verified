@@ -10,6 +10,7 @@ import type User from 'flarum/common/models/User';
 import type VerificationRequest from '../../common/models/VerificationRequest';
 import DocumentPreviewModal from './DocumentPreviewModal';
 import promptTier from '../../common/utils/promptTier';
+import apiCall from '../../common/utils/apiCall';
 
 type RequestTab = 'pending' | 'approved' | 'rejected';
 const TABS: RequestTab[] = ['pending', 'approved', 'rejected'];
@@ -413,7 +414,7 @@ export default class VerificationRequestsSection extends Component<ComponentAttr
     return this.approved.tiers.find((t) => t.id === tierId) || null;
   }
 
-  loadApproved(): void {
+  async loadApproved(): Promise<void> {
     const { query, offset } = this.approved;
     this.approved.loading = true;
     m.redraw();
@@ -425,48 +426,48 @@ export default class VerificationRequestsSection extends Component<ComponentAttr
     };
     if (this.approved.tierFilter) params.tier = this.approved.tierFilter;
 
-    app
-      .request<{ data?: ApprovedUserRow[]; meta?: { total?: number; tiers?: TierMeta[] } }>({
+    const res = await apiCall<{ data?: ApprovedUserRow[]; meta?: { total?: number; tiers?: TierMeta[] } }>(
+      {
         method: 'GET',
         url: app.forum.attribute('apiUrl') + '/verified/approved-users',
         params,
-      })
-      .then((res) => {
-        this.approved.loading = false;
-        this.approved.rows = (res && res.data) || [];
-        this.approved.total = (res && res.meta && res.meta.total) || 0;
-        if (res && res.meta && res.meta.tiers) this.approved.tiers = res.meta.tiers;
-        m.redraw();
-      })
-      .catch(() => {
-        this.approved.loading = false;
-        m.redraw();
-      });
+      },
+      { errorKey: 'ramon-verified.admin.requests.load_approved_failed' }
+    );
+
+    this.approved.loading = false;
+    if (res) {
+      this.approved.rows = res.data || [];
+      this.approved.total = (res.meta && res.meta.total) || 0;
+      if (res.meta && res.meta.tiers) this.approved.tiers = res.meta.tiers;
+    }
+    m.redraw();
   }
 
-  revokeUser(row: ApprovedUserRow): void {
+  async revokeUser(row: ApprovedUserRow): Promise<void> {
     const note = window.prompt(extractText(trans('revoke_prompt')));
     if (note === null) return;
 
     this.busy['user-' + row.id] = true;
     m.redraw();
 
-    app
-      .request({
+    const res = await apiCall(
+      {
         method: 'DELETE',
         url: app.forum.attribute('apiUrl') + '/verified/users/' + row.id + '/verify',
         body: { adminNote: note || '' },
-      })
-      .then(() => {
-        delete this.busy['user-' + row.id];
-        app.alerts.show({ type: 'success' }, trans('revoke_success'));
-        this.load();
-        this.loadApproved();
-      })
-      .catch(() => {
-        delete this.busy['user-' + row.id];
-        m.redraw();
-      });
+      },
+      { errorKey: 'ramon-verified.admin.requests.revoke_user_failed' }
+    );
+
+    delete this.busy['user-' + row.id];
+
+    if (res !== null) {
+      app.alerts.show({ type: 'success' }, trans('revoke_success'));
+      this.load();
+      this.loadApproved();
+    }
+    m.redraw();
   }
 
   filteredRequests(): VerificationRequest[] {
@@ -621,34 +622,35 @@ export default class VerificationRequestsSection extends Component<ComponentAttr
     return fallback[type] || type;
   }
 
-  load(): void {
+  async load(): Promise<void> {
     this.loading = true;
     this.requests = [];
 
-    app.store
-      .find<VerificationRequest[]>('verification-requests', {
+    try {
+      const res = await app.store.find<VerificationRequest[]>('verification-requests', {
         sort: '-createdAt',
         page: { limit: 100 },
         include: 'user,handler',
-      })
-      .then((res) => {
-        this.loading = false;
-        const list: VerificationRequest[] = Array.isArray(res) ? res.slice() : [];
-        list.sort((a, b) => {
-          const av = a.createdAt() ? (a.createdAt() as Date).getTime() : 0;
-          const bv = b.createdAt() ? (b.createdAt() as Date).getTime() : 0;
-          return bv - av;
-        });
-        this.requests = list;
-        m.redraw();
-      })
-      .catch(() => {
-        this.loading = false;
-        m.redraw();
       });
+      const list: VerificationRequest[] = Array.isArray(res) ? res.slice() : [];
+      list.sort((a, b) => {
+        const av = a.createdAt() ? (a.createdAt() as Date).getTime() : 0;
+        const bv = b.createdAt() ? (b.createdAt() as Date).getTime() : 0;
+        return bv - av;
+      });
+      this.requests = list;
+    } catch (err) {
+      app.alerts.show(
+        { type: 'error' },
+        extractText(app.translator.trans('ramon-verified.admin.requests.load_failed'))
+      );
+    } finally {
+      this.loading = false;
+      m.redraw();
+    }
   }
 
-  act(req: VerificationRequest, action: 'approve' | 'reject' | 'revoke'): void {
+  async act(req: VerificationRequest, action: 'approve' | 'reject' | 'revoke'): Promise<void> {
     let note: string | null = null;
     let tierId: string | null = null;
 
@@ -675,22 +677,23 @@ export default class VerificationRequestsSection extends Component<ComponentAttr
     const body: Record<string, unknown> = { meta: { adminNote: note || '' } };
     if (tierId) (body.meta as Record<string, unknown>).tier = tierId;
 
-    app
-      .request<{ data?: unknown }>({
+    const res = await apiCall<{ data?: unknown }>(
+      {
         method: 'POST',
         url: app.forum.attribute('apiUrl') + '/verification-requests/' + reqId + '/' + action,
         body,
-      })
-      .then((res) => {
-        delete this.busy[reqId];
-        if (res && res.data) app.store.pushPayload(res as any);
-        this.load();
-        if (action === 'approve' || action === 'revoke') this.loadApproved();
-        app.alerts.show({ type: 'success' }, trans(action + '_success'));
-      })
-      .catch(() => {
-        delete this.busy[reqId];
-        m.redraw();
-      });
+      },
+      { errorKey: 'ramon-verified.admin.requests.decide_failed' }
+    );
+
+    delete this.busy[reqId];
+
+    if (res !== null) {
+      if (res.data) app.store.pushPayload(res as any);
+      this.load();
+      if (action === 'approve' || action === 'revoke') this.loadApproved();
+      app.alerts.show({ type: 'success' }, trans(action + '_success'));
+    }
+    m.redraw();
   }
 }

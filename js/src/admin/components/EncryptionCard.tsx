@@ -5,6 +5,7 @@ import Modal, { IInternalModalAttrs } from 'flarum/common/components/Modal';
 import LoadingIndicator from 'flarum/common/components/LoadingIndicator';
 import extractText from 'flarum/common/utils/extractText';
 import type Mithril from 'mithril';
+import apiCall from '../../common/utils/apiCall';
 
 const trans = (key: string, params?: Record<string, unknown>) =>
   app.translator.trans(`ramon-verified.admin.encryption.${key}`, params ?? {});
@@ -83,20 +84,35 @@ class KeypairRevealModal extends Modal<KeypairRevealAttrs> {
   }
 
   copy(snippet: string) {
-    if (!navigator.clipboard) return;
-    navigator.clipboard.writeText(snippet).then(() => {
-      this.copied = true;
-      m.redraw();
-      setTimeout(() => {
-        this.copied = false;
+    if (!navigator.clipboard) {
+      app.alerts.show(
+        { type: 'error' },
+        extractText(app.translator.trans('ramon-verified.lib.errors.clipboard'))
+      );
+      return;
+    }
+    navigator.clipboard.writeText(snippet).then(
+      () => {
+        this.copied = true;
         m.redraw();
-      }, 2000);
-    });
+        setTimeout(() => {
+          this.copied = false;
+          m.redraw();
+        }, 2000);
+      },
+      () => {
+        app.alerts.show(
+          { type: 'error' },
+          extractText(app.translator.trans('ramon-verified.lib.errors.clipboard'))
+        );
+      }
+    );
   }
 }
 
 interface RegenerateConfirmAttrs extends IInternalModalAttrs {
-  onConfirm: () => Promise<unknown>;
+  /** Resolves to `false` when the operation failed (modal stays open). */
+  onConfirm: () => Promise<boolean | unknown>;
 }
 
 class RegenerateConfirmModal extends Modal<RegenerateConfirmAttrs> {
@@ -148,12 +164,21 @@ class RegenerateConfirmModal extends Modal<RegenerateConfirmAttrs> {
     this.submitting = true;
     m.redraw();
     try {
-      await this.attrs.onConfirm();
+      const ok = await this.attrs.onConfirm();
+      // onConfirm returns false (or throws) when the request fails — keep
+      // the modal open so the admin can retry without re-acknowledging.
+      if (ok === false) {
+        this.submitting = false;
+        m.redraw();
+        return;
+      }
+      this.hide();
     } catch (e) {
-      // The parent surfaces any error via app.alerts.
+      // Parent already surfaced an error alert via apiCall. Leave the modal
+      // open so the admin can retry.
+      this.submitting = false;
+      m.redraw();
     }
-    this.submitting = false;
-    this.hide();
   }
 }
 
@@ -284,75 +309,98 @@ export default class EncryptionCard extends Component<ComponentAttrs> {
   }
 
   copyPublicKey(publicKey: string) {
-    if (!publicKey || !navigator.clipboard) return;
-    navigator.clipboard.writeText(publicKey).then(() => {
-      this.publicCopied = true;
-      m.redraw();
-      setTimeout(() => {
-        this.publicCopied = false;
+    if (!publicKey) return;
+    if (!navigator.clipboard) {
+      app.alerts.show(
+        { type: 'error' },
+        extractText(app.translator.trans('ramon-verified.lib.errors.clipboard'))
+      );
+      return;
+    }
+    navigator.clipboard.writeText(publicKey).then(
+      () => {
+        this.publicCopied = true;
         m.redraw();
-      }, 2000);
-    });
+        setTimeout(() => {
+          this.publicCopied = false;
+          m.redraw();
+        }, 2000);
+      },
+      () => {
+        app.alerts.show(
+          { type: 'error' },
+          extractText(app.translator.trans('ramon-verified.lib.errors.clipboard'))
+        );
+      }
+    );
   }
 
-  refresh(): Promise<void> {
+  async refresh(): Promise<void> {
     this.loading = true;
-    return app.request<EncryptionStatus>({
-      method: 'GET',
-      url: `${apiUrl()}/verified/encryption/status`,
-    })
-      .then((res) => {
-        this.status = res;
-      })
-      .catch(() => {
-        this.status = null;
-      })
-      .then(() => {
-        this.loading = false;
-        m.redraw();
-      });
+    const res = await apiCall<EncryptionStatus>(
+      {
+        method: 'GET',
+        url: `${apiUrl()}/verified/encryption/status`,
+      },
+      { errorKey: 'ramon-verified.admin.requests.status_load_failed' }
+    );
+    this.status = res;
+    this.loading = false;
+    m.redraw();
   }
 
   // Same shape as Flarum core's CreateUserModal flow: do the API work,
   // update local state, then show the result modal. The parent's status
   // panel is already refreshed by the time the user closes the modal —
   // no callback / lifecycle plumbing needed.
-  async generate() {
-    const res = await app.request<{
+  async generate(): Promise<boolean> {
+    const res = await apiCall<{
       privateKey: string;
       configKey: string;
       orphanedDocuments?: number;
-    }>({
-      method: 'POST',
-      url: `${apiUrl()}/verified/encryption/generate-keypair`,
-      body: {},
-    });
+    }>(
+      {
+        method: 'POST',
+        url: `${apiUrl()}/verified/encryption/generate-keypair`,
+        body: {},
+      },
+      { errorKey: 'ramon-verified.admin.requests.generate_keypair_failed' }
+    );
+    if (!res) return false;
+
     await this.refresh();
     app.modal.show(KeypairRevealModal, {
       privateKey: res.privateKey,
       configKey: res.configKey,
       orphanedDocuments: res.orphanedDocuments || 0,
     });
+    return true;
   }
 
   openRegenerate() {
     app.modal.show(RegenerateConfirmModal, {
       onConfirm: async () => {
-        const res = await app.request<{
+        const res = await apiCall<{
           privateKey: string;
           configKey: string;
           orphanedDocuments?: number;
-        }>({
-          method: 'POST',
-          url: `${apiUrl()}/verified/encryption/generate-keypair`,
-          body: { acknowledgeLoss: true },
-        });
+        }>(
+          {
+            method: 'POST',
+            url: `${apiUrl()}/verified/encryption/generate-keypair`,
+            body: { acknowledgeLoss: true },
+          },
+          { errorKey: 'ramon-verified.admin.requests.generate_keypair_failed' }
+        );
+        if (!res) return false;
+
         await this.refresh();
         app.modal.show(KeypairRevealModal, {
           privateKey: res.privateKey,
           configKey: res.configKey,
           orphanedDocuments: res.orphanedDocuments || 0,
         });
+        return true;
       },
     });
   }

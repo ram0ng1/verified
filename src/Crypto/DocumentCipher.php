@@ -116,7 +116,19 @@ class DocumentCipher
             throw new RuntimeException('No public key configured.');
         }
 
-        $sealed = sodium_crypto_box_seal($plaintext, $public);
+        // Defensive: in modern PHP, sodium_crypto_box_seal throws SodiumException
+        // on invalid input, but older builds and patched runtimes have been
+        // observed to return false instead. Either way, we must not silently
+        // persist a corrupted "encrypted" blob.
+        try {
+            $sealed = sodium_crypto_box_seal($plaintext, $public);
+        } catch (\Throwable $e) {
+            throw new RuntimeException('Document encryption failed.', 0, $e);
+        }
+
+        if (!is_string($sealed) || $sealed === '') {
+            throw new RuntimeException('Document encryption failed (empty ciphertext).');
+        }
 
         return self::MAGIC.$sealed;
     }

@@ -2,8 +2,10 @@
 
 namespace Ramon\Verified\Listener;
 
+use Illuminate\Support\Facades\Log;
 use Ramon\Verified\Documents\DocumentRetention;
 use Ramon\Verified\Models\VerificationRequest;
+use Throwable;
 
 /**
  * Unlink a verification request's document file when the row itself is
@@ -28,6 +30,17 @@ class PurgeDocumentOnRequestDelete
 
     public function handle(VerificationRequest $model): void
     {
-        $this->retention->purgeFileForRequest($model);
+        // A filesystem failure here must not block the row delete. The
+        // file may end up orphaned, but the scheduled `sweepOrphans`
+        // pass will pick it up — losing the row instead would leave a
+        // pointer to a vanished file behind, which is worse.
+        try {
+            $this->retention->purgeFileForRequest($model);
+        } catch (Throwable $e) {
+            Log::warning('verified: failed to purge document on request delete', [
+                'request_id' => (int) $model->id,
+                'error'      => $e->getMessage(),
+            ]);
+        }
     }
 }
