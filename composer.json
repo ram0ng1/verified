@@ -1,0 +1,41 @@
+{
+    "name": "ramon/verified",
+    "description": "User verification for Flarum, with a X (Twitter)-style verified badge and admin-managed verification requests.",
+    "keywords": [
+        "flarum",
+        "verified",
+        "badge",
+        "verification"
+    ],
+    "type": "flarum-extension",
+    "license": "MIT",
+    "authors": [
+        {
+            "name": "Ramon Guilherme",
+            "email": "ramon@ramonguilherme.com.br",
+            "homepage": "https://ramonguilherme.com.br",
+            "role": "Developer"
+        }
+    ],
+    "require": {
+        "flarum/core": "^2.0.0"
+    },
+    "autoload": {
+        "psr-4": {
+            "Ramon\\Verified\\": "src/"
+        }
+    },
+    "extra": {
+        "flarum-extension": {
+            "title": "Verified",
+            "category": "feature",
+            "icon": {
+                "image": "icon.svg",
+                "backgroundColor": "#fff",
+                "color": "#fff"
+            }
+        }
+    },
+    "minimum-stability": "dev",
+    "prefer-stable": true
+}
