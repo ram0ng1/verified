@@ -3,36 +3,15 @@ import Component, { ComponentAttrs } from 'flarum/common/Component';
 import Button from 'flarum/common/components/Button';
 import Group from 'flarum/common/models/Group';
 import GroupBadge from 'flarum/common/components/GroupBadge';
-import sortGroups from 'flarum/common/utils/sortGroups';
 import extractText from 'flarum/common/utils/extractText';
 import type Mithril from 'mithril';
+
 import getBadgeSvg, { getBadgeSize } from '../../common/utils/getBadgeSvg';
 import { sanitiseDescription } from '../../common/utils/tiers';
+import TiersEditorState, { TierRow } from '../states/TiersEditorState';
+import { wrapTextareaSelection } from '../utils/textareaMarkup';
 
 const trans = (key: string) => app.translator.trans(`ramon-verified.admin.${key}`);
-
-const SETTING_KEY = 'ramon-verified.tiers';
-
-interface TierRow {
-  id: string;
-  label: string;
-  color: string;
-  description: string;
-  learnMoreUrl: string;
-  autoGroups: number[];
-}
-
-const settings = (): Record<string, unknown> =>
-  ((app as unknown as { data: { settings: Record<string, unknown> } }).data.settings) || {};
-
-function saveSetting(payload: Record<string, unknown>): Promise<unknown> {
-  const apiUrl = (app.forum.attribute<string>('apiUrl') || '/api').replace(/\/+$/, '');
-  return app.request({ method: 'POST', url: `${apiUrl}/settings`, body: payload });
-}
-
-function emptyRow(): TierRow {
-  return { id: '', label: '', color: '#1d9bf0', description: '', learnMoreUrl: '', autoGroups: [] };
-}
 
 /**
  * Editor for the multi-tier badge config.
@@ -45,170 +24,28 @@ function emptyRow(): TierRow {
  * because Flarum's standard control hides admin from the togglable list.
  */
 export default class TiersEditor extends Component<ComponentAttrs> {
-  protected rows: TierRow[] = [];
-  protected expandedIdx: number | null = null;
-  private _flushTimer: ReturnType<typeof setTimeout> | null = null;
+  protected tiers!: TiersEditorState;
 
   oninit(vnode: Mithril.Vnode<ComponentAttrs, this>) {
     super.oninit(vnode);
-    this.rows = this.parse(String(settings()[SETTING_KEY] ?? ''));
-  }
-
-  parse(raw: string): TierRow[] {
-    if (!raw) return [];
-    try {
-      const parsed = JSON.parse(raw);
-      if (!Array.isArray(parsed)) return [];
-      return parsed.map((r: unknown) => {
-        const row = (r && typeof r === 'object' ? r : {}) as Record<string, unknown>;
-        return {
-          id: String(row.id || '').trim(),
-          label: String(row.label || '').trim(),
-          color: String(row.color || '').trim(),
-          description: String(row.description || '').trim(),
-          learnMoreUrl: String(row.learnMoreUrl || '').trim(),
-          autoGroups: Array.isArray(row.autoGroups)
-            ? row.autoGroups.map((g) => parseInt(String(g), 10)).filter((n) => Number.isFinite(n) && n > 0)
-            : [],
-        };
-      });
-    } catch (e) {
-      return [];
-    }
-  }
-
-  serialize(): string {
-    return JSON.stringify(
-      this.rows
-        .filter((r) => r.id.trim() && r.label.trim())
-        .map((r) => ({
-          id: r.id.trim().toLowerCase(),
-          label: r.label.trim(),
-          color: r.color.trim(),
-          description: r.description.trim(),
-          learnMoreUrl: this.normaliseUrl(r.learnMoreUrl),
-          autoGroups: r.autoGroups,
-        }))
-    );
-  }
-
-  /**
-   * Trim and auto-prepend `https://` when the admin types a URL without a
-   * protocol. The backend `TierConfig` regex only accepts http/https URLs,
-   * so silently dropping bare hostnames was a sharp edge — admins typed
-   * `policy.example.com` and the link disappeared on save with no feedback.
-   */
-  normaliseUrl(raw: string): string {
-    const trimmed = (raw || '').trim();
-    if (!trimmed) return '';
-    if (/^https?:\/\//i.test(trimmed)) return trimmed;
-    // If it already has another scheme (mailto:, ftp:, …) leave it alone —
-    // it'll be rejected server-side, but we shouldn't silently rewrite it.
-    if (/^[a-z][a-z0-9+.-]*:/i.test(trimmed)) return trimmed;
-    return 'https://' + trimmed;
-  }
-
-  flushNow(): void {
-    const raw = this.serialize();
-    settings()[SETTING_KEY] = raw;
-    saveSetting({ [SETTING_KEY]: raw });
-  }
-
-  flushSoon(): void {
-    if (this._flushTimer) clearTimeout(this._flushTimer);
-    this._flushTimer = setTimeout(() => this.flushNow(), 400);
-  }
-
-  add(): void {
-    this.rows = [...this.rows, emptyRow()];
-    this.expandedIdx = this.rows.length - 1;
-    m.redraw();
-  }
-
-  remove(idx: number): void {
-    if (!window.confirm(extractText(trans('settings.tiers.remove_confirm')))) return;
-    this.rows = this.rows.filter((_, i) => i !== idx);
-    if (this.expandedIdx === idx) this.expandedIdx = null;
-    else if (this.expandedIdx !== null && this.expandedIdx > idx) this.expandedIdx -= 1;
-    this.flushNow();
-    m.redraw();
-  }
-
-  update(idx: number, patch: Partial<TierRow>): void {
-    this.rows = this.rows.map((r, i) => (i === idx ? { ...r, ...patch } : r));
-    this.flushSoon();
-    m.redraw();
-  }
-
-  toggleGroup(idx: number, groupId: number): void {
-    const row = this.rows[idx];
-    if (!row) return;
-    const isOn = row.autoGroups.indexOf(groupId) !== -1;
-    const next = isOn
-      ? row.autoGroups.filter((g) => g !== groupId)
-      : [...row.autoGroups, groupId];
-    this.update(idx, { autoGroups: next });
-  }
-
-  toggleExpand(idx: number): void {
-    this.expandedIdx = this.expandedIdx === idx ? null : idx;
-    m.redraw();
-  }
-
-  /**
-   * Toolbar action: wraps the textarea's current selection in <strong> or
-   * <em>. If nothing is selected, inserts the empty tag pair at the caret so
-   * the admin can type inside.
-   *
-   * Operates on the live DOM value first, then mirrors the result back into
-   * the row state so Mithril doesn't fight us on the redraw. We restore the
-   * caret position right after the inserted markup so typing keeps flowing.
-   */
-  wrapSelection(e: Event, idx: number, tag: 'strong' | 'em'): void {
-    e.preventDefault();
-
-    const button = e.currentTarget as HTMLElement;
-    const wrapper = button.closest('.VerifiedTier-field');
-    const ta = wrapper && wrapper.querySelector('textarea.VerifiedTier-descArea') as HTMLTextAreaElement | null;
-    if (!ta) return;
-
-    const start = ta.selectionStart ?? 0;
-    const end = ta.selectionEnd ?? 0;
-    const value = ta.value;
-    const open = `<${tag}>`;
-    const close = `</${tag}>`;
-
-    const next = value.slice(0, start) + open + value.slice(start, end) + close + value.slice(end);
-
-    ta.value = next;
-    ta.focus();
-    const caret = end === start
-      ? start + open.length
-      : end + open.length + close.length;
-    ta.setSelectionRange(caret, caret);
-
-    this.update(idx, { description: next });
+    this.tiers = new TiersEditorState();
   }
 
   view(): Mithril.Children {
-    if (this.rows.length === 0) {
+    if (this.tiers.rows.length === 0) {
       return this.emptyState();
     }
-
-    const groups = sortGroups(
-      app.store.all<Group>('groups').filter((g) => g.id() !== Group.GUEST_ID)
-    );
 
     return (
       <div className="VerifiedTiers">
         <ol className="VerifiedTiers-list">
-          {this.rows.map((row, idx) => this.renderCard(row, idx, groups))}
+          {this.tiers.rows.map((row, idx) => this.renderCard(row, idx))}
         </ol>
 
         <Button
           className="Button VerifiedTiers-add"
           icon="fas fa-plus"
-          onclick={() => this.add()}
+          onclick={() => this.tiers.add()}
         >
           {trans('settings.tiers.add')}
         </Button>
@@ -227,7 +64,7 @@ export default class TiersEditor extends Component<ComponentAttrs> {
         <Button
           className="Button Button--primary VerifiedTiers-add"
           icon="fas fa-plus"
-          onclick={() => this.add()}
+          onclick={() => this.tiers.add()}
         >
           {trans('settings.tiers.add_first')}
         </Button>
@@ -235,8 +72,8 @@ export default class TiersEditor extends Component<ComponentAttrs> {
     );
   }
 
-  renderCard(row: TierRow, idx: number, groups: Group[]): Mithril.Children {
-    const isExpanded = this.expandedIdx === idx;
+  renderCard(row: TierRow, idx: number): Mithril.Children {
+    const isExpanded = this.tiers.expandedIdx === idx;
     const swatchColor = /^#[0-9a-f]{3,8}$/i.test(row.color) ? row.color : 'var(--primary-color)';
     const groupCount = row.autoGroups.length;
 
@@ -250,7 +87,7 @@ export default class TiersEditor extends Component<ComponentAttrs> {
           type="button"
           className="VerifiedTier-header"
           aria-expanded={isExpanded}
-          onclick={() => this.toggleExpand(idx)}
+          onclick={() => this.tiers.toggleExpand(idx)}
         >
           <span className="VerifiedTier-swatch" aria-hidden="true">
             <i className="icon fas fa-certificate" />
@@ -281,12 +118,12 @@ export default class TiersEditor extends Component<ComponentAttrs> {
           </span>
         </button>
 
-        {isExpanded && this.renderEditForm(row, idx, groups)}
+        {isExpanded && this.renderEditForm(row, idx)}
       </li>
     );
   }
 
-  renderEditForm(row: TierRow, idx: number, groups: Group[]): Mithril.Children {
+  renderEditForm(row: TierRow, idx: number): Mithril.Children {
     const idValid = /^[a-z0-9_-]{1,32}$/.test(row.id.trim().toLowerCase());
     const urlValid = !!row.learnMoreUrl && /^https?:\/\//i.test(row.learnMoreUrl);
     const charCount = (row.description || '').length;
@@ -312,7 +149,7 @@ export default class TiersEditor extends Component<ComponentAttrs> {
                 placeholder="blue"
                 spellcheck="false"
                 autocomplete="off"
-                oninput={(e: Event) => this.update(idx, { id: (e.target as HTMLInputElement).value })}
+                oninput={(e: Event) => this.tiers.update(idx, { id: (e.target as HTMLInputElement).value })}
               />
               <p className="VerifiedTier-fieldHelp">{trans('settings.tiers.id_help')}</p>
             </div>
@@ -324,7 +161,7 @@ export default class TiersEditor extends Component<ComponentAttrs> {
                 className="FormControl"
                 value={row.label}
                 placeholder={extractText(trans('settings.tiers.label_placeholder'))}
-                oninput={(e: Event) => this.update(idx, { label: (e.target as HTMLInputElement).value })}
+                oninput={(e: Event) => this.tiers.update(idx, { label: (e.target as HTMLInputElement).value })}
               />
             </div>
           </div>
@@ -339,7 +176,7 @@ export default class TiersEditor extends Component<ComponentAttrs> {
                 type="color"
                 className="VerifiedTier-colorPicker"
                 value={/^#[0-9a-f]{6}$/i.test(row.color) ? row.color : '#1d9bf0'}
-                oninput={(e: Event) => this.update(idx, { color: (e.target as HTMLInputElement).value })}
+                oninput={(e: Event) => this.tiers.update(idx, { color: (e.target as HTMLInputElement).value })}
               />
               <input
                 type="text"
@@ -348,7 +185,7 @@ export default class TiersEditor extends Component<ComponentAttrs> {
                 placeholder="#1d9bf0"
                 spellcheck="false"
                 autocomplete="off"
-                oninput={(e: Event) => this.update(idx, { color: (e.target as HTMLInputElement).value })}
+                oninput={(e: Event) => this.tiers.update(idx, { color: (e.target as HTMLInputElement).value })}
               />
             </div>
           </div>
@@ -368,7 +205,7 @@ export default class TiersEditor extends Component<ComponentAttrs> {
                 className="VerifiedTier-descBtn"
                 title={extractText(trans('settings.tiers.description_bold_title'))}
                 aria-label={extractText(trans('settings.tiers.description_bold_title'))}
-                onclick={(e: Event) => this.wrapSelection(e, idx, 'strong')}
+                onclick={(e: Event) => this.wrapDescription(e, idx, 'strong')}
               >
                 <strong>B</strong>
               </button>
@@ -377,7 +214,7 @@ export default class TiersEditor extends Component<ComponentAttrs> {
                 className="VerifiedTier-descBtn"
                 title={extractText(trans('settings.tiers.description_italic_title'))}
                 aria-label={extractText(trans('settings.tiers.description_italic_title'))}
-                onclick={(e: Event) => this.wrapSelection(e, idx, 'em')}
+                onclick={(e: Event) => this.wrapDescription(e, idx, 'em')}
               >
                 <em>I</em>
               </button>
@@ -392,7 +229,7 @@ export default class TiersEditor extends Component<ComponentAttrs> {
               maxlength={320}
               value={row.description}
               placeholder={extractText(trans('settings.tiers.description_placeholder'))}
-              oninput={(e: Event) => this.update(idx, { description: (e.target as HTMLTextAreaElement).value })}
+              oninput={(e: Event) => this.tiers.update(idx, { description: (e.target as HTMLTextAreaElement).value })}
             />
             <p className="VerifiedTier-fieldHelp">{trans('settings.tiers.description_help')}</p>
           </div>
@@ -405,7 +242,7 @@ export default class TiersEditor extends Component<ComponentAttrs> {
                 className="FormControl"
                 value={row.learnMoreUrl}
                 placeholder="https://exemplo.com/politica-de-verificacao"
-                oninput={(e: Event) => this.update(idx, { learnMoreUrl: (e.target as HTMLInputElement).value })}
+                oninput={(e: Event) => this.tiers.update(idx, { learnMoreUrl: (e.target as HTMLInputElement).value })}
               />
               {urlValid && (
                 <a
@@ -432,10 +269,10 @@ export default class TiersEditor extends Component<ComponentAttrs> {
               {trans('settings.tiers.auto_groups_help')}
             </p>
             <div className="VerifiedTier-chips">
-              {groups.length === 0 ? (
+              {this.tiers.groups.length === 0 ? (
                 <p className="VerifiedTier-fieldHelp">{trans('settings.tiers.auto_groups_empty')}</p>
               ) : (
-                groups.map((group) => {
+                this.tiers.groups.map((group: Group) => {
                   const gid = parseInt(String(group.id()), 10);
                   const checked = row.autoGroups.indexOf(gid) !== -1;
                   return (
@@ -444,7 +281,7 @@ export default class TiersEditor extends Component<ComponentAttrs> {
                       key={gid}
                       className={'VerifiedTier-chip' + (checked ? ' VerifiedTier-chip--on' : '')}
                       aria-pressed={checked}
-                      onclick={() => this.toggleGroup(idx, gid)}
+                      onclick={() => this.tiers.toggleGroup(idx, gid)}
                     >
                       <GroupBadge group={group} label={null} />
                       <span>{group.namePlural()}</span>
@@ -461,20 +298,38 @@ export default class TiersEditor extends Component<ComponentAttrs> {
           <button
             type="button"
             className="Button Button--text VerifiedTier-removeBtn"
-            onclick={() => this.remove(idx)}
+            onclick={() => this.tiers.remove(idx)}
           >
             <i className="icon fas fa-trash" /> {trans('settings.tiers.remove')}
           </button>
           <button
             type="button"
             className="Button Button--primary"
-            onclick={() => this.toggleExpand(idx)}
+            onclick={() => this.tiers.toggleExpand(idx)}
           >
             <i className="icon fas fa-check" /> {trans('settings.tiers.done')}
           </button>
         </div>
       </div>
     );
+  }
+
+  /**
+   * Toolbar action: find the field's textarea via the click target's closest
+   * ancestor, wrap its selection in `<tag>` markup, and push the new value
+   * into the row state. The DOM round-trip is needed because we want to
+   * preserve the caret position right after the inserted markup.
+   */
+  wrapDescription(e: Event, idx: number, tag: 'strong' | 'em'): void {
+    e.preventDefault();
+
+    const button = e.currentTarget as HTMLElement;
+    const wrapper = button.closest('.VerifiedTier-field');
+    const ta = wrapper && wrapper.querySelector('textarea.VerifiedTier-descArea') as HTMLTextAreaElement | null;
+    if (!ta) return;
+
+    const next = wrapTextareaSelection(ta, tag);
+    this.tiers.update(idx, { description: next });
   }
 
   /**

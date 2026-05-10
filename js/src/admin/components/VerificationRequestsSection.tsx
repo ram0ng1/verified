@@ -7,85 +7,36 @@ import extractText from 'flarum/common/utils/extractText';
 import username from 'flarum/common/helpers/username';
 import type Mithril from 'mithril';
 import type User from 'flarum/common/models/User';
-import type VerificationRequest from '../../common/models/VerificationRequest';
-import DocumentPreviewModal from './DocumentPreviewModal';
-import promptTier from '../../common/utils/promptTier';
-import apiCall from '../../common/utils/apiCall';
 
-type RequestTab = 'pending' | 'approved' | 'rejected';
+import type VerificationRequest from '../../common/models/VerificationRequest';
+import VerificationRequestsState, { RequestAction, RequestTab } from '../states/VerificationRequestsState';
+import ApprovedUsersState, { APPROVED_PAGE_SIZE, ApprovedRequestSummary, ApprovedUserRow } from '../states/ApprovedUsersState';
+import DocumentPreviewModal from './DocumentPreviewModal';
+
 const TABS: RequestTab[] = ['pending', 'approved', 'rejected'];
-const APPROVED_PAGE_SIZE = 15;
-const SEARCH_DEBOUNCE_MS = 250;
 
 const trans = (key: string, params?: Record<string, unknown>) =>
   app.translator.trans(`ramon-verified.admin.requests.${key}`, params ?? {});
 
-interface ApprovedRequestSummary {
-  id: string | number;
-  documentPath?: string | null;
-  documentType?: string | null;
-  reason?: string | null;
-  adminNote?: string | null;
-  createdAt?: string | null;
-  handledAt?: string | null;
-  handler?: { displayName?: string; username?: string } | null;
-}
-
-interface ApprovedGroup {
-  id: string | number;
-  name?: string;
-}
-
-interface ApprovedUserRow {
-  id: string | number;
-  username?: string;
-  displayName?: string;
-  source?: 'request' | 'group';
-  verifiedTier?: string | null;
-  request?: ApprovedRequestSummary | null;
-  autoVerifiedGroups?: ApprovedGroup[];
-}
-
-interface TierMeta {
-  id: string;
-  label: string;
-  color: string;
-}
-
-interface ApprovedState {
-  loading: boolean;
-  rows: ApprovedUserRow[];
-  total: number;
-  offset: number;
-  query: string;
-  tierFilter: string; // '' = all tiers
-  tiers: TierMeta[];
-}
-
 export default class VerificationRequestsSection extends Component<ComponentAttrs> {
   protected tab: RequestTab = 'pending';
-  protected loading: boolean = false;
-  protected requests: VerificationRequest[] = [];
-  protected busy: Record<string, boolean> = {};
-  protected approved: ApprovedState = {
-    loading: false,
-    rows: [],
-    total: 0,
-    offset: 0,
-    query: '',
-    tierFilter: '',
-    tiers: [],
-  };
-  private _searchTimer: ReturnType<typeof setTimeout> | null = null;
+  protected requests!: VerificationRequestsState;
+  protected approved!: ApprovedUsersState;
 
   oninit(vnode: Mithril.Vnode<ComponentAttrs, this>) {
     super.oninit(vnode);
-    this.load();
-    this.loadApproved();
+    this.requests = new VerificationRequestsState();
+    this.approved = new ApprovedUsersState();
+    this.requests.load();
+    this.approved.load();
   }
 
   view(): Mithril.Children {
-    const counts = this.countByStatus();
+    const counts = {
+      pending: this.requests.pendingCount(),
+      approved: this.approved.total,
+      rejected: this.requests.rejectedCount(),
+    };
 
     return (
       <div className="VerifiedRequests">
@@ -117,7 +68,7 @@ export default class VerificationRequestsSection extends Component<ComponentAttr
   }
 
   renderRequestTab(): Mithril.Children {
-    if (this.loading) {
+    if (this.requests.loading) {
       return (
         <div className="VerifiedRequests-empty">
           <LoadingIndicator />
@@ -125,7 +76,7 @@ export default class VerificationRequestsSection extends Component<ComponentAttr
       );
     }
 
-    const list = this.filteredRequests();
+    const list = this.requests.filteredRequests(this.tab);
     if (list.length === 0) {
       return (
         <div className="VerifiedRequests-empty">
@@ -153,13 +104,13 @@ export default class VerificationRequestsSection extends Component<ComponentAttr
             className="FormControl VerifiedRequests-search-input"
             placeholder={placeholder}
             value={query}
-            oninput={(e: Event) => this.onSearchInput((e.target as HTMLInputElement).value)}
+            oninput={(e: Event) => this.approved.setSearch((e.target as HTMLInputElement).value)}
           />
           {query ? (
             <button
               type="button"
               className="VerifiedRequests-search-clear"
-              onclick={() => this.onSearchInput('')}
+              onclick={() => this.approved.setSearch('')}
               aria-label={extractText(trans('search_clear'))}
             >
               <i className="icon fas fa-times" />
@@ -175,7 +126,7 @@ export default class VerificationRequestsSection extends Component<ComponentAttr
             role="tab"
             aria-selected={tierFilter === ''}
             className={'VerifiedRequests-tierChip' + (tierFilter === '' ? ' is-active' : '')}
-            onclick={() => this.setTierFilter('')}
+            onclick={() => this.approved.setTierFilter('')}
           >
             <i className="icon fas fa-globe" aria-hidden="true" />
             <span>{trans('tier_filter_all')}</span>
@@ -191,7 +142,7 @@ export default class VerificationRequestsSection extends Component<ComponentAttr
                 key={t.id}
                 className={'VerifiedRequests-tierChip' + (active ? ' is-active' : '')}
                 style={swatch ? { '--tier-color': swatch } as Record<string, string> : undefined}
-                onclick={() => this.setTierFilter(t.id)}
+                onclick={() => this.approved.setTierFilter(t.id)}
               >
                 <span className="VerifiedRequests-tierChipDot" aria-hidden="true" />
                 <span>{t.label}</span>
@@ -225,9 +176,9 @@ export default class VerificationRequestsSection extends Component<ComponentAttr
   }
 
   renderApprovedItem(row: ApprovedUserRow): Mithril.Children {
-    const busy = !!this.busy['user-' + row.id];
+    const busy = !!this.approved.busy['user-' + row.id];
     const isGroupOnly = row.source === 'group';
-    const tier = this.findTier(row.verifiedTier);
+    const tier = this.approved.findTier(row.verifiedTier);
     const tierSwatch = tier && /^#[0-9a-f]{3,8}$/i.test(tier.color) ? tier.color : null;
 
     return (
@@ -277,7 +228,7 @@ export default class VerificationRequestsSection extends Component<ComponentAttr
             <Button
               className="Button Button--danger"
               loading={busy}
-              onclick={() => this.revokeUser(row)}
+              onclick={() => this.revokeApprovedUser(row)}
             >
               <i className="icon fas fa-ban" /> {trans('revoke_button')}
             </Button>
@@ -349,7 +300,7 @@ export default class VerificationRequestsSection extends Component<ComponentAttr
           type="button"
           className="Button Button--text VerifiedRequests-pagination-btn"
           disabled={!canPrev}
-          onclick={() => this.goToPage(offset - APPROVED_PAGE_SIZE)}
+          onclick={() => this.approved.goToPage(offset - APPROVED_PAGE_SIZE)}
         >
           <i className="icon fas fa-chevron-left" />
           {trans('pagination_prev')}
@@ -361,7 +312,7 @@ export default class VerificationRequestsSection extends Component<ComponentAttr
           type="button"
           className="Button Button--text VerifiedRequests-pagination-btn"
           disabled={!canNext}
-          onclick={() => this.goToPage(offset + APPROVED_PAGE_SIZE)}
+          onclick={() => this.approved.goToPage(offset + APPROVED_PAGE_SIZE)}
         >
           {trans('pagination_next')}
           <i className="icon fas fa-chevron-right" />
@@ -370,160 +321,54 @@ export default class VerificationRequestsSection extends Component<ComponentAttr
     );
   }
 
-  // ── Tab + data control ──────────────────────────────────────────────────
+  // ── Tab control + cross-state coordination ─────────────────────────────
 
   switchTab(status: RequestTab): void {
     if (this.tab === status) return;
     this.tab = status;
 
     if (status === 'approved' && this.approved.rows.length === 0) {
-      this.loadApproved();
+      this.approved.load();
     }
 
     m.redraw();
-  }
-
-  onSearchInput(value: string): void {
-    this.approved.query = value;
-    this.approved.offset = 0;
-
-    if (this._searchTimer) clearTimeout(this._searchTimer);
-    this._searchTimer = setTimeout(() => this.loadApproved(), SEARCH_DEBOUNCE_MS);
-
-    m.redraw();
-  }
-
-  goToPage(offset: number): void {
-    this.approved.offset = Math.max(0, offset);
-    this.loadApproved();
-  }
-
-  setTierFilter(tierId: string): void {
-    if (this.approved.tierFilter === tierId) return;
-    this.approved.tierFilter = tierId;
-    this.approved.offset = 0;
-    this.loadApproved();
   }
 
   /**
-   * Lookup the tier metadata loaded with the approved-users response so we
-   * can render a colored chip next to each row's name.
+   * Wrap requests.act() so that approve/revoke also refreshes the approved
+   * users state — those actions move users between the two lists.
    */
-  protected findTier(tierId: string | null | undefined): TierMeta | null {
-    if (!tierId) return null;
-    return this.approved.tiers.find((t) => t.id === tierId) || null;
+  async actOnRequest(req: VerificationRequest, action: RequestAction): Promise<void> {
+    const ok = await this.requests.act(req, action);
+    if (ok && (action === 'approve' || action === 'revoke')) {
+      this.approved.load();
+    }
   }
 
-  async loadApproved(): Promise<void> {
-    const { query, offset } = this.approved;
-    this.approved.loading = true;
-    m.redraw();
+  /**
+   * Wrap approved.revokeUser() so the requests list also refreshes — the
+   * underlying request row flips status.
+   */
+  async revokeApprovedUser(row: ApprovedUserRow): Promise<void> {
+    const ok = await this.approved.revokeUser(row);
+    if (ok) this.requests.load();
+  }
 
-    const params: Record<string, string | number> = {
-      q: query,
-      offset,
-      limit: APPROVED_PAGE_SIZE,
+  formatDocType(type: string | null | undefined): string {
+    if (!type) return '';
+    const configured = app.forum.attribute<Array<{ id: string; label: string }>>('ramonVerifiedDocumentTypes');
+    if (Array.isArray(configured)) {
+      const match = configured.find((t) => t && t.id === type);
+      if (match) return match.label;
+    }
+    const fallback: Record<string, string> = {
+      rg: 'RG',
+      cpf: 'CPF',
+      passport: 'Passport',
+      driver: "Driver's license",
+      other: 'Other',
     };
-    if (this.approved.tierFilter) params.tier = this.approved.tierFilter;
-
-    const res = await apiCall<{ data?: ApprovedUserRow[]; meta?: { total?: number; tiers?: TierMeta[] } }>(
-      {
-        method: 'GET',
-        url: app.forum.attribute('apiUrl') + '/verified/approved-users',
-        params,
-      },
-      { errorKey: 'ramon-verified.admin.requests.load_approved_failed' }
-    );
-
-    this.approved.loading = false;
-    if (res) {
-      this.approved.rows = res.data || [];
-      this.approved.total = (res.meta && res.meta.total) || 0;
-      if (res.meta && res.meta.tiers) this.approved.tiers = res.meta.tiers;
-    }
-    m.redraw();
-  }
-
-  async revokeUser(row: ApprovedUserRow): Promise<void> {
-    const note = window.prompt(extractText(trans('revoke_prompt')));
-    if (note === null) return;
-
-    this.busy['user-' + row.id] = true;
-    m.redraw();
-
-    const res = await apiCall(
-      {
-        method: 'DELETE',
-        url: app.forum.attribute('apiUrl') + '/verified/users/' + row.id + '/verify',
-        body: { adminNote: note || '' },
-      },
-      { errorKey: 'ramon-verified.admin.requests.revoke_user_failed' }
-    );
-
-    delete this.busy['user-' + row.id];
-
-    if (res !== null) {
-      app.alerts.show({ type: 'success' }, trans('revoke_success'));
-      this.load();
-      this.loadApproved();
-    }
-    m.redraw();
-  }
-
-  filteredRequests(): VerificationRequest[] {
-    if (this.tab === 'pending') {
-      return this.requests.filter((r) => r.status() === 'pending');
-    }
-
-    if (this.tab === 'rejected') {
-      const latestPerUser = this.latestRequestPerUser();
-      return Array.from(latestPerUser.values()).filter((r) => {
-        if (r.status() !== 'rejected') return false;
-        const user = r.user();
-        return !user || !user.isVerified || !user.isVerified();
-      });
-    }
-
-    return [];
-  }
-
-  latestRequestPerUser(): Map<string, VerificationRequest> {
-    const map = new Map<string, VerificationRequest>();
-    for (const req of this.requests) {
-      const user = req.user();
-      if (!user) continue;
-      const userId = String(user.id() ?? '');
-      if (!userId) continue;
-      const existing = map.get(userId);
-      if (!existing) {
-        map.set(userId, req);
-        continue;
-      }
-      const a = req.createdAt() ? (req.createdAt() as Date).getTime() : 0;
-      const b = existing.createdAt() ? (existing.createdAt() as Date).getTime() : 0;
-      if (a > b || (a === b && parseInt(String(req.id() ?? '0'), 10) > parseInt(String(existing.id() ?? '0'), 10))) {
-        map.set(userId, req);
-      }
-    }
-    return map;
-  }
-
-  countByStatus(): Record<RequestTab, number> {
-    const pendingCount = this.requests.filter((r) => r.status() === 'pending').length;
-
-    const latestPerUser = this.latestRequestPerUser();
-    let rejectedCount = 0;
-    for (const r of latestPerUser.values()) {
-      const u = r.user();
-      const isVerified = u && u.isVerified && u.isVerified();
-      if (r.status() === 'rejected' && !isVerified) rejectedCount++;
-    }
-
-    return {
-      pending: pendingCount,
-      approved: this.approved.total,
-      rejected: rejectedCount,
-    };
+    return fallback[type] || type;
   }
 
   renderItem(req: VerificationRequest): Mithril.Children {
@@ -532,7 +377,7 @@ export default class VerificationRequestsSection extends Component<ComponentAttr
     const docPath = req.documentPath();
     const reqId = String(req.id() ?? '');
     const docUrl = docPath && reqId ? app.forum.attribute('apiUrl') + '/verified/documents/' + reqId : null;
-    const busy = !!this.busy[reqId];
+    const busy = !!this.requests.busy[reqId];
 
     return (
       <li className="VerifiedRequest" key={req.id()}>
@@ -589,111 +434,19 @@ export default class VerificationRequestsSection extends Component<ComponentAttr
 
         <div className="VerifiedRequest-actions">
           {req.isPending() ? [
-            <Button className="Button Button--primary" loading={busy} onclick={() => this.act(req, 'approve')}>
+            <Button className="Button Button--primary" loading={busy} onclick={() => this.actOnRequest(req, 'approve')}>
               <i className="icon fas fa-check" /> {trans('approve_button')}
             </Button>,
-            <Button className="Button Button--danger" loading={busy} onclick={() => this.act(req, 'reject')}>
+            <Button className="Button Button--danger" loading={busy} onclick={() => this.actOnRequest(req, 'reject')}>
               <i className="icon fas fa-times" /> {trans('reject_button')}
             </Button>,
           ] : req.isApproved() ? (
-            <Button className="Button Button--danger" loading={busy} onclick={() => this.act(req, 'revoke')}>
+            <Button className="Button Button--danger" loading={busy} onclick={() => this.actOnRequest(req, 'revoke')}>
               <i className="icon fas fa-ban" /> {trans('revoke_button')}
             </Button>
           ) : null}
         </div>
       </li>
     );
-  }
-
-  formatDocType(type: string | null | undefined): string {
-    if (!type) return '';
-    const configured = app.forum.attribute<Array<{ id: string; label: string }>>('ramonVerifiedDocumentTypes');
-    if (Array.isArray(configured)) {
-      const match = configured.find((t) => t && t.id === type);
-      if (match) return match.label;
-    }
-    const fallback: Record<string, string> = {
-      rg: 'RG',
-      cpf: 'CPF',
-      passport: 'Passport',
-      driver: "Driver's license",
-      other: 'Other',
-    };
-    return fallback[type] || type;
-  }
-
-  async load(): Promise<void> {
-    this.loading = true;
-    this.requests = [];
-
-    try {
-      const res = await app.store.find<VerificationRequest[]>('verification-requests', {
-        sort: '-createdAt',
-        page: { limit: 100 },
-        include: 'user,handler',
-      });
-      const list: VerificationRequest[] = Array.isArray(res) ? res.slice() : [];
-      list.sort((a, b) => {
-        const av = a.createdAt() ? (a.createdAt() as Date).getTime() : 0;
-        const bv = b.createdAt() ? (b.createdAt() as Date).getTime() : 0;
-        return bv - av;
-      });
-      this.requests = list;
-    } catch (err) {
-      app.alerts.show(
-        { type: 'error' },
-        extractText(app.translator.trans('ramon-verified.admin.requests.load_failed'))
-      );
-    } finally {
-      this.loading = false;
-      m.redraw();
-    }
-  }
-
-  async act(req: VerificationRequest, action: 'approve' | 'reject' | 'revoke'): Promise<void> {
-    let note: string | null = null;
-    let tierId: string | null = null;
-
-    if (action === 'reject' || action === 'revoke') {
-      note = window.prompt(extractText(trans(action + '_prompt')));
-      if (note === null) return;
-    } else if (action === 'approve') {
-      // Pick tier first — no point asking for a note then bailing on tier.
-      const tier = promptTier();
-      if (!tier) return;
-      tierId = tier.id;
-
-      const ans = window.prompt(extractText(trans('approve_prompt')));
-      if (ans === null) return;
-      note = ans;
-    }
-
-    const reqId = String(req.id() ?? '');
-    if (!reqId) return;
-
-    this.busy[reqId] = true;
-    m.redraw();
-
-    const body: Record<string, unknown> = { meta: { adminNote: note || '' } };
-    if (tierId) (body.meta as Record<string, unknown>).tier = tierId;
-
-    const res = await apiCall<{ data?: unknown }>(
-      {
-        method: 'POST',
-        url: app.forum.attribute('apiUrl') + '/verification-requests/' + reqId + '/' + action,
-        body,
-      },
-      { errorKey: 'ramon-verified.admin.requests.decide_failed' }
-    );
-
-    delete this.busy[reqId];
-
-    if (res !== null) {
-      if (res.data) app.store.pushPayload(res as any);
-      this.load();
-      if (action === 'approve' || action === 'revoke') this.loadApproved();
-      app.alerts.show({ type: 'success' }, trans(action + '_success'));
-    }
-    m.redraw();
   }
 }
