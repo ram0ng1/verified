@@ -64,14 +64,30 @@ class ListApprovedUsersController implements RequestHandlerInterface
         }
         $autoVerifiedGroupIds = array_keys($autoVerifiedGroupIds);
 
-        $query = User::query()->where(function (Builder $w) use ($autoVerifiedGroupIds) {
+        // Admins are exempt from auto-grant through implicit membership groups
+        // (e.g., "Members") — only an explicit Admin-group tier auto-verifies
+        // them. Mirror the rule TierConfig::autoTierFor enforces in PHP, but
+        // applied at the SQL layer so paginated counts stay accurate.
+        $adminAllowed = in_array(Group::ADMINISTRATOR_ID, $autoVerifiedGroupIds, true);
+
+        $query = User::query()->where(function (Builder $w) use ($autoVerifiedGroupIds, $adminAllowed) {
             $w->where('is_verified', true);
 
             if (! empty($autoVerifiedGroupIds)) {
-                $w->orWhereExists(function ($sub) use ($autoVerifiedGroupIds) {
-                    $sub->from('group_user')
-                        ->whereColumn('group_user.user_id', 'users.id')
-                        ->whereIn('group_user.group_id', $autoVerifiedGroupIds);
+                $w->orWhere(function (Builder $auto) use ($autoVerifiedGroupIds, $adminAllowed) {
+                    $auto->whereExists(function ($sub) use ($autoVerifiedGroupIds) {
+                        $sub->from('group_user')
+                            ->whereColumn('group_user.user_id', 'users.id')
+                            ->whereIn('group_user.group_id', $autoVerifiedGroupIds);
+                    });
+
+                    if (! $adminAllowed) {
+                        $auto->whereNotExists(function ($sub) {
+                            $sub->from('group_user')
+                                ->whereColumn('group_user.user_id', 'users.id')
+                                ->where('group_id', Group::ADMINISTRATOR_ID);
+                        });
+                    }
                 });
             }
         });
@@ -236,27 +252,25 @@ class ListApprovedUsersController implements RequestHandlerInterface
     {
         if (empty($tiers)) return null;
 
-        $manual = is_string($user->verified_tier) && $user->verified_tier !== ''
-            ? strtolower($user->verified_tier)
-            : null;
+        // Manual verification requires is_verified=true. See
+        // `UserResourceFields::resolveTierId` for the full rationale.
+        if ((bool) $user->is_verified) {
+            $manual = is_string($user->verified_tier) && $user->verified_tier !== ''
+                ? strtolower($user->verified_tier)
+                : null;
 
-        if ($manual !== null) {
-            $tier = TierConfig::findById($tiers, $manual);
-            if ($tier) return $tier['id'];
+            if ($manual !== null) {
+                $tier = TierConfig::findById($tiers, $manual);
+                if ($tier) return $tier['id'];
+            }
+
             $fallback = TierConfig::findById($tiers, TierConfig::DEFAULT_TIER_ID) ?? $tiers[0];
             return $fallback['id'];
         }
 
         $userGroupIds = $user->groups->pluck('id')->map(fn ($id) => (int) $id)->all();
         $autoTier = TierConfig::autoTierFor($tiers, $userGroupIds);
-        if ($autoTier) return $autoTier['id'];
-
-        if ((bool) $user->is_verified) {
-            $fallback = TierConfig::findById($tiers, TierConfig::DEFAULT_TIER_ID) ?? $tiers[0];
-            return $fallback['id'];
-        }
-
-        return null;
+        return $autoTier['id'] ?? null;
     }
 
     /**
