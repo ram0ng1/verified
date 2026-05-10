@@ -2,6 +2,7 @@
 
 namespace Ramon\Verified;
 
+use Flarum\Group\Group;
 use Flarum\Settings\SettingsRepositoryInterface;
 
 /**
@@ -152,15 +153,29 @@ class TierConfig
      * `autoGroups` intersects. Order in the configured list is the priority —
      * admins control precedence by reordering tiers.
      *
+     * Administrators are exempt from auto-grant via implicit membership: a tier
+     * targeting "Members" (or any other group an admin happens to also belong
+     * to) does NOT verify the admin. Admins only auto-verify when a tier
+     * explicitly lists the Admin group (id 1) in its `autoGroups`. Without
+     * this guard the badge would silently leak to every staff account through
+     * any "Members"-style tier.
+     *
      * @param int[] $userGroupIds
      */
     public static function autoTierFor(array $tiers, array $userGroupIds): ?array
     {
         if (empty($userGroupIds)) return null;
+
+        $isAdmin = in_array(Group::ADMINISTRATOR_ID, $userGroupIds, true);
+
         foreach ($tiers as $tier) {
-            if (! empty(array_intersect($tier['autoGroups'], $userGroupIds))) {
-                return $tier;
+            if (empty(array_intersect($tier['autoGroups'], $userGroupIds))) continue;
+
+            if ($isAdmin && ! in_array(Group::ADMINISTRATOR_ID, $tier['autoGroups'], true)) {
+                continue;
             }
+
+            return $tier;
         }
         return null;
     }

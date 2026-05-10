@@ -123,34 +123,32 @@ class UserResourceFields
             return null;
         }
 
-        $manual = is_string($user->verified_tier) && $user->verified_tier !== ''
-            ? strtolower($user->verified_tier)
-            : null;
+        // Manual verification path requires `is_verified=true`. The
+        // `verified_tier` column alone is NOT enough — verify/unverify flows
+        // always toggle both together, but stale rows from older bugs or
+        // manual SQL edits can leave a tier id behind on an unverified user.
+        // Treating verified_tier as the source of truth would silently keep
+        // those users branded as verified forever.
+        if ((bool) $user->is_verified) {
+            $manual = is_string($user->verified_tier) && $user->verified_tier !== ''
+                ? strtolower($user->verified_tier)
+                : null;
 
-        if ($manual !== null) {
-            $tier = TierConfig::findById($tiers, $manual);
-            if ($tier) return $tier['id'];
-            // Manual tier id was deleted from settings — fall back to the
-            // default tier so the badge stays visible.
+            if ($manual !== null) {
+                $tier = TierConfig::findById($tiers, $manual);
+                if ($tier) return $tier['id'];
+                // Manual tier id was deleted from settings — fall back to
+                // the default tier so the badge stays visible.
+            }
+
             $fallback = TierConfig::findById($tiers, TierConfig::DEFAULT_TIER_ID) ?? $tiers[0];
             return $fallback['id'];
         }
 
-        // Try auto-grant by group membership.
+        // Not manually verified — try auto-grant by group membership.
         $userGroupIds = $user->groups->pluck('id')->map(fn ($id) => (int) $id)->all();
         $autoTier = TierConfig::autoTierFor($tiers, $userGroupIds);
-        if ($autoTier) {
-            return $autoTier['id'];
-        }
-
-        // Legacy fallback: a user marked verified before tiers existed has
-        // `is_verified=1` but no tier and no auto match — surface the default.
-        if ((bool) $user->is_verified) {
-            $fallback = TierConfig::findById($tiers, TierConfig::DEFAULT_TIER_ID) ?? $tiers[0];
-            return $fallback['id'];
-        }
-
-        return null;
+        return $autoTier['id'] ?? null;
     }
 
     /**
