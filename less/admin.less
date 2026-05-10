@@ -1,0 +1,1708 @@
+// Verified — admin panel styles
+//
+// Design intent: a single column of well-spaced "cards" with quiet borders,
+// generous whitespace and clear typographic hierarchy. Inspired by the
+// avocado theme's admin layout.
+
+// Shared badge + popover visual styles. The admin live-preview re-uses
+// the same `.VerifiedBadge` / `.VerifiedPopover` markup the forum does,
+// so it needs the same dimensions and layout — without this import the
+// SVG inside the badge expands to fill the page (no width/height
+// constraint inherited from the forum bundle).
+@import 'badge.less';
+
+.VerifiedAdmin {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  margin: 0 auto;
+  max-width: 880px;
+}
+
+.VerifiedAdmin-card {
+  background: var(--body-bg);
+  border: 1px solid var(--control-bg);
+  border-radius: 10px;
+  padding: 22px 24px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.02);
+
+  &--requests {
+    padding: 0;
+    overflow: hidden;
+  }
+}
+
+.VerifiedAdmin-cardHeader {
+  margin-bottom: 18px;
+
+  h3 {
+    font-size: 16px;
+    font-weight: 600;
+    margin: 0 0 4px;
+    letter-spacing: -0.01em;
+  }
+
+  > .helpText {
+    margin: 0;
+    font-size: 13px;
+  }
+}
+
+.VerifiedAdmin-divider {
+  height: 1px;
+  background: var(--control-bg);
+  margin: 18px -24px;
+  opacity: 0.6;
+}
+
+.VerifiedAdmin-row {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+
+  > .helpText {
+    margin: 4px 0 0;
+    font-size: 13px;
+  }
+}
+
+// Indented sub-group revealed by a parent toggle (avocado pattern).
+.VerifiedAdmin-subGroup {
+  margin-left: 14px;
+  padding-left: 14px;
+  border-left: 2px solid var(--control-bg);
+}
+
+.VerifiedAdmin-label {
+  font-weight: 600;
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--muted-color);
+  margin: 0;
+}
+
+// ── Preview card ────────────────────────────────────────────────────────────
+.VerifiedAdmin-preview {
+  padding: 22px 24px;
+
+  // Mimic the real Post-header layout: 14px bold heading-coloured username,
+  // 10px gap, then a muted meta line.
+  &-line {
+    line-height: 1.6;
+    margin-bottom: 6px;
+    font-family: inherit;
+  }
+
+  &-name {
+    font-weight: bold;
+    color: var(--heading-color);
+  }
+
+  &-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    vertical-align: middle;
+    margin-left: 5px;
+    color: var(--primary-color);
+    line-height: 0;
+
+    svg {
+      width: 100%;
+      height: 100%;
+      display: block;
+    }
+  }
+
+  &-meta {
+    margin-left: 10px;
+    color: var(--muted-color);
+  }
+}
+
+// ── Range slider for badge size ─────────────────────────────────────────────
+.VerifiedAdmin-rangeInput {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 6px;
+  background: var(--control-bg);
+  border-radius: 3px;
+  outline: none;
+  cursor: pointer;
+
+  &::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    background: var(--primary-color);
+    border: 2px solid var(--body-bg);
+    cursor: pointer;
+  }
+
+  &::-moz-range-thumb {
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    background: var(--primary-color);
+    border: 2px solid var(--body-bg);
+    cursor: pointer;
+  }
+}
+
+.VerifiedAdmin-sizeValue {
+  margin-left: auto;
+  font-family: SFMono-Regular, Menlo, Consolas, monospace;
+  font-weight: 500;
+  text-transform: none;
+  letter-spacing: 0;
+  color: var(--text-color);
+  font-size: 13px;
+}
+
+.VerifiedAdmin-row > .VerifiedAdmin-label {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+// ── Color picker ────────────────────────────────────────────────────────────
+.VerifiedAdmin-colorRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.VerifiedAdmin-colorPicker {
+  width: 38px;
+  height: 38px;
+  border: 1px solid var(--control-bg);
+  border-radius: 8px;
+  padding: 2px;
+  background: transparent;
+  cursor: pointer;
+
+  &::-webkit-color-swatch-wrapper { padding: 0; }
+  &::-webkit-color-swatch { border: none; border-radius: 6px; }
+  &::-moz-color-swatch { border: none; border-radius: 6px; }
+}
+
+.VerifiedAdmin-colorInput {
+  flex: 1;
+  min-width: 160px;
+  font-family: SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 13px;
+}
+
+.VerifiedAdmin-clearBtn {
+  font-size: 13px;
+  padding: 6px 10px;
+  border-radius: 6px;
+
+  .icon {
+    margin-right: 4px;
+  }
+}
+
+// ── Toggle rows (avocado pattern: Switch with label as child) ───────────────
+.VerifiedAdmin-toggle {
+  margin-bottom: 0;
+
+  > .Checkbox {
+    font-weight: 600;
+    font-size: 14px;
+  }
+
+  > .helpText {
+    margin: 6px 0 0;
+    font-size: 13px;
+  }
+}
+
+// ── Top-level tabs (General / Tiers / Requests) ────────────────────────────
+//
+// Pill-style buttons that switch the entire panel content. Sticky-ish strip
+// at the top of the page so the user always sees where they are.
+.VerifiedAdmin-tabs {
+  display: flex;
+  gap: 4px;
+  padding: 4px;
+  margin: 0 0 16px;
+  background: var(--control-bg);
+  border-radius: 10px;
+
+  @media (max-width: 600px) {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+}
+
+.VerifiedAdmin-tab {
+  flex: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 10px 16px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--muted-color);
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.15s ease, color 0.15s ease, box-shadow 0.15s ease;
+
+  .icon {
+    font-size: 13px;
+    margin: 0;
+  }
+
+  &:hover {
+    color: var(--text-color);
+  }
+
+  &--active {
+    background: var(--body-bg);
+    color: var(--text-color);
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.06);
+  }
+}
+
+.VerifiedAdmin-tabContent {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.VerifiedAdmin-tabHeader {
+  margin: 4px 0 8px;
+
+  h2 {
+    margin: 0 0 6px;
+    font-size: 22px;
+    font-weight: 600;
+    letter-spacing: -0.015em;
+  }
+
+  p {
+    margin: 0;
+    color: var(--muted-color);
+    font-size: 14px;
+    line-height: 1.5;
+    max-width: 720px;
+  }
+}
+
+// ── Tiers tab ──────────────────────────────────────────────────────────────
+.VerifiedTiers {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+
+  &-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  &-add {
+    align-self: flex-start;
+    margin-top: 4px;
+
+    .icon {
+      margin-right: 6px;
+    }
+  }
+
+  // Empty state — centered, prominent CTA, no list noise.
+  &--empty {
+    align-items: center;
+    text-align: center;
+    padding: 48px 24px;
+    background: var(--body-bg);
+    border: 1px dashed var(--control-bg);
+    border-radius: 12px;
+  }
+
+  &-emptyIcon {
+    width: 56px;
+    height: 56px;
+    border-radius: 50%;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--control-bg);
+    color: var(--muted-color);
+    margin-bottom: 14px;
+
+    .icon {
+      font-size: 22px;
+      margin: 0;
+    }
+  }
+
+  &-emptyTitle {
+    margin: 0 0 6px;
+    font-size: 16px;
+    font-weight: 600;
+  }
+
+  &-emptyText {
+    margin: 0 0 18px;
+    color: var(--muted-color);
+    font-size: 13px;
+    max-width: 380px;
+  }
+}
+
+// ── Single tier card ───────────────────────────────────────────────────────
+//
+// Compact when collapsed: swatch | title block | chevron. Expanding adds the
+// edit form below. The accent line on the left is tinted with --tier-color
+// so the eye picks the right tier instantly.
+.VerifiedTier {
+  position: relative;
+  background: var(--body-bg);
+  border: 1px solid var(--control-bg);
+  border-radius: 10px;
+  // Default to overflow:hidden so the colored accent strip on the left
+  // follows the rounded corners of the card. We flip it to `visible` once
+  // the card is expanded — otherwise the live tier-preview popover at the
+  // top of the body gets clipped when the admin hovers the badge.
+  overflow: hidden;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+
+  &::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: 3px;
+    background: var(--tier-color, var(--primary-color));
+  }
+
+  &--expanded {
+    border-color: var(--tier-color, var(--primary-color));
+    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.06);
+    // Let the live tier-preview popover float above the card boundary.
+    overflow: visible;
+  }
+
+  &-header {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    width: 100%;
+    padding: 14px 16px 14px 22px;
+    border: 0;
+    background: transparent;
+    text-align: left;
+    cursor: pointer;
+    color: var(--text-color);
+
+    &:hover {
+      background: fade(#000, 2%);
+    }
+  }
+
+  &-swatch {
+    flex-shrink: 0;
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--tier-color, var(--primary-color));
+    color: #fff;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
+
+    .icon {
+      font-size: 16px;
+      margin: 0;
+    }
+  }
+
+  &-titleBlock {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    min-width: 0;
+  }
+
+  &-label {
+    font-size: 15px;
+    font-weight: 600;
+    line-height: 1.2;
+    color: var(--heading-color);
+  }
+
+  &-meta {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    color: var(--muted-color);
+    font-size: 12px;
+  }
+
+  &-id {
+    font-family: SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 11px;
+    padding: 2px 6px;
+    background: var(--control-bg);
+    border-radius: 4px;
+    color: var(--text-color);
+  }
+
+  &-groupsCount,
+  &-linkChip {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+
+    .icon {
+      font-size: 10px;
+      margin: 0;
+    }
+  }
+
+  &-chevron {
+    flex-shrink: 0;
+    color: var(--muted-color);
+
+    .icon {
+      font-size: 12px;
+      margin: 0;
+    }
+  }
+
+  &-body {
+    border-top: 1px solid var(--control-bg);
+    padding: 0 22px 18px 24px;
+    background: fade(#000, 1.2%);
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+  }
+
+  // ── Live preview banner at top of the body ───────────────────────────────
+  //
+  // Renders a real-size sample of the badge using the same `.VerifiedPopover-*`
+  // markup the forum uses, so hovering reveals the actual production popover
+  // for the tier being edited. The CSS scope here only adds layout — the
+  // popover styling itself comes from `badge.less`.
+  &-preview {
+    margin: 16px 0 4px;
+    padding: 14px 16px;
+    background: var(--body-bg);
+    border: 1px dashed var(--control-bg);
+    border-radius: 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    // Allow the popover to extend above the preview block when hovered.
+    overflow: visible;
+  }
+
+  &-previewLine {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 16px;
+    line-height: 1.2;
+    // Same allowance as the body — the popover is positioned above the
+    // badge anchor and would otherwise be clipped.
+    overflow: visible;
+  }
+
+  &-previewName {
+    font-weight: 700;
+    color: var(--heading-color);
+  }
+
+  &-previewMeta {
+    color: var(--muted-color);
+    font-size: 13px;
+    font-weight: 400;
+  }
+
+  &-previewHint {
+    margin: 0;
+    font-size: 11px;
+    color: var(--muted-color);
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+
+    .icon {
+      font-size: 10px;
+      margin: 0;
+      opacity: 0.8;
+    }
+  }
+
+  // ── Sections inside the body ─────────────────────────────────────────────
+  &-section {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+
+    // dividers between sections — subtle, only on top from #2 onward
+    & + & {
+      padding-top: 18px;
+      border-top: 1px solid var(--control-bg);
+    }
+  }
+
+  &-sectionTitle {
+    margin: 0;
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--muted-color);
+  }
+
+  &-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px 18px;
+
+    @media (max-width: 640px) {
+      grid-template-columns: 1fr;
+    }
+  }
+
+  &-field {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+
+    &--full {
+      grid-column: 1 / -1;
+    }
+
+    .FormControl.is-invalid {
+      border-color: #c0392b;
+    }
+  }
+
+  &-fieldHeader {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 8px;
+  }
+
+  &-fieldLabel {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-color);
+    margin: 0 0 2px;
+  }
+
+  &-fieldHelp {
+    margin: 4px 0 0;
+    color: var(--muted-color);
+    font-size: 12px;
+    line-height: 1.4;
+
+    &--lead {
+      margin: 0 0 6px;
+    }
+  }
+
+  // ── Description toolbar (B / I quick-format buttons) ────────────────────
+  &-descToolbar {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 4px;
+    background: var(--control-bg);
+    border: 1px solid var(--control-bg);
+    border-bottom: 0;
+    border-radius: 6px 6px 0 0;
+  }
+
+  &-descBtn {
+    width: 28px;
+    height: 26px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border: 0;
+    border-radius: 4px;
+    background: transparent;
+    color: var(--text-color);
+    font-size: 13px;
+    cursor: pointer;
+    transition: background 0.15s ease;
+
+    &:hover, &:focus {
+      background: fade(#000, 6%);
+    }
+
+    strong {
+      font-weight: 700;
+    }
+
+    em {
+      font-style: italic;
+    }
+  }
+
+  &-descToolbarHint {
+    margin-left: auto;
+    padding-right: 4px;
+    font-size: 11px;
+    color: var(--muted-color);
+  }
+
+  // Textarea sits flush with the toolbar above (shared border).
+  &-descArea {
+    border-radius: 0 0 6px 6px;
+  }
+
+  // Description char counter — quietly muted, ramps up to warn → max.
+  &-charCount {
+    font-size: 11px;
+    font-weight: 500;
+    font-variant-numeric: tabular-nums;
+    color: var(--muted-color);
+
+    &--warn { color: #e67e22; }
+    &--max  { color: #c0392b; font-weight: 600; }
+  }
+
+  // ── Color picker ─────────────────────────────────────────────────────────
+  &-colorRow {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  &-colorPicker {
+    width: 40px;
+    height: 40px;
+    border: 1px solid var(--control-bg);
+    border-radius: 8px;
+    padding: 2px;
+    background: transparent;
+    cursor: pointer;
+    flex-shrink: 0;
+
+    &::-webkit-color-swatch-wrapper { padding: 0; }
+    &::-webkit-color-swatch { border: none; border-radius: 6px; }
+    &::-moz-color-swatch { border: none; border-radius: 6px; }
+  }
+
+  &-colorHex {
+    flex: 1;
+    font-family: SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 13px;
+  }
+
+  // ── URL field with a trailing "open" button when the URL is valid ────────
+  &-urlRow {
+    position: relative;
+    display: flex;
+    align-items: center;
+
+    .FormControl {
+      // Reserve room on the right for the open-link button so the URL text
+      // never sits underneath it. When the button is hidden (invalid URL),
+      // the extra padding is just whitespace — fine.
+      padding-right: 40px;
+    }
+  }
+
+  &-urlOpen {
+    position: absolute;
+    right: 6px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 30px;
+    height: 30px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 6px;
+    color: var(--muted-color);
+    background: transparent;
+    transition: background 0.15s ease, color 0.15s ease;
+
+    &:hover, &:focus {
+      background: fade(#000, 5%);
+      color: var(--text-color);
+    }
+
+    .icon {
+      font-size: 12px;
+      margin: 0;
+    }
+  }
+
+  // ── Group chips — colored by --tier-color when active ────────────────────
+  &-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-top: 4px;
+  }
+
+  &-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 12px;
+    border: 1px solid var(--control-bg);
+    border-radius: 999px;
+    background: var(--body-bg);
+    color: var(--muted-color);
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.15s ease;
+
+    &:hover {
+      border-color: var(--tier-color, var(--muted-color));
+      color: var(--text-color);
+    }
+
+    &--on {
+      background: var(--tier-color, var(--primary-color));
+      border-color: var(--tier-color, var(--primary-color));
+      color: #fff;
+      box-shadow: 0 1px 4px fade(#000, 12%);
+
+      &:hover {
+        opacity: 0.92;
+        color: #fff;
+      }
+
+      .Badge {
+        // Outline so the group badge stays readable on the colored chip.
+        box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.5);
+      }
+    }
+  }
+
+  &-chipCheck {
+    font-size: 10px;
+    margin: 0 0 0 2px;
+  }
+
+  // ── Footer ───────────────────────────────────────────────────────────────
+  &-footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+    margin-top: 4px;
+    padding-top: 14px;
+    border-top: 1px solid var(--control-bg);
+  }
+
+  &-removeBtn {
+    color: #c0392b;
+    padding: 6px 10px;
+    border-radius: 6px;
+    transition: background 0.15s ease;
+
+    &:hover, &:focus {
+      background: fade(#e74c3c, 8%);
+      color: #c0392b;
+    }
+
+    .icon {
+      margin-right: 6px;
+    }
+  }
+}
+
+// ── Document-types editor ──────────────────────────────────────────────────
+//
+// Admin can rename / reorder / add / remove document types (RG, CPF…).
+// Two-column rows: short ID input + wider label input + remove button.
+.VerifiedAdmin-types {
+  &-header {
+    display: grid;
+    grid-template-columns: 110px 1fr 32px;
+    gap: 8px;
+    padding: 0 4px 6px;
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--muted-color);
+  }
+
+  &-list {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  &-row {
+    display: grid;
+    grid-template-columns: 110px 1fr 32px;
+    gap: 8px;
+    align-items: center;
+  }
+
+  &-input.FormControl {
+    height: 34px;
+    padding: 4px 10px;
+    font-size: 13px;
+    border-radius: 6px;
+  }
+
+  &-id.FormControl {
+    font-family: SFMono-Regular, Menlo, Consolas, monospace;
+    color: var(--muted-color);
+  }
+
+  &-remove {
+    width: 32px;
+    height: 32px;
+    border: 0;
+    border-radius: 6px;
+    background: transparent;
+    color: var(--muted-color);
+    cursor: pointer;
+    transition: background 0.2s ease, color 0.2s ease;
+
+    &:hover, &:focus {
+      background: fade(#e74c3c, 8%);
+      color: #c0392b;
+    }
+
+    .icon {
+      margin: 0;
+      font-size: 12px;
+    }
+  }
+
+  &-empty {
+    padding: 12px 4px;
+    margin: 0;
+    font-style: italic;
+  }
+
+  &-add {
+    align-self: flex-start;
+    margin-top: 6px;
+    padding: 6px 12px;
+    border: 0;
+    border-radius: 6px;
+    background: transparent;
+    color: var(--primary-color);
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: background 0.2s ease;
+
+    &:hover, &:focus {
+      background: fade(#1d9bf0, 8%);
+    }
+
+    .icon {
+      margin-right: 6px;
+      font-size: 11px;
+    }
+  }
+}
+
+// ── Requests panel ──────────────────────────────────────────────────────────
+.VerifiedRequests {
+  > .VerifiedAdmin-cardHeader {
+    padding: 22px 24px 16px;
+    margin-bottom: 0;
+  }
+}
+
+.VerifiedRequests-tabs {
+  display: flex;
+  border-top: 1px solid var(--control-bg);
+  border-bottom: 1px solid var(--control-bg);
+  background: fade(#000, 1.5%);
+}
+
+.VerifiedRequests-tab {
+  flex: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 12px 16px;
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--muted-color);
+  cursor: pointer;
+  transition: color 0.2s ease, border-color 0.2s ease;
+
+  // Color shift only on hover — the tab's strong signal is the active
+  // bottom border, so hover stays muted to keep the row calm.
+  &:hover {
+    color: var(--text-color);
+  }
+
+  &.is-active {
+    color: var(--primary-color);
+    border-bottom-color: var(--primary-color);
+    background: var(--body-bg);
+  }
+}
+
+.VerifiedRequests-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 20px;
+  height: 18px;
+  padding: 0 6px;
+  border-radius: 9px;
+  background: var(--control-bg);
+  color: var(--muted-color);
+  font-size: 11px;
+  font-weight: 600;
+
+  .is-active & {
+    background: fade(#1d9bf0, 12%);
+    color: var(--primary-color);
+  }
+}
+
+.VerifiedRequests-body {
+  min-height: 120px;
+}
+
+.VerifiedRequests-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 40px 20px;
+  color: var(--muted-color);
+
+  > .icon {
+    font-size: 28px;
+    opacity: 0.4;
+  }
+
+  > span {
+    font-size: 13px;
+  }
+}
+
+.VerifiedRequests-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.VerifiedRequest {
+  display: flex;
+  gap: 16px;
+  padding: 18px 24px;
+  border-bottom: 1px solid var(--control-bg);
+
+  &:last-child {
+    border-bottom: none;
+  }
+
+  &-main {
+    flex: 1;
+    min-width: 0;
+  }
+
+  &-user {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 4px;
+
+    .username {
+      font-weight: 600;
+      font-size: 15px;
+    }
+  }
+
+  &-status {
+    display: inline-flex;
+    align-items: center;
+    padding: 2px 8px;
+    border-radius: 999px;
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    line-height: 16px;
+
+    &--pending {
+      background: fade(#f0a500, 14%);
+      color: #b67800;
+    }
+    &--approved {
+      background: fade(#27ae60, 14%);
+      color: #1f8d4d;
+    }
+    &--rejected {
+      background: fade(#e74c3c, 14%);
+      color: #c0392b;
+    }
+  }
+
+  &-meta {
+    margin: 2px 0 0;
+    font-size: 12px;
+  }
+
+  &-reason {
+    margin: 10px 0 6px;
+    padding: 10px 12px;
+    background: fade(#000, 3%);
+    border-left: 3px solid var(--control-bg);
+    border-radius: 0 6px 6px 0;
+    font-size: 13px;
+    line-height: 1.45;
+    white-space: pre-wrap;
+    word-break: break-word;
+    color: var(--text-color);
+  }
+
+  &-document {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 8px;
+    padding: 6px 12px;
+    background: fade(#000, 3%);
+    border-radius: 6px;
+    font-size: 13px;
+
+    > .icon {
+      color: var(--muted-color);
+    }
+  }
+
+  &-docType {
+    font-weight: 600;
+    text-transform: uppercase;
+    font-size: 11px;
+    letter-spacing: 0.04em;
+  }
+
+  &-docLink {
+    // Rendered as a <button> (opens DocumentPreviewModal). Reset native
+    // button styles so it reads as a link.
+    appearance: none;
+    -webkit-appearance: none;
+    border: 0;
+    background: transparent;
+    padding: 0;
+    cursor: pointer;
+    font: inherit;
+    margin-left: auto;
+    color: var(--primary-color);
+    font-weight: 500;
+    text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+
+    &:hover {
+      text-decoration: underline;
+    }
+
+    .icon {
+      font-size: 11px;
+    }
+  }
+
+  &-note {
+    margin-top: 8px;
+    padding: 8px 10px;
+    background: fade(#000, 2%);
+    border-radius: 6px;
+    font-size: 13px;
+    color: var(--muted-color);
+
+    strong {
+      color: var(--text-color);
+    }
+  }
+
+  &-actions {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    flex-shrink: 0;
+
+    .Button {
+      min-width: 110px;
+      padding: 6px 12px;
+      font-size: 13px;
+
+      .icon {
+        margin-right: 4px;
+        font-size: 11px;
+      }
+    }
+
+    .Button--danger {
+      background: transparent;
+      color: #c0392b;
+      border: 1px solid fade(#c0392b, 30%);
+
+      &:hover {
+        background: fade(#c0392b, 8%);
+      }
+    }
+  }
+}
+
+// Stack actions on narrow screens
+@media (max-width: 720px) {
+  .VerifiedRequest {
+    flex-direction: column;
+
+    &-actions {
+      flex-direction: row;
+      flex-wrap: wrap;
+    }
+  }
+
+}
+
+// ── Approved tab — toolbar / search / pagination ───────────────────────────
+.VerifiedRequests-toolbar {
+  padding: 14px 24px;
+  border-bottom: 1px solid var(--control-bg);
+}
+
+// Sub-tabs for filtering approved users by tier. Lives directly under the
+// search bar — its own row of pill chips, each with a colored dot of the
+// tier color. The "all tiers" entry uses a globe icon.
+.VerifiedRequests-tierFilter {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 12px 24px 0;
+  border-bottom: 1px solid var(--control-bg);
+  padding-bottom: 14px;
+}
+
+.VerifiedRequests-tierChip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border: 1px solid var(--control-bg);
+  border-radius: 999px;
+  background: var(--body-bg);
+  color: var(--muted-color);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s ease;
+
+  .icon {
+    font-size: 11px;
+    margin: 0;
+  }
+
+  &:hover {
+    border-color: var(--tier-color, var(--muted-color));
+    color: var(--text-color);
+  }
+
+  &.is-active {
+    background: var(--tier-color, var(--primary-color));
+    border-color: var(--tier-color, var(--primary-color));
+    color: #fff;
+
+    .VerifiedRequests-tierChipDot {
+      background: rgba(255, 255, 255, 0.85);
+    }
+  }
+}
+
+.VerifiedRequests-tierChipDot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--tier-color, var(--muted-color));
+  flex-shrink: 0;
+}
+
+// Small tier chip rendered inline next to a user's name on each row of
+// the approved list, so admins can scan tiers at a glance.
+.VerifiedRequest-tierChip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: fade(#000, 4%);
+  border: 1px solid fade(#000, 6%);
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--tier-color, var(--text-color));
+  white-space: nowrap;
+}
+
+.VerifiedRequest-tierChipDot {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--tier-color, var(--muted-color));
+  flex-shrink: 0;
+}
+
+// Filled-chip search — no border in idle state, soft tinted background.
+// Native search-input affordances (the browser-injected X clear button,
+// search results decoration) are stripped so they don't collide with our
+// own clear button. Focus deepens to a clean white surface with a primary
+// border ring.
+.VerifiedRequests-search {
+  position: relative;
+  display: flex;
+  align-items: center;
+
+  &-icon {
+    position: absolute;
+    left: 14px;
+    top: 50%;
+    transform: translateY(-50%);
+    // Reset Flarum's `.icon` margin-right (default 5px) — it'd push the
+    // icon's visual centre rightward against the input text, making them
+    // look glued together.
+    margin: 0;
+    width: 14px;
+    height: 14px;
+    line-height: 1;
+    text-align: center;
+    color: var(--muted-color);
+    font-size: 13px;
+    pointer-events: none;
+    z-index: 1;
+  }
+
+  &-input.FormControl {
+    width: 100%;
+    height: 36px;
+    // Extra breathing room on the left so the icon never overlaps the
+    // placeholder / typed text. 14px (icon-left) + 14px (icon-width)
+    // + 12px (gap) = 40px.
+    padding: 0 36px 0 40px;
+    margin: 0;
+    line-height: 36px;
+    border: 1px solid transparent;
+    border-radius: 8px;
+    background: fade(#000, 4.5%);
+    font-size: 13px;
+    color: var(--text-color);
+    box-shadow: none;
+    transition: background 0.18s ease, border-color 0.18s ease;
+    appearance: textfield;
+    -webkit-appearance: textfield;
+
+    // Kill native search artifacts (Chrome/Safari ship their own X).
+    &::-webkit-search-cancel-button,
+    &::-webkit-search-decoration,
+    &::-webkit-search-results-button,
+    &::-webkit-search-results-decoration {
+      -webkit-appearance: none;
+      display: none;
+    }
+
+    &::placeholder {
+      color: var(--muted-color);
+      opacity: 1;
+    }
+
+    &:hover:not(:focus) {
+      background: fade(#000, 6%);
+    }
+
+    &:focus {
+      outline: none;
+      background: var(--body-bg);
+      border-color: fade(#1d9bf0, 50%);
+      box-shadow: 0 0 0 3px fade(#1d9bf0, 12%);
+    }
+  }
+
+  &-clear {
+    position: absolute;
+    right: 6px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 24px;
+    height: 24px;
+    padding: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: transparent;
+    border: 0;
+    border-radius: 4px;
+    color: var(--muted-color);
+    cursor: pointer;
+    z-index: 1;
+    transition: background 0.18s ease, color 0.18s ease;
+
+    &:hover, &:focus {
+      background: fade(#000, 8%);
+      color: var(--text-color);
+    }
+
+    .icon {
+      font-size: 11px;
+      margin: 0;
+    }
+  }
+}
+
+.VerifiedRequests-list.is-refreshing {
+  opacity: 0.6;
+  pointer-events: none;
+  transition: opacity 0.12s;
+}
+
+.VerifiedRequests-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 24px;
+  border-top: 1px solid var(--control-bg);
+
+  &-info {
+    font-size: 12px;
+    color: var(--muted-color);
+    text-align: center;
+    flex: 1;
+  }
+
+  &-btn.Button {
+    min-width: 0;
+    padding: 6px 10px;
+    font-size: 13px;
+    color: var(--muted-color);
+    background: transparent;
+    border: 0;
+    transition: color 0.2s ease, background 0.2s ease;
+
+    // Color shift only — no fill bump.
+    &:hover:not(:disabled) {
+      color: var(--text-color);
+      background: transparent;
+    }
+
+    &:disabled {
+      color: var(--muted-color);
+      opacity: 0.4;
+    }
+
+    .icon {
+      font-size: 11px;
+      margin: 0 4px;
+    }
+  }
+}
+
+// ── Document preview modal ─────────────────────────────────────────────────
+//
+// Replaces the old "open document in new tab" UX. The modal shows the
+// document inline (image via <img>, PDF via <iframe>) plus a button to
+// download the original file. Sized to fit a portrait ID card or A4 PDF
+// without needing to scroll the modal itself.
+.DocumentPreviewModal {
+  .Modal-dialog {
+    max-width: 720px;
+  }
+
+  &-body {
+    padding: 0;
+  }
+
+  &-meta {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 14px 24px;
+    border-bottom: 1px solid var(--control-bg);
+    font-size: 13px;
+
+    &-label {
+      font-weight: 600;
+      color: var(--muted-color);
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      font-size: 11px;
+    }
+
+    &-value {
+      font-weight: 600;
+      color: var(--text-color);
+    }
+  }
+
+  &-frame {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 280px;
+    max-height: 70vh;
+    padding: 16px;
+    background: fade(#000, 4%);
+    overflow: auto;
+
+    &--pdf {
+      padding: 0;
+      min-height: 70vh;
+    }
+  }
+
+  &-loading {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 60px;
+  }
+
+  &-img {
+    display: block;
+    max-width: 100%;
+    max-height: 70vh;
+    width: auto;
+    height: auto;
+    border-radius: 6px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+    opacity: 0;
+    transition: opacity 0.2s ease;
+
+    &.is-loaded {
+      opacity: 1;
+    }
+  }
+
+  &-pdf {
+    display: block;
+    width: 100%;
+    height: 70vh;
+    border: 0;
+    background: #fff;
+  }
+
+  &-empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    padding: 40px;
+    color: var(--muted-color);
+    text-align: center;
+
+    > .icon {
+      font-size: 32px;
+      opacity: 0.5;
+    }
+
+    > span {
+      font-size: 13px;
+    }
+  }
+}
+
+// ── Auto-verified user row ─────────────────────────────────────────────────
+.VerifiedRequest-status--auto {
+  background: fade(#1d9bf0, 12%);
+  color: var(--primary-color);
+}
+
+.VerifiedRequest-autoNotice {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 6px;
+  padding: 6px 10px;
+  background: fade(#000, 2.5%);
+  border-radius: 6px;
+  font-size: 12px;
+  color: var(--muted-color);
+
+  > .icon {
+    font-size: 11px;
+    color: var(--primary-color);
+  }
+}
+
+.VerifiedRequest-autoHint {
+  font-size: 12px;
+  font-style: italic;
+  color: var(--muted-color);
+  text-align: right;
+  max-width: 140px;
+  align-self: center;
+}
+
+// ─── Encryption card ────────────────────────────────────────────────────────
+
+.EncryptionCard-status {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.EncryptionCard-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border-radius: 999px;
+  font-size: 13px;
+  background: fade(#000, 4%);
+
+  > .icon {
+    font-size: 11px;
+  }
+}
+
+.EncryptionCard-badge--ok {
+  background: fade(#1f9d55, 12%);
+  color: #1f7a45;
+
+  > .icon {
+    color: #1f9d55;
+  }
+}
+
+.EncryptionCard-badge--missing {
+  background: fade(#d62828, 10%);
+  color: #b1241f;
+
+  > .icon {
+    color: #d62828;
+  }
+}
+
+.EncryptionCard-badgeLabel {
+  font-weight: 600;
+}
+
+.EncryptionCard-badgeState {
+  opacity: 0.85;
+}
+
+.EncryptionCard-msg {
+  margin-top: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  align-items: flex-start;
+}
+
+.EncryptionCard-publicKey {
+  margin-top: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.EncryptionCard-publicKeyLabel {
+  font-weight: 600;
+  font-size: 13px;
+}
+
+.EncryptionCard-publicKeyRow {
+  display: flex;
+  align-items: stretch;
+  gap: 8px;
+}
+
+.EncryptionCard-publicKeyValue {
+  flex: 1;
+  margin: 0;
+  background: fade(#000, 6%);
+  padding: 10px 12px;
+  border-radius: 6px;
+  font-family: var(--code-font);
+  font-size: 12px;
+  user-select: all;
+  word-break: break-all;
+  white-space: pre-wrap;
+  overflow-x: auto;
+  max-height: 80px;
+}
+
+.EncryptionCard-rotateBtn {
+  margin-top: 8px;
+  align-self: flex-start;
+}
+
+.EncryptionReveal-snippet {
+  background: fade(#000, 6%);
+  padding: 12px 14px;
+  border-radius: 6px;
+  overflow-x: auto;
+  font-family: var(--code-font);
+  font-size: 13px;
+  user-select: all;
+  word-break: break-all;
+  white-space: pre-wrap;
+}
+
+.EncryptionReveal-label {
+  display: block;
+  margin-top: 12px;
+  margin-bottom: 4px;
+  font-weight: 600;
+}
+
+.EncryptionReveal-actions {
+  margin-top: 8px;
+}
+
+.EncryptionReveal-confirm {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin-top: 16px;
+  font-size: 14px;
+}
+
+.EncryptionReveal-close {
+  margin-top: 8px;
+}
+
+.EncryptionRegenerate-confirm {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 12px 0;
+  font-size: 14px;
+}

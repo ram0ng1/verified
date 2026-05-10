@@ -1,0 +1,32 @@
+{
+  // Use Flarum's tsconfig as a starting point
+  "extends": "flarum-tsconfig",
+  // This will match all .ts, .tsx, .d.ts, .js, .jsx files in your `src` folder
+  // and also tells your Typescript server to read core's global typings for
+  // access to `dayjs`, `m`, and `$` in the global namespace.
+  //
+  // Two `vendor` glob entries: the first one (`../vendor/...`) is the
+  // canonical location when this extension is symlinked into a Flarum
+  // install (vendor/ramon/verified/). The second (`../../../vendor/...`)
+  // covers the workbench-style layout used during development, where the
+  // extension lives at `flarum/workbench/verified/` and shares the
+  // top-level `flarum/vendor` with core.
+  "include": [
+    "src/**/*",
+    "../vendor/*/*/js/dist-typings/@types/**/*",
+    "../../../vendor/*/*/js/dist-typings/@types/**/*",
+    "@types/**/*"
+  ],
+  "compilerOptions": {
+    "rootDir": "./src",
+    "declarationDir": "./dist-typings",
+    "ignoreDeprecations": "6.0",
+    "baseUrl": ".",
+    "paths": {
+      "flarum/*": [
+        "../vendor/flarum/core/js/dist-typings/*",
+        "../../../vendor/flarum/core/js/dist-typings/*"
+      ]
+    }
+  }
+}
