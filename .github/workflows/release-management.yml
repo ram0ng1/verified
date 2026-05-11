@@ -9,6 +9,9 @@ jobs:
   build_and_release:
     name: Build e Publicação Automática
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: read
     steps:
       - name: Checkout do código
         uses: actions/checkout@v4
