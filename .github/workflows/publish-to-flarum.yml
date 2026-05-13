@@ -17,13 +17,30 @@ on:
         required: false
         default: ''
 
+# 🔴 C1 — Default-deny global; este workflow não precisa de permissões do repo
+# (só faz curl externo). Mantido para defesa em profundidade.
 permissions: {}
+
+# 🟠 I4 — Serializa para evitar dois posts duplicados via dispatch manual + evento release.
+concurrency:
+  group: publish-to-flarum-${{ github.event.release.tag_name || inputs.release_tag }}
+  cancel-in-progress: false
 
 jobs:
   publish_to_flarum:
     name: Publicar no Fórum
     runs-on: ubuntu-latest
+    permissions: {}
     steps:
+      # 🟠 I3 — Harden runner como primeira ação (job toca FLARUM_API_KEY).
+      - name: Harden runner
+        uses: step-security/harden-runner@cb605e52c26070c328afc4562f0b4ada7618a84e # v2.10.4
+        with:
+          egress-policy: audit
+          # Quando promover para `block`, este allowlist já cobre o caso:
+          allowed-endpoints: >
+            ramonguilherme.com.br:443
+
       - name: Validar FLARUM_DISCUSSION_ID
         env:
           FLARUM_DISCUSSION_ID: ${{ vars.FLARUM_DISCUSSION_ID }}
