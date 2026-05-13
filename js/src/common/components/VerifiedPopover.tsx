@@ -1,12 +1,12 @@
-import app from 'flarum/common/app';
-import Component, { ComponentAttrs } from 'flarum/common/Component';
-import Avatar from 'flarum/common/components/Avatar';
-import humanTime from 'flarum/common/utils/humanTime';
-import extractText from 'flarum/common/utils/extractText';
-import type Mithril from 'mithril';
-import type User from 'flarum/common/models/User';
-import getBadgeSvg, { getBadgeSize } from '../utils/getBadgeSvg';
-import { resolveTierForUser, getTierColor } from '../utils/tiers';
+import app from "flarum/common/app";
+import Component, { ComponentAttrs } from "flarum/common/Component";
+import Avatar from "flarum/common/components/Avatar";
+import humanTime from "flarum/common/utils/humanTime";
+import extractText from "flarum/common/utils/extractText";
+import type Mithril from "mithril";
+import type User from "flarum/common/models/User";
+import getBadgeSvg, { getBadgeSize } from "../utils/getBadgeSvg";
+import { resolveTierForUser, getTierColor } from "../utils/tiers";
 
 export interface VerifiedPopoverAttrs extends ComponentAttrs {
   user: User;
@@ -30,13 +30,14 @@ export default class VerifiedPopover extends Component<VerifiedPopoverAttrs> {
     const color = getTierColor(tier);
     const size = this.attrs.size || getBadgeSize();
 
-    const badgeStyle: Record<string, string> = { '--verified-size': size };
+    const badgeStyle: Record<string, string> = { "--verified-size": size };
     if (color) badgeStyle.color = color;
 
     const verifiedAt = user.verifiedAt && user.verifiedAt();
-    const ariaLabel = tier && tier.label
-      ? tier.label
-      : extractText(app.translator.trans('ramon-verified.lib.tooltip'));
+    const ariaLabel =
+      tier && tier.label
+        ? tier.label
+        : extractText(app.translator.trans("ramon-verified.lib.tooltip"));
 
     // The header sentence is the tier description (e.g. "Conta de
     // <strong>organização verificada</strong>."), allowed to carry sanitised
@@ -47,11 +48,11 @@ export default class VerifiedPopover extends Component<VerifiedPopoverAttrs> {
     const tierDescription = tier && tier.description ? tier.description : null;
     const headline: Mithril.Children = tierDescription
       ? m.trust(tierDescription)
-      : app.translator.trans('ramon-verified.lib.popover.headline');
+      : app.translator.trans("ramon-verified.lib.popover.headline");
 
-    const learnMoreUrl = tier && tier.learnMoreUrl ? tier.learnMoreUrl : '';
+    const learnMoreUrl = tier && tier.learnMoreUrl ? tier.learnMoreUrl : "";
 
-    const tierClass = tier ? `VerifiedBadge--tier-${tier.id}` : '';
+    const tierClass = tier ? `VerifiedBadge--tier-${tier.id}` : "";
 
     // Pass the resolved tier color down through a CSS variable so every
     // accent inside the popover (header icon, <strong> in the headline,
@@ -59,7 +60,7 @@ export default class VerifiedPopover extends Component<VerifiedPopoverAttrs> {
     // theme primary when --tier-color isn't set (no tier configured / no
     // color on the tier).
     const popoverStyle: Record<string, string> = {};
-    if (color) popoverStyle['--tier-color'] = color;
+    if (color) popoverStyle["--tier-color"] = color;
 
     return (
       <span
@@ -68,7 +69,7 @@ export default class VerifiedPopover extends Component<VerifiedPopoverAttrs> {
         style={popoverStyle}
       >
         <span
-          className={'VerifiedBadge VerifiedBadge--inAnchor ' + tierClass}
+          className={"VerifiedBadge VerifiedBadge--inAnchor " + tierClass}
           style={badgeStyle}
           role="img"
           aria-label={ariaLabel}
@@ -88,7 +89,7 @@ export default class VerifiedPopover extends Component<VerifiedPopoverAttrs> {
               {headline}
               {learnMoreUrl && (
                 <>
-                  {' '}
+                  {" "}
                   <a
                     className="VerifiedPopover-learnMore"
                     href={learnMoreUrl}
@@ -99,7 +100,9 @@ export default class VerifiedPopover extends Component<VerifiedPopoverAttrs> {
                     // in some chrome contexts (post bodies, etc).
                     style={color ? { color } : undefined}
                   >
-                    {app.translator.trans('ramon-verified.lib.popover.learn_more')}
+                    {app.translator.trans(
+                      "ramon-verified.lib.popover.learn_more"
+                    )}
                   </a>
                 </>
               )}
@@ -112,17 +115,26 @@ export default class VerifiedPopover extends Component<VerifiedPopoverAttrs> {
                 <Avatar user={user} />
               </span>
               <span className="VerifiedPopover-userText">
-                <span className="VerifiedPopover-username">{user.username()}</span>
-                <span className="VerifiedPopover-displayName">{user.displayName()}</span>
+                <span className="VerifiedPopover-username">
+                  {user.username()}
+                </span>
+                <span className="VerifiedPopover-displayName">
+                  {user.displayName()}
+                </span>
               </span>
             </span>
 
             <span className="VerifiedPopover-meta">
               {verifiedAt
-                ? app.translator.trans('ramon-verified.lib.popover.verified_on', {
-                    date: extractText(humanTime(verifiedAt)),
-                  })
-                : app.translator.trans('ramon-verified.lib.popover.verified_no_date')}
+                ? app.translator.trans(
+                    "ramon-verified.lib.popover.verified_on",
+                    {
+                      date: extractText(humanTime(verifiedAt)),
+                    }
+                  )
+                : app.translator.trans(
+                    "ramon-verified.lib.popover.verified_no_date"
+                  )}
             </span>
           </span>
         </span>

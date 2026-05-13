@@ -10,7 +10,7 @@
  */
 export function wrapTextareaSelection(
   textarea: HTMLTextAreaElement,
-  tag: 'strong' | 'em'
+  tag: "strong" | "em"
 ): string {
   const start = textarea.selectionStart ?? 0;
   const end = textarea.selectionEnd ?? 0;
@@ -18,14 +18,18 @@ export function wrapTextareaSelection(
   const open = `<${tag}>`;
   const close = `</${tag}>`;
 
-  const next = value.slice(0, start) + open + value.slice(start, end) + close + value.slice(end);
+  const next =
+    value.slice(0, start) +
+    open +
+    value.slice(start, end) +
+    close +
+    value.slice(end);
 
   textarea.value = next;
   textarea.focus();
 
-  const caret = end === start
-    ? start + open.length
-    : end + open.length + close.length;
+  const caret =
+    end === start ? start + open.length : end + open.length + close.length;
   textarea.setSelectionRange(caret, caret);
 
   return next;
