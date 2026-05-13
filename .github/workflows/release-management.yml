@@ -5,21 +5,37 @@ on:
     branches:
       - main
 
+# 🔴 C1 — Default-deny no nível do workflow; o job re-concede o necessário.
+permissions: {}
+
+# 🟠 I4 — Serializa execuções (não cancela em andamento — cancelar mid-release
+# deixaria tag meio-publicada).
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
   build_and_release:
     name: Build e Publicação Automática
     runs-on: ubuntu-latest
     permissions:
-      contents: write
-      pull-requests: read
+      contents: write          # criar release + tag
+      pull-requests: read      # release-drafter lê PRs mergeados
+      id-token: write          # 🟡 R4 — exigido por attest-build-provenance
+      attestations: write      # 🟡 R4 — escrita do attestation
     steps:
+      - name: Harden runner
+        uses: step-security/harden-runner@cb605e52c26070c328afc4562f0b4ada7618a84e # v2.10.4
+        with:
+          egress-policy: audit
+
       - name: Checkout do código
-        uses: actions/checkout@v4
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           fetch-depth: 0
 
       - name: Configurar Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@39370e3970a6d050c480ffad4ff0ed4d3fdee5af # v4.1.0
         with:
           node-version: 20
           cache: 'npm'
@@ -52,6 +68,14 @@ jobs:
           name: v${{ steps.check_version.outputs.version }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # 🟡 R4 — SLSA provenance attestation para os artefatos publicados.
+      # Roda apenas quando release foi publicada nesta execução.
+      - name: Atestar provenance dos artefatos
+        if: steps.check_version.outputs.changed == 'true' && steps.create_release.outcome == 'success'
+        uses: actions/attest-build-provenance@7668571508540a607bdfd90a87a560489fe372eb # v2.1.0
+        with:
+          subject-path: 'composer.json,js/dist/forum.js,js/dist/admin.js'
 
       - name: Publicar Release no Flarum
         if: steps.check_version.outputs.changed == 'true' && steps.create_release.outcome == 'success' && steps.create_release.outputs.html_url && vars.FLARUM_DISCUSSION_ID != ''

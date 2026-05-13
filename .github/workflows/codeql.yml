@@ -1,0 +1,63 @@
+name: CodeQL
+
+# 🟠 I2 — Análise estática para JS/TS (XSS, prototype pollution, path traversal,
+# command injection). PHP NÃO é suportado pelo CodeQL; para backend use
+# Semgrep (regras p/php + p/security-audit) ou PHPStan (já configurado em ci.yml).
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+  schedule:
+    # Semanalmente, segunda-feira 06:00 UTC.
+    - cron: '0 6 * * 1'
+
+# 🔴 C1 — Default-deny.
+permissions: {}
+
+concurrency:
+  group: codeql-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  analyze:
+    name: Analyze (${{ matrix.language }})
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+      actions: read
+    # Desliga a otimização "diff-informed queries" do CodeQL.
+    # Em v3.27/3.28 ela falha quando o `pr-diff-range.yml` recebe paths/linhas
+    # como "undefined" (PRs sem base compartilhada, fetch raso, primeiro commit
+    # da branch). Mantemos `false` aqui até promover para uma versão que cubra
+    # esse caso de borda sem erro fatal.
+    env:
+      CODEQL_ACTION_DIFF_INFORMED_QUERIES: 'false'
+    strategy:
+      fail-fast: false
+      matrix:
+        language: [javascript-typescript]
+    steps:
+      - name: Harden runner
+        uses: step-security/harden-runner@cb605e52c26070c328afc4562f0b4ada7618a84e # v2.10.4
+        with:
+          egress-policy: audit
+
+      - name: Checkout
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          # Histórico suficiente para o CodeQL diferenciar base vs head em PRs.
+          fetch-depth: 0
+
+      - name: Inicializar CodeQL
+        uses: github/codeql-action/init@fbcef3fba75224ed6476919775448de80b23cb15 # v3.32.0
+        with:
+          languages: ${{ matrix.language }}
+          queries: security-extended
+
+      - name: Análise CodeQL
+        uses: github/codeql-action/analyze@fbcef3fba75224ed6476919775448de80b23cb15 # v3.32.0
+        with:
+          category: '/language:${{ matrix.language }}'
