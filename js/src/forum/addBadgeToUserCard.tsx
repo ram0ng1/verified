@@ -1,10 +1,10 @@
-import { extend } from 'flarum/common/extend';
+import { extend } from "flarum/common/extend";
 
-import type Mithril from 'mithril';
-import type User from 'flarum/common/models/User';
-import type ItemList from 'flarum/common/utils/ItemList';
+import type Mithril from "mithril";
+import type User from "flarum/common/models/User";
+import type ItemList from "flarum/common/utils/ItemList";
 
-import VerifiedBadge from '../common/components/VerifiedBadge';
+import VerifiedBadge from "../common/components/VerifiedBadge";
 
 /**
  * Append a verified badge inside the identity h1 of UserCard.
@@ -17,27 +17,42 @@ import VerifiedBadge from '../common/components/VerifiedBadge';
  * a simple title tooltip. On the profile hero we want the rich popover.
  */
 export default function addBadgeToUserCard(): void {
-  extend('flarum/forum/components/UserCard', 'contentItems', function (this: any, items: ItemList<Mithril.Children>) {
-    const user = this.attrs.user as User | undefined;
-    if (!user || !user.isVerified || !user.isVerified()) return;
+  extend(
+    "flarum/forum/components/UserCard",
+    "contentItems",
+    function (this: any, items: ItemList<Mithril.Children>) {
+      const user = this.attrs.user as User | undefined;
+      if (!user || !user.isVerified || !user.isVerified()) return;
 
-    if (!items.has('identity')) return;
+      if (!items.has("identity")) return;
 
-    const identityItem = items.get('identity') as Mithril.Vnode<{ className?: string }> | undefined;
-    if (!identityItem) return;
+      const identityItem = items.get("identity") as
+        | Mithril.Vnode<{ className?: string }>
+        | undefined;
+      if (!identityItem) return;
 
-    const cardClass = String(this.attrs.className || '');
-    const isHoverPopover = cardClass.indexOf('UserCard--popover') !== -1;
+      const cardClass = String(this.attrs.className || "");
+      const isHoverPopover = cardClass.indexOf("UserCard--popover") !== -1;
 
-    const badge = (
-      <VerifiedBadge user={user} className="VerifiedBadge--card" plain={isHoverPopover} />
-    );
+      const badge = (
+        <VerifiedBadge
+          user={user}
+          className="VerifiedBadge--card"
+          plain={isHoverPopover}
+        />
+      );
 
-    items.setContent(
-      'identity',
-      <h1 className={(identityItem.attrs && identityItem.attrs.className) || 'UserCard-identity'}>
-        {identityItem.children as Mithril.Children} {badge}
-      </h1>
-    );
-  });
+      items.setContent(
+        "identity",
+        <h1
+          className={
+            (identityItem.attrs && identityItem.attrs.className) ||
+            "UserCard-identity"
+          }
+        >
+          {identityItem.children as Mithril.Children} {badge}
+        </h1>
+      );
+    }
+  );
 }

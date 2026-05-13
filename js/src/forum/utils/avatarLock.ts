@@ -1,6 +1,6 @@
-import app from 'flarum/forum/app';
-import extractText from 'flarum/common/utils/extractText';
-import type User from 'flarum/common/models/User';
+import app from "flarum/forum/app";
+import extractText from "flarum/common/utils/extractText";
+import type User from "flarum/common/models/User";
 
 /**
  * Whether the avatar editor is currently rendering for a user whose avatar is
@@ -8,15 +8,17 @@ import type User from 'flarum/common/models/User';
  * security boundary; this helper exists purely for UX to short-circuit the
  * upload/remove flows on the client.
  */
-export function isLockedAvatar(component: { attrs?: { user?: User } }): boolean {
+export function isLockedAvatar(component: {
+  attrs?: { user?: User };
+}): boolean {
   const user = component.attrs && component.attrs.user;
   return !!(user && user.isAvatarLocked && user.isAvatarLocked());
 }
 
 export function showLockedAlert(): void {
   app.alerts.show(
-    { type: 'error' },
-    app.translator.trans('ramon-verified.forum.avatar.locked_alert')
+    { type: "error" },
+    app.translator.trans("ramon-verified.forum.avatar.locked_alert")
   );
 }
 
@@ -31,14 +33,18 @@ export function requestAvatarChange(user: User | null | undefined): void {
   if (!user || !user.id) return;
 
   const confirmText = extractText(
-    app.translator.trans('ramon-verified.forum.avatar.request_change_confirm')
+    app.translator.trans("ramon-verified.forum.avatar.request_change_confirm")
   );
   if (!window.confirm(confirmText)) return;
 
   app
     .request<{ data?: { attributes?: Record<string, unknown> } }>({
-      method: 'DELETE',
-      url: app.forum.attribute('apiUrl') + '/verified/users/' + user.id() + '/verify',
+      method: "DELETE",
+      url:
+        app.forum.attribute("apiUrl") +
+        "/verified/users/" +
+        user.id() +
+        "/verify",
       body: {},
     })
     .then((res) => {
@@ -50,15 +56,19 @@ export function requestAvatarChange(user: User | null | undefined): void {
       user.pushAttributes({ isAvatarLocked: false });
 
       app.alerts.show(
-        { type: 'success' },
-        app.translator.trans('ramon-verified.forum.avatar.request_change_success')
+        { type: "success" },
+        app.translator.trans(
+          "ramon-verified.forum.avatar.request_change_success"
+        )
       );
       m.redraw();
     })
     .catch(() => {
       app.alerts.show(
-        { type: 'error' },
-        app.translator.trans('ramon-verified.forum.avatar.request_change_failed')
+        { type: "error" },
+        app.translator.trans(
+          "ramon-verified.forum.avatar.request_change_failed"
+        )
       );
     });
 }

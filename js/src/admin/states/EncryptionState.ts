@@ -1,6 +1,6 @@
-import app from 'flarum/admin/app';
+import app from "flarum/admin/app";
 
-import apiCall from '../../common/utils/apiCall';
+import apiCall from "../../common/utils/apiCall";
 
 export interface EncryptionStatus {
   available: boolean;
@@ -18,7 +18,8 @@ export interface KeypairResult {
   orphanedDocuments?: number;
 }
 
-const apiUrl = () => (app.forum.attribute<string>('apiUrl') || '/api').replace(/\/+$/, '');
+const apiUrl = () =>
+  (app.forum.attribute<string>("apiUrl") || "/api").replace(/\/+$/, "");
 
 /**
  * Owns the encryption-keypair status and the API calls that mutate it.
@@ -33,10 +34,10 @@ export default class EncryptionState {
     this.loading = true;
     const res = await apiCall<EncryptionStatus>(
       {
-        method: 'GET',
+        method: "GET",
         url: `${apiUrl()}/verified/encryption/status`,
       },
-      { errorKey: 'ramon-verified.admin.requests.status_load_failed' }
+      { errorKey: "ramon-verified.admin.requests.status_load_failed" }
     );
     this.status = res;
     this.loading = false;
@@ -48,17 +49,19 @@ export default class EncryptionState {
    * caller has confirmed the irreversible loss of every existing encrypted
    * document.
    */
-  async generate(acknowledgeLoss: boolean = false): Promise<KeypairResult | null> {
+  async generate(
+    acknowledgeLoss: boolean = false
+  ): Promise<KeypairResult | null> {
     const body: Record<string, unknown> = {};
     if (acknowledgeLoss) body.acknowledgeLoss = true;
 
     const res = await apiCall<KeypairResult>(
       {
-        method: 'POST',
+        method: "POST",
         url: `${apiUrl()}/verified/encryption/generate-keypair`,
         body,
       },
-      { errorKey: 'ramon-verified.admin.requests.generate_keypair_failed' }
+      { errorKey: "ramon-verified.admin.requests.generate_keypair_failed" }
     );
     if (!res) return null;
 
