@@ -1,12 +1,13 @@
-import app from 'flarum/admin/app';
-import extractText from 'flarum/common/utils/extractText';
+import app from "flarum/admin/app";
+import extractText from "flarum/common/utils/extractText";
 
-import apiCall from '../../common/utils/apiCall';
+import apiCall from "../../common/utils/apiCall";
 
 export const APPROVED_PAGE_SIZE = 15;
 const SEARCH_DEBOUNCE_MS = 250;
 
-const trans = (key: string) => app.translator.trans(`ramon-verified.admin.requests.${key}`);
+const trans = (key: string) =>
+  app.translator.trans(`ramon-verified.admin.requests.${key}`);
 
 export interface ApprovedRequestSummary {
   id: string | number;
@@ -28,7 +29,7 @@ export interface ApprovedUserRow {
   id: string | number;
   username?: string;
   displayName?: string;
-  source?: 'request' | 'group';
+  source?: "request" | "group";
   verifiedTier?: string | null;
   request?: ApprovedRequestSummary | null;
   autoVerifiedGroups?: ApprovedGroup[];
@@ -50,9 +51,9 @@ export default class ApprovedUsersState {
   rows: ApprovedUserRow[] = [];
   total: number = 0;
   offset: number = 0;
-  query: string = '';
+  query: string = "";
   /** Empty string = no filter. Otherwise the tier id. */
-  tierFilter: string = '';
+  tierFilter: string = "";
   tiers: TierMeta[] = [];
   busy: Record<string, boolean> = {};
 
@@ -69,13 +70,16 @@ export default class ApprovedUsersState {
     };
     if (this.tierFilter) params.tier = this.tierFilter;
 
-    const res = await apiCall<{ data?: ApprovedUserRow[]; meta?: { total?: number; tiers?: TierMeta[] } }>(
+    const res = await apiCall<{
+      data?: ApprovedUserRow[];
+      meta?: { total?: number; tiers?: TierMeta[] };
+    }>(
       {
-        method: 'GET',
-        url: app.forum.attribute('apiUrl') + '/verified/approved-users',
+        method: "GET",
+        url: app.forum.attribute("apiUrl") + "/verified/approved-users",
         params,
       },
-      { errorKey: 'ramon-verified.admin.requests.load_approved_failed' }
+      { errorKey: "ramon-verified.admin.requests.load_approved_failed" }
     );
 
     this.loading = false;
@@ -124,26 +128,30 @@ export default class ApprovedUsersState {
    * matching request row's status flips alongside.
    */
   async revokeUser(row: ApprovedUserRow): Promise<boolean> {
-    const note = window.prompt(extractText(trans('revoke_prompt')));
+    const note = window.prompt(extractText(trans("revoke_prompt")));
     if (note === null) return false;
 
-    const key = 'user-' + row.id;
+    const key = "user-" + row.id;
     this.busy[key] = true;
     m.redraw();
 
     const res = await apiCall(
       {
-        method: 'DELETE',
-        url: app.forum.attribute('apiUrl') + '/verified/users/' + row.id + '/verify',
-        body: { adminNote: note || '' },
+        method: "DELETE",
+        url:
+          app.forum.attribute("apiUrl") +
+          "/verified/users/" +
+          row.id +
+          "/verify",
+        body: { adminNote: note || "" },
       },
-      { errorKey: 'ramon-verified.admin.requests.revoke_user_failed' }
+      { errorKey: "ramon-verified.admin.requests.revoke_user_failed" }
     );
 
     delete this.busy[key];
 
     if (res !== null) {
-      app.alerts.show({ type: 'success' }, trans('revoke_success'));
+      app.alerts.show({ type: "success" }, trans("revoke_success"));
       this.load();
       m.redraw();
       return true;

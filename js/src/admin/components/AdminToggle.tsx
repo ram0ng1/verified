@@ -1,8 +1,8 @@
-import Component, { ComponentAttrs } from 'flarum/common/Component';
-import Switch from 'flarum/common/components/Switch';
-import type Mithril from 'mithril';
+import Component, { ComponentAttrs } from "flarum/common/Component";
+import Switch from "flarum/common/components/Switch";
+import type Mithril from "mithril";
 
-import { settings, saveSetting, getBool } from '../utils/settings';
+import { settings, saveSetting, getBool } from "../utils/settings";
 
 export interface IAdminToggleAttrs extends ComponentAttrs {
   settingKey: string;
@@ -27,7 +27,7 @@ export default class AdminToggle extends Component<IAdminToggleAttrs> {
           onchange={(checked: boolean) => {
             settings()[settingKey] = checked;
             m.redraw();
-            saveSetting({ [settingKey]: checked ? '1' : '0' });
+            saveSetting({ [settingKey]: checked ? "1" : "0" });
           }}
         >
           {label}

@@ -1,6 +1,6 @@
-import Extend from 'flarum/common/extenders';
-import commonExtend from '../common/extend';
-import UserVerifiedNotification from './components/UserVerifiedNotification';
+import Extend from "flarum/common/extenders";
+import commonExtend from "../common/extend";
+import UserVerifiedNotification from "./components/UserVerifiedNotification";
 
 /**
  * Forum-side extenders. Includes everything in `common/extend.ts` plus the
@@ -10,5 +10,5 @@ import UserVerifiedNotification from './components/UserVerifiedNotification';
 export default [
   ...commonExtend,
 
-  new Extend.Notification().add('userVerified', UserVerifiedNotification),
+  new Extend.Notification().add("userVerified", UserVerifiedNotification),
 ];
