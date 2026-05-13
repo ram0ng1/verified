@@ -6,6 +6,9 @@ on:
       - main
   workflow_dispatch:
 
+# 🔴 C1 — Default-deny no nível do workflow.
+permissions: {}
+
 concurrency:
   group: sync-branches
   cancel-in-progress: false
@@ -17,8 +20,17 @@ jobs:
     permissions:
       contents: write
     steps:
+      # 🟠 I3 — Harden-runner: job faz push em branches via GITHUB_TOKEN.
+      - name: Harden runner
+        uses: step-security/harden-runner@cb605e52c26070c328afc4562f0b4ada7618a84e # v2.10.4
+        with:
+          egress-policy: audit
+          allowed-endpoints: >
+            github.com:443
+            api.github.com:443
+
       - name: Checkout do repositório
-        uses: actions/checkout@v4
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           fetch-depth: 0
           token: ${{ secrets.GITHUB_TOKEN }}
