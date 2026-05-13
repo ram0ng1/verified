@@ -18,26 +18,26 @@ export default function addVerifiedSettingsPanel(): void {
     .registerSetting(
       () => <VerifiedSettingsPanel />,
       100,
-      "ramon-verified.panel"
+      "ramon-verified.panel",
     )
     .registerPermission(
       {
         icon: "fas fa-certificate",
         label: app.translator.trans(
-          "ramon-verified.admin.permissions.request_label"
+          "ramon-verified.admin.permissions.request_label",
         ),
         permission: "verified.request",
       },
-      "start"
+      "start",
     )
     .registerPermission(
       {
         icon: "fas fa-user-check",
         label: app.translator.trans(
-          "ramon-verified.admin.permissions.verify_users_label"
+          "ramon-verified.admin.permissions.verify_users_label",
         ),
         permission: "verified.verifyUsers",
       },
-      "moderate"
+      "moderate",
     );
 }

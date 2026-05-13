@@ -26,7 +26,7 @@ const FALLBACK_DOCUMENT_TYPES: DocumentType[] = [
 
 function getDocumentTypes(): DocumentType[] {
   const fromForum = app.forum.attribute<DocumentType[]>(
-    "ramonVerifiedDocumentTypes"
+    "ramonVerifiedDocumentTypes",
   );
   if (Array.isArray(fromForum) && fromForum.length > 0) return fromForum;
   return FALLBACK_DOCUMENT_TYPES;
@@ -86,7 +86,7 @@ export default class RequestVerificationModal extends FormModal {
           <div className="Form-group VerifiedRequestModal-field">
             <label className="VerifiedRequestModal-fieldLabel">
               {app.translator.trans(
-                "ramon-verified.forum.request_modal.reason_label"
+                "ramon-verified.forum.request_modal.reason_label",
               )}
             </label>
             <textarea
@@ -95,8 +95,8 @@ export default class RequestVerificationModal extends FormModal {
               maxlength={1000}
               placeholder={extractText(
                 app.translator.trans(
-                  "ramon-verified.forum.request_modal.reason_placeholder"
-                )
+                  "ramon-verified.forum.request_modal.reason_placeholder",
+                ),
               )}
               bidi={this.reason}
               disabled={this.loading || this.uploading}
@@ -115,7 +115,7 @@ export default class RequestVerificationModal extends FormModal {
           disabled={this.uploading || (requireDoc && !this.documentPath())}
         >
           {app.translator.trans(
-            "ramon-verified.forum.request_modal.submit_button"
+            "ramon-verified.forum.request_modal.submit_button",
           )}
         </Button>
       </div>,
@@ -129,7 +129,7 @@ export default class RequestVerificationModal extends FormModal {
       <div className="Form-group VerifiedRequestModal-field">
         <label className="VerifiedRequestModal-fieldLabel">
           {app.translator.trans(
-            "ramon-verified.forum.request_modal.document_type_label"
+            "ramon-verified.forum.request_modal.document_type_label",
           )}
         </label>
         <div className="VerifiedRequestModal-pillGroup" role="radiogroup">
@@ -155,13 +155,13 @@ export default class RequestVerificationModal extends FormModal {
       <div className="Form-group VerifiedRequestModal-field">
         <label className="VerifiedRequestModal-fieldLabel">
           {app.translator.trans(
-            "ramon-verified.forum.request_modal.document_label"
+            "ramon-verified.forum.request_modal.document_label",
           )}
         </label>
         {this.renderFileField()}
         <p className="VerifiedRequestModal-fieldHint">
           {app.translator.trans(
-            "ramon-verified.forum.request_modal.document_help"
+            "ramon-verified.forum.request_modal.document_help",
           )}
         </p>
       </div>,
@@ -180,7 +180,7 @@ export default class RequestVerificationModal extends FormModal {
           />
           <span className="VerifiedRequestModal-fileDrop-title">
             {app.translator.trans(
-              "ramon-verified.forum.request_modal.uploading"
+              "ramon-verified.forum.request_modal.uploading",
             )}
           </span>
         </div>
@@ -204,7 +204,7 @@ export default class RequestVerificationModal extends FormModal {
             </span>
             <span className="VerifiedRequestModal-fileSelected-meta">
               {app.translator.trans(
-                "ramon-verified.forum.request_modal.uploaded_short"
+                "ramon-verified.forum.request_modal.uploaded_short",
               )}
             </span>
           </span>
@@ -215,8 +215,8 @@ export default class RequestVerificationModal extends FormModal {
             disabled={disabled}
             aria-label={extractText(
               app.translator.trans(
-                "ramon-verified.forum.request_modal.remove_file"
-              )
+                "ramon-verified.forum.request_modal.remove_file",
+              ),
             )}
           >
             <i className="icon fas fa-times" aria-hidden="true" />
@@ -243,12 +243,12 @@ export default class RequestVerificationModal extends FormModal {
         />
         <span className="VerifiedRequestModal-fileDrop-title">
           {app.translator.trans(
-            "ramon-verified.forum.request_modal.choose_file"
+            "ramon-verified.forum.request_modal.choose_file",
           )}
         </span>
         <span className="VerifiedRequestModal-fileDrop-hint">
           {app.translator.trans(
-            "ramon-verified.forum.request_modal.choose_file_hint"
+            "ramon-verified.forum.request_modal.choose_file_hint",
           )}
         </span>
       </label>,
@@ -282,8 +282,8 @@ export default class RequestVerificationModal extends FormModal {
     if (file.size > MAX) {
       this.uploadError = extractText(
         app.translator.trans(
-          "ramon-verified.forum.request_modal.file_too_large"
-        )
+          "ramon-verified.forum.request_modal.file_too_large",
+        ),
       );
       m.redraw();
       return;
@@ -297,7 +297,7 @@ export default class RequestVerificationModal extends FormModal {
     ];
     if (file.type && allowed.indexOf(file.type) === -1) {
       this.uploadError = extractText(
-        app.translator.trans("ramon-verified.forum.request_modal.bad_type")
+        app.translator.trans("ramon-verified.forum.request_modal.bad_type"),
       );
       m.redraw();
       return;
@@ -327,8 +327,8 @@ export default class RequestVerificationModal extends FormModal {
         } else {
           this.uploadError = extractText(
             app.translator.trans(
-              "ramon-verified.forum.request_modal.upload_failed"
-            )
+              "ramon-verified.forum.request_modal.upload_failed",
+            ),
           );
         }
         m.redraw();
@@ -343,8 +343,8 @@ export default class RequestVerificationModal extends FormModal {
             err.response.errors[0].detail) ||
           extractText(
             app.translator.trans(
-              "ramon-verified.forum.request_modal.upload_failed"
-            )
+              "ramon-verified.forum.request_modal.upload_failed",
+            ),
           );
         this.uploadError = msg;
         m.redraw();
@@ -360,8 +360,8 @@ export default class RequestVerificationModal extends FormModal {
     if (requireDoc && !this.documentPath()) {
       this.uploadError = extractText(
         app.translator.trans(
-          "ramon-verified.forum.request_modal.document_required"
-        )
+          "ramon-verified.forum.request_modal.document_required",
+        ),
       );
       m.redraw();
       return;
@@ -390,7 +390,7 @@ export default class RequestVerificationModal extends FormModal {
         }
         app.alerts.show(
           { type: "success" },
-          app.translator.trans("ramon-verified.forum.request_modal.success")
+          app.translator.trans("ramon-verified.forum.request_modal.success"),
         );
         this.hide();
       })

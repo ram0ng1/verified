@@ -10,7 +10,7 @@
  */
 export function wrapTextareaSelection(
   textarea: HTMLTextAreaElement,
-  tag: "strong" | "em"
+  tag: "strong" | "em",
 ): string {
   const start = textarea.selectionStart ?? 0;
   const end = textarea.selectionEnd ?? 0;

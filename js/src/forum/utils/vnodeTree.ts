@@ -17,7 +17,7 @@ export type VnodeLike = Mithril.Vnode<any, any> & {
  */
 export function findVnodeByClass(
   node: unknown,
-  className: string
+  className: string,
 ): VnodeLike | null {
   if (!node || typeof node !== "object") return null;
 
@@ -48,7 +48,7 @@ export function findVnodeByClass(
  */
 export function makeVerifiedVnode(
   user: User | null | undefined,
-  className: string
+  className: string,
 ): Mithril.Vnode | null {
   if (!user || !user.isVerified || !user.isVerified()) return null;
 
@@ -90,6 +90,6 @@ export function makeVerifiedVnode(
       title: tooltip,
       "aria-label": tooltip,
     },
-    m.trust(svg)
+    m.trust(svg),
   );
 }

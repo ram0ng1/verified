@@ -82,7 +82,9 @@ export default class KeypairRevealModal extends Modal<IKeypairRevealAttrs> {
     if (!navigator.clipboard) {
       app.alerts.show(
         { type: "error" },
-        extractText(app.translator.trans("ramon-verified.lib.errors.clipboard"))
+        extractText(
+          app.translator.trans("ramon-verified.lib.errors.clipboard"),
+        ),
       );
       return;
     }
@@ -99,10 +101,10 @@ export default class KeypairRevealModal extends Modal<IKeypairRevealAttrs> {
         app.alerts.show(
           { type: "error" },
           extractText(
-            app.translator.trans("ramon-verified.lib.errors.clipboard")
-          )
+            app.translator.trans("ramon-verified.lib.errors.clipboard"),
+          ),
         );
-      }
+      },
     );
   }
 }

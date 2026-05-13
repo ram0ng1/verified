@@ -48,7 +48,7 @@ export default class TiersEditorState {
   constructor() {
     this.rows = this.parse(String(settings()[SETTING_KEY] ?? ""));
     this.groups = sortGroups(
-      app.store.all<Group>("groups").filter((g) => g.id() !== Group.GUEST_ID)
+      app.store.all<Group>("groups").filter((g) => g.id() !== Group.GUEST_ID),
     );
   }
 
@@ -91,7 +91,7 @@ export default class TiersEditorState {
           description: r.description.trim(),
           learnMoreUrl: this.normaliseUrl(r.learnMoreUrl),
           autoGroups: r.autoGroups,
-        }))
+        })),
     );
   }
 
