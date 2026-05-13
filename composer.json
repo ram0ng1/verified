@@ -1,6 +1,6 @@
 {
     "name": "ramon/verified",
-    "version": "2.0.16",
+    "version": "2.0.17",
     "description": "User verification for Flarum, with a X (Twitter)-style verified badge and admin-managed verification requests.",
     "keywords": [
         "flarum",
