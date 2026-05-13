@@ -171,7 +171,9 @@ export default class EncryptionCard extends Component<ComponentAttrs> {
     if (!navigator.clipboard) {
       app.alerts.show(
         { type: "error" },
-        extractText(app.translator.trans("ramon-verified.lib.errors.clipboard"))
+        extractText(
+          app.translator.trans("ramon-verified.lib.errors.clipboard"),
+        ),
       );
       return;
     }
@@ -188,10 +190,10 @@ export default class EncryptionCard extends Component<ComponentAttrs> {
         app.alerts.show(
           { type: "error" },
           extractText(
-            app.translator.trans("ramon-verified.lib.errors.clipboard")
-          )
+            app.translator.trans("ramon-verified.lib.errors.clipboard"),
+          ),
         );
-      }
+      },
     );
   }
 

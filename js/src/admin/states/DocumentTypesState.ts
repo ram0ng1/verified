@@ -30,7 +30,7 @@ export default class DocumentTypesState {
         ? parsed
             .filter(
               (r: unknown): r is Record<string, unknown> =>
-                !!r && typeof r === "object"
+                !!r && typeof r === "object",
             )
             .map((r) => ({
               id: String(r.id || ""),
@@ -44,7 +44,7 @@ export default class DocumentTypesState {
 
   serialize(): string {
     return JSON.stringify(
-      this.types.filter((r) => r.id.trim() && r.label.trim())
+      this.types.filter((r) => r.id.trim() && r.label.trim()),
     );
   }
 
@@ -72,7 +72,7 @@ export default class DocumentTypesState {
 
   update(idx: number, field: "id" | "label", value: string): void {
     this.types = this.types.map((r, i) =>
-      i === idx ? { ...r, [field]: value } : r
+      i === idx ? { ...r, [field]: value } : r,
     );
     this.flushSoon();
     m.redraw();

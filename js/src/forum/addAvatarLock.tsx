@@ -53,13 +53,13 @@ export default function addAvatarLock(): void {
             }}
           >
             {app.translator.trans(
-              "ramon-verified.forum.avatar.request_change_button"
+              "ramon-verified.forum.avatar.request_change_button",
             )}
           </Button>
         </div>,
-        100
+        100,
       );
-    }
+    },
   );
 
   override(
@@ -76,7 +76,7 @@ export default function addAvatarLock(): void {
         return;
       }
       return original(e);
-    }
+    },
   );
 
   override(
@@ -88,7 +88,7 @@ export default function addAvatarLock(): void {
         return;
       }
       return original();
-    }
+    },
   );
 
   override(
@@ -100,7 +100,7 @@ export default function addAvatarLock(): void {
         return;
       }
       return original();
-    }
+    },
   );
 
   override(
@@ -117,6 +117,6 @@ export default function addAvatarLock(): void {
         return;
       }
       return original(e);
-    }
+    },
   );
 }

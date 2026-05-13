@@ -36,7 +36,7 @@ export default function addAvocadoIntegration(): void {
         /* defensive */
       }
       return tree;
-    }
+    },
   );
 
   // ── Profile hero on AvocadoUser*Page ──────────────────────────────────────
@@ -59,7 +59,7 @@ export default function addAvocadoIntegration(): void {
       if (!baseProto || typeof baseProto.view !== "function") return;
 
       patchHeroView(baseProto);
-    }
+    },
   );
 
   // ── Thread cards on the home / tag / search pages ─────────────────────────
@@ -72,7 +72,7 @@ export default function addAvocadoIntegration(): void {
         const d = inst?.attrs?.discussion;
         return d && d.user && d.user();
       });
-    }
+    },
   );
 
   // ── PostCard (user profile / search results) ──────────────────────────────
@@ -86,7 +86,7 @@ export default function addAvocadoIntegration(): void {
         const d = inst?.attrs?.discussion;
         return (p && p.user && p.user()) || (d && d.user && d.user());
       });
-    }
+    },
   );
 }
 
@@ -119,7 +119,7 @@ function patchHeroView(proto: any): void {
 
 function injectIntoHeroName(
   tree: unknown,
-  user: User | undefined | null
+  user: User | undefined | null,
 ): void {
   if (!tree) return;
   if (!user || !user.isVerified || !user.isVerified()) return;
@@ -135,8 +135,8 @@ function injectIntoHeroName(
     existing == null
       ? []
       : Array.isArray(existing)
-      ? existing.slice()
-      : [existing];
+        ? existing.slice()
+        : [existing];
   heroName.children = [...base, badge];
 }
 
@@ -144,7 +144,7 @@ function injectIntoHeroName(
 
 function wrapCardView(
   Component: any,
-  getUser: (inst: any) => User | null | undefined
+  getUser: (inst: any) => User | null | undefined,
 ): void {
   if (patchedCards.has(Component)) return;
   patchedCards.add(Component);
@@ -166,7 +166,7 @@ function wrapCardView(
               c.attrs &&
               typeof c.attrs.className === "string" &&
               (c.attrs.className.indexOf("AvocadoHome-threadAuthor") !== -1 ||
-                c.attrs.className.indexOf("AvocadoSearch-threadAuthor") !== -1)
+                c.attrs.className.indexOf("AvocadoSearch-threadAuthor") !== -1),
           );
           if (authorIdx !== -1) {
             const badge = makeVerifiedVnode(user, "");

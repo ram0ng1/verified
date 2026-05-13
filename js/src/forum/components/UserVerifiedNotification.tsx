@@ -25,7 +25,7 @@ export default class UserVerifiedNotification extends Notification {
 
   content(): Mithril.Children {
     return app.translator.trans(
-      "ramon-verified.forum.notifications.user_verified_text"
+      "ramon-verified.forum.notifications.user_verified_text",
     );
   }
 

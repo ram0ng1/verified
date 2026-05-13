@@ -40,7 +40,7 @@ function normalisePath(path: string): string {
 }
 
 export function resolveAssetUrl(
-  assetPath: string | null | undefined
+  assetPath: string | null | undefined,
 ): string | null {
   if (!assetPath) return null;
   if (/^https?:\/\//i.test(assetPath)) return assetPath;
@@ -164,7 +164,7 @@ export default function getBadgeSvg(): string {
   try {
     const raw = readSetting(
       "ramonVerifiedBadgeSvgContent",
-      "ramon-verified.badge_svg_content"
+      "ramon-verified.badge_svg_content",
     );
     if (typeof raw === "string" && raw.trim()) {
       if (cachedFromAttribute !== raw) {
@@ -187,7 +187,7 @@ export function getBadgeSize(): string {
   try {
     const raw = readSetting(
       "ramonVerifiedBadgeSize",
-      "ramon-verified.badge_size"
+      "ramon-verified.badge_size",
     );
     const num = parseFloat(raw as string);
     if (Number.isFinite(num) && num > 0) {

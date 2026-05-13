@@ -55,7 +55,7 @@ export default class DocumentTypesEditor extends Component<ComponentAttrs> {
                     this.types.update(
                       idx,
                       "id",
-                      (e.target as HTMLInputElement).value
+                      (e.target as HTMLInputElement).value,
                     )
                   }
                 />
@@ -64,13 +64,13 @@ export default class DocumentTypesEditor extends Component<ComponentAttrs> {
                   className="FormControl VerifiedAdmin-types-input VerifiedAdmin-types-label"
                   value={row.label}
                   placeholder={extractText(
-                    trans("settings.document_type_label_placeholder")
+                    trans("settings.document_type_label_placeholder"),
                   )}
                   oninput={(e: Event) =>
                     this.types.update(
                       idx,
                       "label",
-                      (e.target as HTMLInputElement).value
+                      (e.target as HTMLInputElement).value,
                     )
                   }
                 />
@@ -79,7 +79,7 @@ export default class DocumentTypesEditor extends Component<ComponentAttrs> {
                   className="VerifiedAdmin-types-remove"
                   onclick={() => this.types.remove(idx)}
                   aria-label={extractText(
-                    trans("settings.document_type_remove")
+                    trans("settings.document_type_remove"),
                   )}
                   title={extractText(trans("settings.document_type_remove"))}
                 >

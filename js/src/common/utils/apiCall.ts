@@ -33,7 +33,7 @@ interface FlarumApiError {
  */
 export default async function apiCall<T = unknown>(
   options: FlarumRequestOptions<T>,
-  opts: ApiCallOptions = {}
+  opts: ApiCallOptions = {},
 ): Promise<T | null> {
   try {
     return await app.request<T>(options);
@@ -51,13 +51,13 @@ export default async function apiCall<T = unknown>(
         msg = title;
       } else if (!err?.response) {
         msg = extractText(
-          app.translator.trans("ramon-verified.lib.errors.network")
+          app.translator.trans("ramon-verified.lib.errors.network"),
         );
       } else {
         msg = extractText(
           app.translator.trans(
-            opts.errorKey || "ramon-verified.lib.errors.generic"
-          )
+            opts.errorKey || "ramon-verified.lib.errors.generic",
+          ),
         );
       }
 

@@ -27,5 +27,5 @@ app.initializers.add(
     addNotificationPreference();
     addAvocadoIntegration();
   },
-  -100
+  -100,
 );

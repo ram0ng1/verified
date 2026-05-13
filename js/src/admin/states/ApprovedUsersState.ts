@@ -79,7 +79,7 @@ export default class ApprovedUsersState {
         url: app.forum.attribute("apiUrl") + "/verified/approved-users",
         params,
       },
-      { errorKey: "ramon-verified.admin.requests.load_approved_failed" }
+      { errorKey: "ramon-verified.admin.requests.load_approved_failed" },
     );
 
     this.loading = false;
@@ -145,7 +145,7 @@ export default class ApprovedUsersState {
           "/verify",
         body: { adminNote: note || "" },
       },
-      { errorKey: "ramon-verified.admin.requests.revoke_user_failed" }
+      { errorKey: "ramon-verified.admin.requests.revoke_user_failed" },
     );
 
     delete this.busy[key];

@@ -30,10 +30,10 @@ export default function addVerificationUserControls(): void {
             onclick={() => performVerification(user, "revoke")}
           >
             {app.translator.trans(
-              "ramon-verified.forum.user_controls.revoke_button"
+              "ramon-verified.forum.user_controls.revoke_button",
             )}
           </Button>,
-          50
+          50,
         );
       } else {
         items.add(
@@ -43,12 +43,12 @@ export default function addVerificationUserControls(): void {
             onclick={() => performVerification(user, "verify")}
           >
             {app.translator.trans(
-              "ramon-verified.forum.user_controls.verify_button"
+              "ramon-verified.forum.user_controls.verify_button",
             )}
           </Button>,
-          50
+          50,
         );
       }
-    }
+    },
   );
 }

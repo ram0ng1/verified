@@ -21,8 +21,8 @@ export default function addBadgeToCommentPost(): void {
       items.add(
         "verified",
         <VerifiedBadge user={user} className="VerifiedBadge--post" />,
-        95
+        95,
       );
-    }
+    },
   );
 }

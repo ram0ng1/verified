@@ -27,7 +27,7 @@ declare global {
       onLoad(
         namespace: string,
         id: string,
-        callback: (mod: unknown) => void
+        callback: (mod: unknown) => void,
       ): void;
       addChunk?: unknown;
     };

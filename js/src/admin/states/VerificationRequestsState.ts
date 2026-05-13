@@ -36,7 +36,7 @@ export default class VerificationRequestsState {
           sort: "-createdAt",
           page: { limit: 100 },
           include: "user,handler",
-        }
+        },
       );
       const list: VerificationRequest[] = Array.isArray(res) ? res.slice() : [];
       list.sort((a, b) => {
@@ -96,7 +96,7 @@ export default class VerificationRequestsState {
           action,
         body,
       },
-      { errorKey: "ramon-verified.admin.requests.decide_failed" }
+      { errorKey: "ramon-verified.admin.requests.decide_failed" },
     );
 
     delete this.busy[reqId];

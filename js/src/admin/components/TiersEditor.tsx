@@ -150,8 +150,8 @@ export default class TiersEditor extends Component<ComponentAttrs> {
       charCount >= 280
         ? "VerifiedTier-charCount VerifiedTier-charCount--max"
         : charCount >= 240
-        ? "VerifiedTier-charCount VerifiedTier-charCount--warn"
-        : "VerifiedTier-charCount";
+          ? "VerifiedTier-charCount VerifiedTier-charCount--warn"
+          : "VerifiedTier-charCount";
 
     return (
       <div className="VerifiedTier-body">
@@ -195,7 +195,7 @@ export default class TiersEditor extends Component<ComponentAttrs> {
                 className="FormControl"
                 value={row.label}
                 placeholder={extractText(
-                  trans("settings.tiers.label_placeholder")
+                  trans("settings.tiers.label_placeholder"),
                 )}
                 oninput={(e: Event) =>
                   this.tiers.update(idx, {
@@ -262,10 +262,10 @@ export default class TiersEditor extends Component<ComponentAttrs> {
                 type="button"
                 className="VerifiedTier-descBtn"
                 title={extractText(
-                  trans("settings.tiers.description_bold_title")
+                  trans("settings.tiers.description_bold_title"),
                 )}
                 aria-label={extractText(
-                  trans("settings.tiers.description_bold_title")
+                  trans("settings.tiers.description_bold_title"),
                 )}
                 onclick={(e: Event) => this.wrapDescription(e, idx, "strong")}
               >
@@ -275,10 +275,10 @@ export default class TiersEditor extends Component<ComponentAttrs> {
                 type="button"
                 className="VerifiedTier-descBtn"
                 title={extractText(
-                  trans("settings.tiers.description_italic_title")
+                  trans("settings.tiers.description_italic_title"),
                 )}
                 aria-label={extractText(
-                  trans("settings.tiers.description_italic_title")
+                  trans("settings.tiers.description_italic_title"),
                 )}
                 onclick={(e: Event) => this.wrapDescription(e, idx, "em")}
               >
@@ -295,7 +295,7 @@ export default class TiersEditor extends Component<ComponentAttrs> {
               maxlength={320}
               value={row.description}
               placeholder={extractText(
-                trans("settings.tiers.description_placeholder")
+                trans("settings.tiers.description_placeholder"),
               )}
               oninput={(e: Event) =>
                 this.tiers.update(idx, {
@@ -332,7 +332,7 @@ export default class TiersEditor extends Component<ComponentAttrs> {
                   rel="noopener noreferrer"
                   title={extractText(trans("settings.tiers.learn_more_open"))}
                   aria-label={extractText(
-                    trans("settings.tiers.learn_more_open")
+                    trans("settings.tiers.learn_more_open"),
                   )}
                 >
                   <i className="icon fas fa-arrow-up-right-from-square" />
@@ -421,7 +421,7 @@ export default class TiersEditor extends Component<ComponentAttrs> {
     const ta =
       wrapper &&
       (wrapper.querySelector(
-        "textarea.VerifiedTier-descArea"
+        "textarea.VerifiedTier-descArea",
       ) as HTMLTextAreaElement | null);
     if (!ta) return;
 
@@ -495,7 +495,7 @@ export default class TiersEditor extends Component<ComponentAttrs> {
                         style={color ? { color } : undefined}
                       >
                         {app.translator.trans(
-                          "ramon-verified.lib.popover.learn_more"
+                          "ramon-verified.lib.popover.learn_more",
                         )}
                       </a>
                     </>
@@ -528,7 +528,7 @@ export default class TiersEditor extends Component<ComponentAttrs> {
 
                 <span className="VerifiedPopover-meta">
                   {app.translator.trans(
-                    "ramon-verified.lib.popover.verified_no_date"
+                    "ramon-verified.lib.popover.verified_no_date",
                   )}
                 </span>
               </span>

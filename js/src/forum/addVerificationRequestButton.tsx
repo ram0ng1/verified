@@ -34,11 +34,11 @@ export default function addVerificationRequestButton(): void {
             </span>
             <span className="Button-label">
               {app.translator.trans(
-                "ramon-verified.forum.settings.verified_label"
+                "ramon-verified.forum.settings.verified_label",
               )}
             </span>
           </button>,
-          80
+          80,
         );
         return;
       }
@@ -57,11 +57,11 @@ export default function addVerificationRequestButton(): void {
             <i className="icon fas fa-hourglass-half Button-icon" />
             <span className="Button-label">
               {app.translator.trans(
-                "ramon-verified.forum.settings.pending_label"
+                "ramon-verified.forum.settings.pending_label",
               )}
             </span>
           </button>,
-          80
+          80,
         );
         return;
       }
@@ -76,13 +76,13 @@ export default function addVerificationRequestButton(): void {
               onclick={() => app.modal.show(RequestVerificationModal)}
             >
               {app.translator.trans(
-                "ramon-verified.forum.settings.request_button"
+                "ramon-verified.forum.settings.request_button",
               )}
             </Button>
           </div>,
-          80
+          80,
         );
       }
-    }
+    },
   );
 }

@@ -36,14 +36,14 @@ export default class VerifiedSettingsState {
     if (typeof document !== "undefined") {
       document.documentElement.style.setProperty(
         "--verified-size",
-        clamped + "em"
+        clamped + "em",
       );
     }
 
     if (this._sizeTimer) clearTimeout(this._sizeTimer);
     this._sizeTimer = setTimeout(
       () => saveSetting({ [SIZE_KEY]: clamped }),
-      FLUSH_DEBOUNCE_MS
+      FLUSH_DEBOUNCE_MS,
     );
 
     m.redraw();
@@ -59,7 +59,7 @@ export default class VerifiedSettingsState {
     if (this._retentionDaysTimer) clearTimeout(this._retentionDaysTimer);
     this._retentionDaysTimer = setTimeout(
       () => saveSetting({ [RETENTION_DAYS_KEY]: String(clamped) }),
-      FLUSH_DEBOUNCE_MS
+      FLUSH_DEBOUNCE_MS,
     );
 
     m.redraw();
@@ -67,7 +67,7 @@ export default class VerifiedSettingsState {
 
   setRetentionMode(mode: string): void {
     const next: RetentionMode = (RETENTION_MODES as readonly string[]).includes(
-      mode
+      mode,
     )
       ? (mode as RetentionMode)
       : "keep";
