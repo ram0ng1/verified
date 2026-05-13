@@ -4,9 +4,9 @@
 // `Extend.Model(User).attribute(...)` in `common/extend.ts`. This is purely
 // a type-level merge — runtime behaviour is owned by the extender.
 
-import 'flarum/common/models/User';
+import "flarum/common/models/User";
 
-declare module 'flarum/common/models/User' {
+declare module "flarum/common/models/User" {
   export default interface User {
     isVerified(): boolean | undefined;
     verifiedAt(): Date | null | undefined;
@@ -24,7 +24,11 @@ declare global {
   namespace flarum {
     const reg: {
       get(namespace: string, id: string): unknown;
-      onLoad(namespace: string, id: string, callback: (mod: unknown) => void): void;
+      onLoad(
+        namespace: string,
+        id: string,
+        callback: (mod: unknown) => void
+      ): void;
       addChunk?: unknown;
     };
   }

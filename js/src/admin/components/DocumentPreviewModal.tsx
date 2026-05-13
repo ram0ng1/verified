@@ -1,7 +1,7 @@
-import app from 'flarum/admin/app';
-import Modal, { IInternalModalAttrs } from 'flarum/common/components/Modal';
-import LoadingIndicator from 'flarum/common/components/LoadingIndicator';
-import type Mithril from 'mithril';
+import app from "flarum/admin/app";
+import Modal, { IInternalModalAttrs } from "flarum/common/components/Modal";
+import LoadingIndicator from "flarum/common/components/LoadingIndicator";
+import type Mithril from "mithril";
 
 export interface DocumentPreviewModalAttrs extends IInternalModalAttrs {
   /** Download URL: `/api/verified/documents/{id}` */
@@ -15,13 +15,16 @@ export interface DocumentPreviewModalAttrs extends IInternalModalAttrs {
 const trans = (key: string, params?: Record<string, unknown>) =>
   app.translator.trans(`ramon-verified.admin.requests.${key}`, params ?? {});
 
-const IMAGE_EXTS = ['png', 'jpg', 'jpeg', 'webp', 'gif'];
+const IMAGE_EXTS = ["png", "jpg", "jpeg", "webp", "gif"];
 
-function detectExtension(url: string | undefined, filename: string | undefined | null): string {
-  const candidate = filename || url || '';
-  const stripped = String(candidate).split('?')[0].split('#')[0];
-  const dotIdx = stripped.lastIndexOf('.');
-  if (dotIdx === -1) return '';
+function detectExtension(
+  url: string | undefined,
+  filename: string | undefined | null
+): string {
+  const candidate = filename || url || "";
+  const stripped = String(candidate).split("?")[0].split("#")[0];
+  const dotIdx = stripped.lastIndexOf(".");
+  if (dotIdx === -1) return "";
   return stripped.slice(dotIdx + 1).toLowerCase();
 }
 
@@ -35,31 +38,36 @@ export default class DocumentPreviewModal extends Modal<DocumentPreviewModalAttr
   protected imageError: boolean = false;
 
   className(): string {
-    return 'DocumentPreviewModal';
+    return "DocumentPreviewModal";
   }
 
   title(): Mithril.Children {
-    return trans('document_preview_title');
+    return trans("document_preview_title");
   }
 
   content(): Mithril.Children {
     const { url, filename, typeLabel } = this.attrs;
     const ext = detectExtension(url, filename);
     const isImage = IMAGE_EXTS.indexOf(ext) !== -1;
-    const isPdf = ext === 'pdf';
+    const isPdf = ext === "pdf";
 
     return (
       <div className="Modal-body DocumentPreviewModal-body">
         {typeLabel ? (
           <div className="DocumentPreviewModal-meta">
             <span className="DocumentPreviewModal-meta-label">
-              {trans('document_label')}
+              {trans("document_label")}
             </span>
             <span className="DocumentPreviewModal-meta-value">{typeLabel}</span>
           </div>
         ) : null}
 
-        <div className={'DocumentPreviewModal-frame' + (isPdf ? ' DocumentPreviewModal-frame--pdf' : '')}>
+        <div
+          className={
+            "DocumentPreviewModal-frame" +
+            (isPdf ? " DocumentPreviewModal-frame--pdf" : "")
+          }
+        >
           {isImage ? this.renderImage(url) : null}
           {isPdf ? this.renderPdf(url) : null}
           {!isImage && !isPdf ? this.renderUnsupported() : null}
@@ -79,15 +87,23 @@ export default class DocumentPreviewModal extends Modal<DocumentPreviewModalAttr
       this.imageError ? (
         <div className="DocumentPreviewModal-empty">
           <i className="icon fas fa-triangle-exclamation" />
-          <span>{trans('preview_failed')}</span>
+          <span>{trans("preview_failed")}</span>
         </div>
       ) : (
         <img
           src={url}
           alt=""
-          className={'DocumentPreviewModal-img' + (this.imageLoaded ? ' is-loaded' : '')}
-          onload={() => { this.imageLoaded = true; m.redraw(); }}
-          onerror={() => { this.imageError = true; m.redraw(); }}
+          className={
+            "DocumentPreviewModal-img" + (this.imageLoaded ? " is-loaded" : "")
+          }
+          onload={() => {
+            this.imageLoaded = true;
+            m.redraw();
+          }}
+          onerror={() => {
+            this.imageError = true;
+            m.redraw();
+          }}
         />
       ),
     ];
@@ -98,9 +114,11 @@ export default class DocumentPreviewModal extends Modal<DocumentPreviewModalAttr
       <iframe
         src={url}
         className="DocumentPreviewModal-pdf"
-        title={typeof trans('document_preview_title') === 'string'
-          ? (trans('document_preview_title') as unknown as string)
-          : 'Document preview'}
+        title={
+          typeof trans("document_preview_title") === "string"
+            ? (trans("document_preview_title") as unknown as string)
+            : "Document preview"
+        }
       />
     );
   }
@@ -109,7 +127,7 @@ export default class DocumentPreviewModal extends Modal<DocumentPreviewModalAttr
     return (
       <div className="DocumentPreviewModal-empty">
         <i className="icon fas fa-file" />
-        <span>{trans('preview_unavailable')}</span>
+        <span>{trans("preview_unavailable")}</span>
       </div>
     );
   }

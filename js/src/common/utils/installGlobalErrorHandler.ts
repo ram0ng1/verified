@@ -1,5 +1,5 @@
-import app from 'flarum/common/app';
-import extractText from 'flarum/common/utils/extractText';
+import app from "flarum/common/app";
+import extractText from "flarum/common/utils/extractText";
 
 let installed = false;
 
@@ -20,17 +20,17 @@ interface FlarumApiError {
  * Idempotent across both forum and admin bundles loading on the same page.
  */
 export default function installGlobalErrorHandler(): void {
-  if (installed || typeof window === 'undefined') return;
+  if (installed || typeof window === "undefined") return;
   installed = true;
 
-  window.addEventListener('unhandledrejection', (event) => {
+  window.addEventListener("unhandledrejection", (event) => {
     const reason = event.reason as FlarumApiError | undefined;
     if (reason && (reason.alreadyHandled || reason.response)) return;
 
     if (!app || !app.alerts || !app.translator) return;
     app.alerts.show(
-      { type: 'error' },
-      extractText(app.translator.trans('ramon-verified.lib.errors.generic'))
+      { type: "error" },
+      extractText(app.translator.trans("ramon-verified.lib.errors.generic"))
     );
   });
 }

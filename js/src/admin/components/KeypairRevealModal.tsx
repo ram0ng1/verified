@@ -1,7 +1,7 @@
-import app from 'flarum/admin/app';
-import Modal, { IInternalModalAttrs } from 'flarum/common/components/Modal';
-import Button from 'flarum/common/components/Button';
-import extractText from 'flarum/common/utils/extractText';
+import app from "flarum/admin/app";
+import Modal, { IInternalModalAttrs } from "flarum/common/components/Modal";
+import Button from "flarum/common/components/Button";
+import extractText from "flarum/common/utils/extractText";
 
 const trans = (key: string, params?: Record<string, unknown>) =>
   app.translator.trans(`ramon-verified.admin.encryption.${key}`, params ?? {});
@@ -24,11 +24,11 @@ export default class KeypairRevealModal extends Modal<IKeypairRevealAttrs> {
   protected copied = false;
 
   className() {
-    return 'EncryptionRevealModal Modal--medium';
+    return "EncryptionRevealModal Modal--medium";
   }
 
   title() {
-    return trans('reveal_modal.title');
+    return trans("reveal_modal.title");
   }
 
   content() {
@@ -37,28 +37,41 @@ export default class KeypairRevealModal extends Modal<IKeypairRevealAttrs> {
 
     return (
       <div className="Modal-body">
-        <p>{trans('reveal_modal.intro')}</p>
+        <p>{trans("reveal_modal.intro")}</p>
 
         {orphanedDocuments > 0 && (
           <div className="Alert Alert--warning EncryptionReveal-orphaned">
-            {trans('reveal_modal.orphaned', { count: orphanedDocuments })}
+            {trans("reveal_modal.orphaned", { count: orphanedDocuments })}
           </div>
         )}
 
         <div className="EncryptionReveal-warning Alert Alert--error">
-          <strong>{trans('reveal_modal.warning_title')}</strong>
-          <p>{trans('reveal_modal.warning_body')}</p>
+          <strong>{trans("reveal_modal.warning_title")}</strong>
+          <p>{trans("reveal_modal.warning_body")}</p>
         </div>
 
-        <label className="EncryptionReveal-label">{trans('reveal_modal.snippet_label')}</label>
-        <pre className="EncryptionReveal-snippet"><code>{snippet}</code></pre>
+        <label className="EncryptionReveal-label">
+          {trans("reveal_modal.snippet_label")}
+        </label>
+        <pre className="EncryptionReveal-snippet">
+          <code>{snippet}</code>
+        </pre>
 
         <div className="Form-group EncryptionReveal-actions">
-          <Button className="Button" icon="fas fa-copy" onclick={() => this.copy(snippet)}>
-            {this.copied ? trans('reveal_modal.copied') : trans('reveal_modal.copy_button')}
+          <Button
+            className="Button"
+            icon="fas fa-copy"
+            onclick={() => this.copy(snippet)}
+          >
+            {this.copied
+              ? trans("reveal_modal.copied")
+              : trans("reveal_modal.copy_button")}
           </Button>
-          <Button className="Button Button--primary" onclick={() => this.hide()}>
-            {trans('reveal_modal.close')}
+          <Button
+            className="Button Button--primary"
+            onclick={() => this.hide()}
+          >
+            {trans("reveal_modal.close")}
           </Button>
         </div>
       </div>
@@ -68,8 +81,8 @@ export default class KeypairRevealModal extends Modal<IKeypairRevealAttrs> {
   copy(snippet: string) {
     if (!navigator.clipboard) {
       app.alerts.show(
-        { type: 'error' },
-        extractText(app.translator.trans('ramon-verified.lib.errors.clipboard'))
+        { type: "error" },
+        extractText(app.translator.trans("ramon-verified.lib.errors.clipboard"))
       );
       return;
     }
@@ -84,8 +97,10 @@ export default class KeypairRevealModal extends Modal<IKeypairRevealAttrs> {
       },
       () => {
         app.alerts.show(
-          { type: 'error' },
-          extractText(app.translator.trans('ramon-verified.lib.errors.clipboard'))
+          { type: "error" },
+          extractText(
+            app.translator.trans("ramon-verified.lib.errors.clipboard")
+          )
         );
       }
     );
