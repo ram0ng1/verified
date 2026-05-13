@@ -4,8 +4,8 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/ram0ng1/backup/actions/workflows/ci.yml">
-    <img alt="JS (typecheck, format, build)" src="https://github.com/ram0ng1/backup/actions/workflows/ci.yml/badge.svg?branch=main">
+  <a href="https://github.com/ram0ng1/verified/actions/workflows/ci.yml">
+    <img alt="CI" src="https://github.com/ram0ng1/verified/actions/workflows/ci.yml/badge.svg?branch=main">
   </a>
   <img alt="License" src="https://img.shields.io/badge/license-MIT-blue.svg?style=flat-square">
   <a href="https://packagist.org/packages/ramon/verified">

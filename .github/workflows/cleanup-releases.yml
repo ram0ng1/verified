@@ -3,6 +3,14 @@ name: Limpar Releases Antigas
 on:
   workflow_dispatch:
 
+# 🔴 C1 — Default-deny no nível do workflow.
+permissions: {}
+
+# 🟠 I4 — Serializa para evitar duas limpezas concorrentes deletando o mesmo conjunto.
+concurrency:
+  group: cleanup-releases
+  cancel-in-progress: false
+
 jobs:
   cleanup:
     name: Manter apenas as 5 últimas releases
@@ -10,8 +18,16 @@ jobs:
     permissions:
       contents: write
     steps:
+      # 🟠 I3 — Harden-runner: job usa GITHUB_TOKEN com contents:write.
+      - name: Harden runner
+        uses: step-security/harden-runner@cb605e52c26070c328afc4562f0b4ada7618a84e # v2.10.4
+        with:
+          egress-policy: audit
+          allowed-endpoints: >
+            api.github.com:443
+
       - name: Apagar releases antigas
-        uses: actions/github-script@v7
+        uses: actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea # v7.0.1
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
@@ -22,8 +38,11 @@ jobs:
               { owner: context.repo.owner, repo: context.repo.repo, per_page: 100 }
             );
 
-            // Sort by published_at descending (newest first)
-            releases.sort((a, b) => new Date(b.published_at) - new Date(a.published_at));
+            // Sort by published_at descending (newest first).
+            // Drafts (no published_at) sort to the bottom by treating null as epoch.
+            releases.sort((a, b) =>
+              new Date(b.published_at || 0) - new Date(a.published_at || 0)
+            );
 
             const toDelete = releases.slice(KEEP);
 
