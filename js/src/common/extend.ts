@@ -13,7 +13,7 @@ export default [
   new Extend.Model(User)
     .attribute<boolean>("isVerified")
     .attribute<Date | null, string | null>("verifiedAt", (val) =>
-      val ? new Date(val) : null
+      val ? new Date(val) : null,
     )
     .attribute<string | null>("verifiedTier")
     .attribute<boolean>("canRequestVerification")

@@ -14,6 +14,6 @@ export default function addHideExtensionSubmitButton(): void {
     function (this: any, original: () => unknown) {
       if (this.extension && this.extension.id === EXT_ID) return null;
       return original();
-    }
+    },
   );
 }

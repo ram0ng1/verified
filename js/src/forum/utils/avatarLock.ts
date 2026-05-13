@@ -18,7 +18,7 @@ export function isLockedAvatar(component: {
 export function showLockedAlert(): void {
   app.alerts.show(
     { type: "error" },
-    app.translator.trans("ramon-verified.forum.avatar.locked_alert")
+    app.translator.trans("ramon-verified.forum.avatar.locked_alert"),
   );
 }
 
@@ -33,7 +33,7 @@ export function requestAvatarChange(user: User | null | undefined): void {
   if (!user || !user.id) return;
 
   const confirmText = extractText(
-    app.translator.trans("ramon-verified.forum.avatar.request_change_confirm")
+    app.translator.trans("ramon-verified.forum.avatar.request_change_confirm"),
   );
   if (!window.confirm(confirmText)) return;
 
@@ -58,8 +58,8 @@ export function requestAvatarChange(user: User | null | undefined): void {
       app.alerts.show(
         { type: "success" },
         app.translator.trans(
-          "ramon-verified.forum.avatar.request_change_success"
-        )
+          "ramon-verified.forum.avatar.request_change_success",
+        ),
       );
       m.redraw();
     })
@@ -67,8 +67,8 @@ export function requestAvatarChange(user: User | null | undefined): void {
       app.alerts.show(
         { type: "error" },
         app.translator.trans(
-          "ramon-verified.forum.avatar.request_change_failed"
-        )
+          "ramon-verified.forum.avatar.request_change_failed",
+        ),
       );
     });
 }

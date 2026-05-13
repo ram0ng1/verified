@@ -22,19 +22,19 @@ export default class VerificationRequest extends Model {
   createdAt() {
     return Model.attribute<Date | null, string | null>(
       "createdAt",
-      Model.transformDate
+      Model.transformDate,
     ).call(this);
   }
   updatedAt() {
     return Model.attribute<Date | null, string | null>(
       "updatedAt",
-      Model.transformDate
+      Model.transformDate,
     ).call(this);
   }
   handledAt() {
     return Model.attribute<Date | null, string | null>(
       "handledAt",
-      Model.transformDate
+      Model.transformDate,
     ).call(this);
   }
   user() {

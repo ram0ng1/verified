@@ -141,7 +141,7 @@ export default class VerifiedSettingsPanel extends Component<ComponentAttrs> {
     };
 
     const tooltipText = extractText(
-      app.translator.trans("ramon-verified.lib.tooltip")
+      app.translator.trans("ramon-verified.lib.tooltip"),
     );
 
     const badgeNode = showTooltip ? (
@@ -333,7 +333,7 @@ export default class VerifiedSettingsPanel extends Component<ComponentAttrs> {
     const mode = this.settingsState.retentionMode();
     const daysRaw = parseInt(
       getStr("ramon-verified.document_retention_days"),
-      10
+      10,
     );
     const days = Number.isFinite(daysRaw) && daysRaw > 0 ? daysRaw : 30;
 
@@ -347,7 +347,7 @@ export default class VerifiedSettingsPanel extends Component<ComponentAttrs> {
           value={mode}
           onchange={(e: Event) =>
             this.settingsState.setRetentionMode(
-              (e.target as HTMLSelectElement).value
+              (e.target as HTMLSelectElement).value,
             )
           }
         >
@@ -376,7 +376,7 @@ export default class VerifiedSettingsPanel extends Component<ComponentAttrs> {
               value={days}
               oninput={(e: Event) =>
                 this.settingsState.queueRetentionDays(
-                  (e.target as HTMLInputElement).value
+                  (e.target as HTMLInputElement).value,
                 )
               }
             />

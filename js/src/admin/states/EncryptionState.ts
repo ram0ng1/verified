@@ -37,7 +37,7 @@ export default class EncryptionState {
         method: "GET",
         url: `${apiUrl()}/verified/encryption/status`,
       },
-      { errorKey: "ramon-verified.admin.requests.status_load_failed" }
+      { errorKey: "ramon-verified.admin.requests.status_load_failed" },
     );
     this.status = res;
     this.loading = false;
@@ -50,7 +50,7 @@ export default class EncryptionState {
    * document.
    */
   async generate(
-    acknowledgeLoss: boolean = false
+    acknowledgeLoss: boolean = false,
   ): Promise<KeypairResult | null> {
     const body: Record<string, unknown> = {};
     if (acknowledgeLoss) body.acknowledgeLoss = true;
@@ -61,7 +61,7 @@ export default class EncryptionState {
         url: `${apiUrl()}/verified/encryption/generate-keypair`,
         body,
       },
-      { errorKey: "ramon-verified.admin.requests.generate_keypair_failed" }
+      { errorKey: "ramon-verified.admin.requests.generate_keypair_failed" },
     );
     if (!res) return null;
 
