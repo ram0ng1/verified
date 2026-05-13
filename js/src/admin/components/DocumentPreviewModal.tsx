@@ -19,7 +19,7 @@ const IMAGE_EXTS = ["png", "jpg", "jpeg", "webp", "gif"];
 
 function detectExtension(
   url: string | undefined,
-  filename: string | undefined | null
+  filename: string | undefined | null,
 ): string {
   const candidate = filename || url || "";
   const stripped = String(candidate).split("?")[0].split("#")[0];

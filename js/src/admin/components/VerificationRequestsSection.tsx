@@ -413,7 +413,7 @@ export default class VerificationRequestsSection extends Component<ComponentAttr
    */
   async actOnRequest(
     req: VerificationRequest,
-    action: RequestAction
+    action: RequestAction,
   ): Promise<void> {
     const ok = await this.requests.act(req, action);
     if (ok && (action === "approve" || action === "revoke")) {

@@ -37,7 +37,7 @@ export default function promptTier(): VerifiedTier | null {
   // Default suggestion: the configured `blue` tier if present, else the first.
   const defaultIdx = Math.max(
     0,
-    tiers.findIndex((t) => t.id === DEFAULT_TIER_ID)
+    tiers.findIndex((t) => t.id === DEFAULT_TIER_ID),
   );
   const answer = window.prompt(lines.join("\n"), tiers[defaultIdx].id);
   if (answer === null) return null;

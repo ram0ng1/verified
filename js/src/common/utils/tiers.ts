@@ -136,7 +136,7 @@ function normalise(row: unknown): VerifiedTier | null {
  *   3. null when the user isn't verified.
  */
 export function resolveTierForUser(
-  user: User | null | undefined
+  user: User | null | undefined,
 ): VerifiedTier | null {
   if (!user || !user.isVerified || !user.isVerified()) return null;
 

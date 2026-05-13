@@ -34,7 +34,7 @@ const ERROR_KEY: Record<VerificationAction, string> = {
  */
 export async function performVerification(
   user: User,
-  action: VerificationAction
+  action: VerificationAction,
 ): Promise<void> {
   let tierId: string | null = null;
   if (action === "verify") {
@@ -46,9 +46,9 @@ export async function performVerification(
   const note = window.prompt(
     extractText(
       app.translator.trans(
-        "ramon-verified.forum.user_controls." + PROMPT_KEY[action]
-      )
-    )
+        "ramon-verified.forum.user_controls." + PROMPT_KEY[action],
+      ),
+    ),
   );
   if (note === null) return;
 
@@ -67,7 +67,7 @@ export async function performVerification(
         "/verify",
       body,
     },
-    { errorKey: ERROR_KEY[action] }
+    { errorKey: ERROR_KEY[action] },
   );
 
   if (!res) {
@@ -87,8 +87,8 @@ export async function performVerification(
   app.alerts.show(
     { type: "success" },
     app.translator.trans(
-      "ramon-verified.forum.user_controls." + SUCCESS_KEY[action]
-    )
+      "ramon-verified.forum.user_controls." + SUCCESS_KEY[action],
+    ),
   );
   m.redraw();
 }

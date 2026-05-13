@@ -101,7 +101,7 @@ export default class VerifiedPopover extends Component<VerifiedPopoverAttrs> {
                     style={color ? { color } : undefined}
                   >
                     {app.translator.trans(
-                      "ramon-verified.lib.popover.learn_more"
+                      "ramon-verified.lib.popover.learn_more",
                     )}
                   </a>
                 </>
@@ -130,10 +130,10 @@ export default class VerifiedPopover extends Component<VerifiedPopoverAttrs> {
                     "ramon-verified.lib.popover.verified_on",
                     {
                       date: extractText(humanTime(verifiedAt)),
-                    }
+                    },
                   )
                 : app.translator.trans(
-                    "ramon-verified.lib.popover.verified_no_date"
+                    "ramon-verified.lib.popover.verified_no_date",
                   )}
             </span>
           </span>

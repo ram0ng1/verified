@@ -51,8 +51,8 @@ export default function addBadgeToUserCard(): void {
           }
         >
           {identityItem.children as Mithril.Children} {badge}
-        </h1>
+        </h1>,
       );
-    }
+    },
   );
 }

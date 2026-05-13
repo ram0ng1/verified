@@ -30,7 +30,7 @@ export default function installGlobalErrorHandler(): void {
     if (!app || !app.alerts || !app.translator) return;
     app.alerts.show(
       { type: "error" },
-      extractText(app.translator.trans("ramon-verified.lib.errors.generic"))
+      extractText(app.translator.trans("ramon-verified.lib.errors.generic")),
     );
   });
 }

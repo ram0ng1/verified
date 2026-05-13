@@ -21,9 +21,9 @@ export default function addNotificationPreference(): void {
         name: "userVerified",
         icon: "fas fa-certificate",
         label: app.translator.trans(
-          "ramon-verified.forum.notifications.user_verified_preference"
+          "ramon-verified.forum.notifications.user_verified_preference",
         ),
       });
-    }
+    },
   );
 }

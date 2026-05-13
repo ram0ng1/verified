@@ -24,11 +24,11 @@ export const getStr = (key: string): string => String(settings()[key] ?? "");
  * of saving on every change instead of using a submit button.
  */
 export function saveSetting(
-  payload: Record<string, unknown>
+  payload: Record<string, unknown>,
 ): Promise<unknown> {
   const apiUrl = (app.forum.attribute<string>("apiUrl") || "/api").replace(
     /\/+$/,
-    ""
+    "",
   );
   return app.request({
     method: "POST",

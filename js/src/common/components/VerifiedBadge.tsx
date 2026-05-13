@@ -52,7 +52,7 @@ export default class VerifiedBadge extends Component<VerifiedBadgeAttrs> {
     const className = classList(
       "VerifiedBadge",
       tierClass,
-      this.attrs.className
+      this.attrs.className,
     );
 
     const tooltip =
