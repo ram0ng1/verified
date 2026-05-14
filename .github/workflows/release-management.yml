@@ -1,23 +1,48 @@
 name: Release Workflow
 
 on:
-  push:
+  # Dispara quando um PR é MESCLADO no main carregando a label "release".
+  # O tipo de incremento vem das labels do PR:
+  #   - label "BC"        => minor (ex.: 2.0.18 -> 2.1.0)
+  #   - qualquer outra    => patch (ex.: 2.0.18 -> 2.0.19)
+  # A versão é derivada da ÚLTIMA TAG git — o composer.json NÃO tem mais
+  # campo "version" (fonte única de verdade = tags do VCS).
+  pull_request:
+    types: [closed]
     branches:
       - main
+  # Escape hatch manual: permite publicar um release escolhendo o bump
+  # explicitamente (inclui "major", que o fluxo automático nunca faz).
+  workflow_dispatch:
+    inputs:
+      bump:
+        description: 'Tipo de incremento da versão'
+        required: true
+        type: choice
+        default: patch
+        options:
+          - patch
+          - minor
+          - major
 
 # 🔴 C1 — Default-deny no nível do workflow; o job re-concede o necessário.
 permissions: {}
 
-# 🟠 I4 — Serializa execuções (não cancela em andamento — cancelar mid-release
-# deixaria tag meio-publicada).
+# 🟠 I4 — Serializa releases; nunca cancela um em andamento (cancelar
+# mid-release deixaria uma tag meio-publicada exigindo limpeza manual).
 concurrency:
-  group: release-${{ github.ref }}
+  group: release
   cancel-in-progress: false
 
 jobs:
   build_and_release:
     name: Build e Publicação Automática
     runs-on: ubuntu-latest
+    # Só roda em dispatch manual OU em PR mesclado que tenha a label "release".
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.pull_request.merged == true &&
+       contains(github.event.pull_request.labels.*.name, 'release'))
     permissions:
       contents: write          # criar release + tag
       pull-requests: read      # release-drafter lê PRs mergeados
@@ -32,7 +57,12 @@ jobs:
       - name: Checkout do código
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
+          # fetch-depth: 0 traz todo o histórico E todas as tags — necessário
+          # para calcular a próxima versão a partir da última tag.
           fetch-depth: 0
+          # PR mesclado: aponta para o commit de merge real no main.
+          # Dispatch manual: HEAD da branch escolhida (default main).
+          ref: ${{ github.event.pull_request.merge_commit_sha || github.sha }}
 
       - name: Configurar Node.js
         uses: actions/setup-node@39370e3970a6d050c480ffad4ff0ed4d3fdee5af # v4.1.0
@@ -51,34 +81,88 @@ jobs:
           cd js
           npm run build
 
-      - name: Verificar versão no composer.json
-        id: check_version
-        uses: EndBug/version-check@095362f3cd50f690c8fa0e6afeea81834bd8d320 # v3.0.0
-        with:
-          file-name: composer.json
-          diff-search: true
+      - name: Calcular próxima versão
+        id: version
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          DISPATCH_BUMP: ${{ github.event.inputs.bump }}
+          PR_LABELS: ${{ github.event_name == 'pull_request' && join(github.event.pull_request.labels.*.name, ',') || '' }}
+        run: |
+          set -euo pipefail
+
+          # 1. Determina o tipo de bump.
+          if [ "$EVENT_NAME" = "workflow_dispatch" ]; then
+            BUMP="$DISPATCH_BUMP"
+          else
+            # Label "BC" no PR => minor; qualquer outra label de tipo => patch.
+            case ",$PR_LABELS," in
+              *,BC,*) BUMP="minor" ;;
+              *)      BUMP="patch" ;;
+            esac
+          fi
+          echo "Bump: $BUMP (labels do PR: ${PR_LABELS:-<dispatch manual>})"
+
+          # 2. Última tag de versão (semver). O glob 'v[0-9]*' e o sort por
+          #    versão pegam a maior tag; %%-* descarta qualquer sufixo legado
+          #    de pré-release (ex.: -beta), pois agora publicamos estáveis.
+          LATEST="$(git tag --list 'v[0-9]*' --sort=-v:refname | head -n1 || true)"
+          LATEST="${LATEST:-v0.0.0}"
+          CORE="${LATEST#v}"
+          CORE="${CORE%%-*}"
+          IFS='.' read -r MAJOR MINOR PATCH <<< "$CORE"
+          MAJOR="${MAJOR:-0}"; MINOR="${MINOR:-0}"; PATCH="${PATCH:-0}"
+          echo "Última tag: $LATEST -> base ${MAJOR}.${MINOR}.${PATCH}"
+
+          # 3. Incrementa conforme o bump.
+          case "$BUMP" in
+            major) MAJOR=$((MAJOR + 1)); MINOR=0; PATCH=0 ;;
+            minor) MINOR=$((MINOR + 1)); PATCH=0 ;;
+            patch) PATCH=$((PATCH + 1)) ;;
+            *) echo "::error::Bump inválido: '$BUMP'"; exit 1 ;;
+          esac
+
+          VERSION="${MAJOR}.${MINOR}.${PATCH}"
+          TAG="v${VERSION}"
+
+          # 4. Garante idempotência — não republica uma tag existente.
+          if git rev-parse "refs/tags/${TAG}" >/dev/null 2>&1; then
+            echo "::error::A tag ${TAG} já existe — nada a publicar."
+            exit 1
+          fi
+
+          echo "Nova versão: ${VERSION} (tag ${TAG})"
+          {
+            echo "version=${VERSION}"
+            echo "tag=${TAG}"
+            echo "bump=${BUMP}"
+          } >> "$GITHUB_OUTPUT"
 
       - name: Publicar Release em Português
         id: create_release
-        if: steps.check_version.outputs.changed == 'true'
         uses: release-drafter/release-drafter@c2e2804cc59f45f57076a99af580d0fedb697927 # v7.3.0
         with:
           publish: true
-          tag: v${{ steps.check_version.outputs.version }}
-          name: v${{ steps.check_version.outputs.version }}
+          # Versão calculada acima — sobrepõe o version-resolver do
+          # .github/release-drafter.yml (que fica só como documentação).
+          version: ${{ steps.version.outputs.version }}
+          tag: ${{ steps.version.outputs.tag }}
+          name: ${{ steps.version.outputs.tag }}
+          # Aponta a tag/release para o commit de merge real (não para o
+          # merge simulado do evento pull_request).
+          commitish: ${{ github.event.pull_request.merge_commit_sha || github.sha }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       # 🟡 R4 — SLSA provenance attestation para os artefatos publicados.
-      # Roda apenas quando release foi publicada nesta execução.
+      # Roda apenas quando a release foi publicada nesta execução.
       - name: Atestar provenance dos artefatos
-        if: steps.check_version.outputs.changed == 'true' && steps.create_release.outcome == 'success'
+        if: steps.create_release.outcome == 'success'
         uses: actions/attest-build-provenance@7668571508540a607bdfd90a87a560489fe372eb # v2.1.0
         with:
           subject-path: 'composer.json,js/dist/forum.js,js/dist/admin.js'
 
       - name: Publicar Release no Flarum
-        if: steps.check_version.outputs.changed == 'true' && steps.create_release.outcome == 'success' && steps.create_release.outputs.html_url && vars.FLARUM_DISCUSSION_ID != ''
+        if: steps.create_release.outcome == 'success' && steps.create_release.outputs.html_url && vars.FLARUM_DISCUSSION_ID != ''
         env:
           FLARUM_API_KEY: ${{ secrets.FLARUM_API_KEY }}
           FLARUM_DISCUSSION_ID: ${{ vars.FLARUM_DISCUSSION_ID }}
@@ -86,7 +170,7 @@ jobs:
           RELEASE_BODY: ${{ steps.create_release.outputs.body }}
           RELEASE_URL: ${{ steps.create_release.outputs.html_url }}
         run: |
-          # Extract version from tag (remove leading 'v' if present)
+          # Extrai a versão da tag (remove o 'v' inicial, se presente)
           VERSION="${RELEASE_TAG#v}"
 
           PAYLOAD=$(jq -n \
@@ -131,6 +215,9 @@ jobs:
           fi
 
       - name: Log de Status
+        if: always()
         run: |
-          echo "Versão alterada: ${{ steps.check_version.outputs.changed }}"
-          echo "Nova versão: ${{ steps.check_version.outputs.version }}"
+          echo "Bump:        ${{ steps.version.outputs.bump }}"
+          echo "Nova versão: ${{ steps.version.outputs.version }}"
+          echo "Tag:         ${{ steps.version.outputs.tag }}"
+          echo "Release URL: ${{ steps.create_release.outputs.html_url }}"

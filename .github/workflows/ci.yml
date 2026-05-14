@@ -45,10 +45,12 @@ jobs:
           tools: composer:v2
 
       - name: Validar composer.json
-        # `--no-check-version` silencia o aviso "version field is present" —
-        # mantemos o campo de propósito (lido pelo EndBug/version-check no
-        # workflow de release). Todos os outros warnings continuam fatais.
-        run: composer validate --strict --no-check-publish --no-check-version
+        # O composer.json NÃO tem mais campo "version" — a versão é derivada
+        # da última tag git no workflow de release. Sem o campo, o
+        # `composer validate --strict` já não emite o aviso "version field is
+        # present", então `--no-check-version` foi removido. `--no-check-publish`
+        # permanece (a extensão é uma lib, não é publicada como pacote final).
+        run: composer validate --strict --no-check-publish
 
       # 🟡 R2 — composer audit contra a base do Packagist.
       # Não falha o build inicialmente (continue-on-error) — promova depois.
