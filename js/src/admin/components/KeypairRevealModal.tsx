@@ -2,6 +2,7 @@ import app from "flarum/admin/app";
 import Modal, { IInternalModalAttrs } from "flarum/common/components/Modal";
 import Button from "flarum/common/components/Button";
 import extractText from "flarum/common/utils/extractText";
+import type Mithril from "mithril";
 
 const trans = (key: string, params?: Record<string, unknown>) =>
   app.translator.trans(`ramon-verified.admin.encryption.${key}`, params ?? {});
@@ -19,9 +20,16 @@ export interface IKeypairRevealAttrs extends IInternalModalAttrs {
  * close. The parent card refreshes its state BEFORE calling
  * `app.modal.show(...)`, so by the time the user dismisses (X / Esc /
  * backdrop / Close button) the panel underneath is already accurate.
+ *
+ * SECURITY: the private key only exists in `this.attrs` for the lifetime
+ * of the modal. On hide() we scrub `attrs.privateKey` and best-effort
+ * defeat BFCache restoration so navigating back doesn't re-expose the
+ * key (audit F8). The user-visible snippet relies on `this.attrs.privateKey`
+ * directly — once scrubbed, the modal renders an empty value.
  */
 export default class KeypairRevealModal extends Modal<IKeypairRevealAttrs> {
   protected copied = false;
+  protected pageHideHandler?: (e: PageTransitionEvent) => void;
 
   className() {
     return "EncryptionRevealModal Modal--medium";
@@ -31,9 +39,39 @@ export default class KeypairRevealModal extends Modal<IKeypairRevealAttrs> {
     return trans("reveal_modal.title");
   }
 
+  oncreate(vnode: Mithril.VnodeDOM<IKeypairRevealAttrs, this>) {
+    super.oncreate(vnode);
+
+    // Best-effort BFCache eviction: if this page enters the back/forward
+    // cache (Firefox/Safari) the modal's private key would survive in
+    // restored DOM. Scrubbing on pagehide forces the browser to rebuild
+    // on navigation back.
+    this.pageHideHandler = (e: PageTransitionEvent) => {
+      if (e.persisted) {
+        this.scrubSecret();
+      }
+    };
+    window.addEventListener("pagehide", this.pageHideHandler);
+  }
+
+  onremove(vnode: Mithril.VnodeDOM<IKeypairRevealAttrs, this>) {
+    this.scrubSecret();
+    if (this.pageHideHandler) {
+      window.removeEventListener("pagehide", this.pageHideHandler);
+      this.pageHideHandler = undefined;
+    }
+    super.onremove(vnode);
+  }
+
+  protected scrubSecret() {
+    if (this.attrs?.privateKey) {
+      this.attrs.privateKey = "";
+    }
+  }
+
   content() {
     const { privateKey, configKey, orphanedDocuments = 0 } = this.attrs;
-    const snippet = `'${configKey}' => '${privateKey}',`;
+    const snippet = privateKey ? `'${configKey}' => '${privateKey}',` : "";
 
     return (
       <div className="Modal-body">

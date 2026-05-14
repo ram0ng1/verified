@@ -32,9 +32,19 @@ class DocumentRetention
     public const MODE_DELETE_IMMEDIATE  = 'delete_immediate';
     public const MODE_DELETE_AFTER_DAYS = 'delete_after_days';
 
+    /**
+     * How long a freshly-uploaded but not-yet-submitted document is allowed
+     * to live in the user's directory before `sweepOrphans` may delete it.
+     * Bigger than the realistic time between calling the upload endpoint
+     * and submitting the verification request, but small enough that
+     * truly-orphaned files don't accumulate.
+     */
+    public const UNREFERENCED_GRACE_SECONDS = 30 * 60;
+
     public function __construct(
         protected SettingsRepositoryInterface $settings,
-        protected Paths $paths
+        protected Paths $paths,
+        protected DocumentPathResolver $resolver
     ) {
     }
 
@@ -66,7 +76,7 @@ class DocumentRetention
             return;
         }
 
-        $absolute = $this->resolveAbsolutePath((string) $request->document_path, (int) $request->user_id);
+        $absolute = $this->resolver->resolveAbsolute((string) $request->document_path, (int) $request->user_id);
         if ($absolute !== null && is_file($absolute)) {
             $this->safeUnlink($absolute, (int) $request->id);
         }
@@ -89,10 +99,43 @@ class DocumentRetention
             return;
         }
 
-        $absolute = $this->resolveAbsolutePath((string) $request->document_path, (int) $request->user_id);
+        $absolute = $this->resolver->resolveAbsolute((string) $request->document_path, (int) $request->user_id);
         if ($absolute !== null && is_file($absolute)) {
             $this->safeUnlink($absolute, (int) $request->id);
         }
+    }
+
+    /**
+     * Hard-purge every document file owned by a user. Used by the
+     * `User deleted` listener to avoid orphaned files when an admin (or
+     * the GDPR fallback) hard-deletes a user — `cascadeOnDelete` on the
+     * `verification_requests` FK silently removes the rows WITHOUT
+     * dispatching model events, so the per-row listener never fires
+     * (CLAUDE.md §26 + audit finding F7).
+     *
+     * Returns the number of files unlinked.
+     */
+    public function purgeAllForUser(int $userId): int
+    {
+        $userDir = $this->resolver->userDirectory($userId);
+        if (! is_dir($userDir)) {
+            return 0;
+        }
+
+        $purged  = 0;
+        $entries = @scandir($userDir) ?: [];
+
+        foreach ($entries as $entry) {
+            if ($entry === '.' || $entry === '..') continue;
+            $full = $userDir.DIRECTORY_SEPARATOR.$entry;
+            if (is_file($full) && $this->safeUnlink($full)) {
+                $purged++;
+            }
+        }
+
+        @rmdir($userDir);
+
+        return $purged;
     }
 
     /**
@@ -141,8 +184,8 @@ class DocumentRetention
      */
     public function sweepOrphans(int $userId): int
     {
-        $base = realpath(rtrim($this->paths->storage, '/\\').DIRECTORY_SEPARATOR.'verified-documents');
-        if ($base === false) {
+        $base = $this->resolver->baseDirectory();
+        if ($base === null) {
             return 0;
         }
 
@@ -168,10 +211,17 @@ class DocumentRetention
             $filename = basename($path);
             // Defensive — only trust filenames that match our generator's
             // shape so a malicious row can't shield arbitrary files.
-            if (preg_match('/^[a-f0-9]{32}\.(png|jpg|jpeg|webp|pdf)$/i', $filename)) {
+            if (preg_match(DocumentPathResolver::FILENAME_PATTERN, $filename)) {
                 $referencedFilenames[$filename] = true;
             }
         }
+
+        // Only sweep files that have aged past the "still in-flight" window.
+        // The upload endpoint returns a token immediately; the user then has
+        // up to UNREFERENCED_GRACE_SECONDS to attach it to a request row. A
+        // shorter window would let a second concurrent upload race-delete the
+        // first user's just-uploaded but not-yet-submitted file (audit F10).
+        $cutoff = time() - self::UNREFERENCED_GRACE_SECONDS;
 
         $purged = 0;
         $entries = @scandir($userDir) ?: [];
@@ -179,11 +229,18 @@ class DocumentRetention
             if ($entry === '.' || $entry === '..') continue;
             // Skip anything whose name doesn't match our generator — leave
             // unknown files untouched rather than guessing.
-            if (! preg_match('/^[a-f0-9]{32}\.(png|jpg|jpeg|webp|pdf)$/i', $entry)) continue;
+            if (! preg_match(DocumentPathResolver::FILENAME_PATTERN, $entry)) continue;
             if (isset($referencedFilenames[$entry])) continue;
 
             $full = $userDir.DIRECTORY_SEPARATOR.$entry;
-            if (is_file($full) && $this->safeUnlink($full)) {
+            if (! is_file($full)) continue;
+
+            // Spare freshly-uploaded files inside the grace window so two
+            // concurrent uploads can't sweep each other.
+            $mtime = @filemtime($full);
+            if ($mtime !== false && $mtime > $cutoff) continue;
+
+            if ($this->safeUnlink($full)) {
                 $purged++;
             }
         }
@@ -257,52 +314,8 @@ class DocumentRetention
         return max(1, min($raw, 3650));
     }
 
-    /**
-     * Resolve a stored `document_path` (e.g. "/assets/verified/123/abc.pdf")
-     * into a real on-disk path inside `storage/verified-documents/`. Mirrors
-     * the validation done by the download controller — refuses traversal
-     * attempts and paths that don't sit under the user's own directory.
-     */
-    protected function resolveAbsolutePath(string $token, int $expectedUserId): ?string
+    public function resolver(): DocumentPathResolver
     {
-        $token = ltrim($token, '/');
-
-        if (str_contains($token, '..') || str_contains($token, "\0")) {
-            return null;
-        }
-
-        $prefix = 'assets/verified/';
-        if (! str_starts_with($token, $prefix)) {
-            return null;
-        }
-
-        $rest = substr($token, strlen($prefix));
-        $parts = explode('/', $rest);
-        if (count($parts) !== 2) {
-            return null;
-        }
-
-        [$userIdPart, $filename] = $parts;
-        if ((int) $userIdPart !== $expectedUserId) {
-            return null;
-        }
-
-        if (! preg_match('/^[a-f0-9]{32}\.(png|jpg|jpeg|webp|pdf)$/i', $filename)) {
-            return null;
-        }
-
-        $base = realpath(rtrim($this->paths->storage, '/\\').DIRECTORY_SEPARATOR.'verified-documents');
-        if ($base === false) {
-            return null;
-        }
-
-        $candidate = $base.DIRECTORY_SEPARATOR.$userIdPart.DIRECTORY_SEPARATOR.$filename;
-        $absolute = realpath($candidate);
-
-        if ($absolute === false || ! str_starts_with($absolute, $base.DIRECTORY_SEPARATOR)) {
-            return null;
-        }
-
-        return $absolute;
+        return $this->resolver;
     }
 }

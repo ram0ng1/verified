@@ -13,6 +13,7 @@ use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\RequestHandlerInterface;
 use Ramon\Verified\Crypto\DocumentCipher;
+use Ramon\Verified\Documents\DocumentPathResolver;
 use Ramon\Verified\Models\VerificationRequest;
 use RuntimeException;
 
@@ -21,7 +22,8 @@ class DownloadDocumentController implements RequestHandlerInterface
     public function __construct(
         protected Paths $paths,
         protected DocumentCipher $cipher,
-        protected TranslatorInterface $translator
+        protected TranslatorInterface $translator,
+        protected DocumentPathResolver $resolver
     ) {
     }
 
@@ -37,7 +39,13 @@ class DownloadDocumentController implements RequestHandlerInterface
             throw new PermissionDeniedException();
         }
 
-        $id = (int) ($request->getQueryParams()['id'] ?? 0);
+        // Route param arrives as a request attribute; the legacy query-bag
+        // merge still works as a fallback for callers that thread the id
+        // explicitly. Either way, treat 0/missing as 404 — never differentiate
+        // "not found" from "denied" so the response shape doesn't leak which
+        // ids are valid.
+        $rawId = $request->getAttribute('id') ?? ($request->getQueryParams()['id'] ?? 0);
+        $id    = (int) $rawId;
         if ($id <= 0) {
             throw new RouteNotFoundException();
         }
@@ -52,18 +60,8 @@ class DownloadDocumentController implements RequestHandlerInterface
             throw new RouteNotFoundException();
         }
 
-        $relative = $this->resolveTokenToRelative((string) $req->document_path, (int) $req->user_id);
-        if ($relative === null) {
-            throw new RouteNotFoundException();
-        }
-
-        $base = realpath(rtrim($this->paths->storage, '/\\').DIRECTORY_SEPARATOR.'verified-documents');
-        if ($base === false) {
-            throw new RouteNotFoundException();
-        }
-
-        $absolute = realpath($base.DIRECTORY_SEPARATOR.$relative);
-        if ($absolute === false || ! is_file($absolute) || ! str_starts_with($absolute, $base.DIRECTORY_SEPARATOR)) {
+        $absolute = $this->resolver->resolveAbsolute((string) $req->document_path, (int) $req->user_id);
+        if ($absolute === null || ! is_file($absolute)) {
             throw new RouteNotFoundException();
         }
 
@@ -94,7 +92,7 @@ class DownloadDocumentController implements RequestHandlerInterface
                 throw new RouteNotFoundException();
             }
 
-            $plaintext = $this->cipher->decrypt($blob);
+            $plaintext = $this->cipher->decryptIfEncrypted($blob);
 
             $stream = new Stream('php://temp', 'r+');
             $stream->write($plaintext);
@@ -131,42 +129,5 @@ class DownloadDocumentController implements RequestHandlerInterface
         }
 
         return $response;
-    }
-
-    /**
-     * Convert a stored document_path (e.g. "/assets/verified/123/abc.pdf") into the
-     * storage-relative path "123/abc.pdf". Rejects malicious input.
-     */
-    protected function resolveTokenToRelative(string $token, int $expectedUserId): ?string
-    {
-        $token = ltrim($token, '/');
-
-        if (str_contains($token, '..') || str_contains($token, "\0")) {
-            return null;
-        }
-
-        $prefix = 'assets/verified/';
-        if (! str_starts_with($token, $prefix)) {
-            return null;
-        }
-
-        $rest = substr($token, strlen($prefix));
-        $parts = explode('/', $rest);
-
-        if (count($parts) !== 2) {
-            return null;
-        }
-
-        [$userIdPart, $filename] = $parts;
-
-        if ((int) $userIdPart !== $expectedUserId) {
-            return null;
-        }
-
-        if (! preg_match('/^[a-f0-9]{32}\.(png|jpg|jpeg|webp|pdf)$/i', $filename)) {
-            return null;
-        }
-
-        return $userIdPart.'/'.$filename;
     }
 }
