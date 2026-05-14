@@ -33,16 +33,12 @@ class VerificationRequest extends AbstractModel
         'updated_at' => 'datetime',
     ];
 
-    protected $fillable = [
-        'user_id',
-        'status',
-        'document_type',
-        'document_path',
-        'reason',
-        'admin_note',
-        'handled_by',
-        'handled_at',
-    ];
+    // Intentionally NO `$fillable` / `$guarded` — Flarum v2's mass-assignment
+    // defense lives in the Schema `writable()` allowlist on the Resource, not
+    // on the model (CLAUDE.md §7). Adding `$fillable` here would open the
+    // door for an accidental future `Model::create($body)` / `->fill($body)`
+    // to mass-assign privileged columns like `user_id`, `status`,
+    // `handled_by`, `handled_at`.
 
     public function user(): BelongsTo
     {

@@ -205,7 +205,7 @@ class VerifiedDocuments extends Type
                     continue;
                 }
                 try {
-                    $contents = $cipher->decrypt($contents);
+                    $contents = $cipher->decryptIfEncrypted($contents);
                 } catch (Throwable $e) {
                     $skippedEncrypted++;
                     continue;

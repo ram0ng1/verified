@@ -66,6 +66,12 @@ export function makeVerifiedVnode(
     }
   }
 
+  // SECURITY: `svg` is rendered via `m.trust(...)` below. The ONLY safe
+  // source is `getBadgeSvg()`, which applies a 3-layer sanitiser pipeline
+  // (PHP DOMDocument server-side, regex JS check, DOMParser walk). If you
+  // ever change the source of `svg` to come from anywhere else (API body,
+  // direct setting read, etc.) you MUST sanitise first — see
+  // CLAUDE.md §9 / audit N10.
   let svg = getBadgeSvg();
   let size = "1.2em";
   let tooltip = "Verified";

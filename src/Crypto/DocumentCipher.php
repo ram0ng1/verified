@@ -134,12 +134,13 @@ class DocumentCipher
     }
 
     /**
-     * Decrypt a buffer. If the buffer doesn't carry our MAGIC header it's
-     * assumed to be legacy plaintext and returned untouched — this lets
-     * downloads keep working for documents uploaded before encryption was
-     * turned on.
+     * Decrypt a buffer if and only if it carries our MAGIC header. Legacy
+     * unencrypted buffers (uploaded before encryption was enabled) are
+     * returned untouched so downloads keep working through the same
+     * pipeline. Callers that need a strict "must have been encrypted"
+     * contract should branch on `isEncryptedBlob(...)` before calling.
      */
-    public function decrypt(string $blob): string
+    public function decryptIfEncrypted(string $blob): string
     {
         if (! self::isEncryptedBlob($blob)) {
             return $blob;
@@ -163,6 +164,18 @@ class DocumentCipher
         }
 
         return $plaintext;
+    }
+
+    /**
+     * Backwards-compatible alias. Prefer `decryptIfEncrypted(...)` in new
+     * call sites — the original `decrypt(...)` name is misleading because
+     * legacy unencrypted blobs flow through verbatim (audit F15).
+     *
+     * @deprecated 2.0.18 use {@see decryptIfEncrypted()}.
+     */
+    public function decrypt(string $blob): string
+    {
+        return $this->decryptIfEncrypted($blob);
     }
 
     /**
