@@ -42,7 +42,10 @@ class VerifyUserController implements RequestHandlerInterface
         $actor = RequestUtil::getActor($request);
         $actor->assertRegistered();
 
-        $userId = (int) ($request->getQueryParams()['id'] ?? 0);
+        // Route param is exposed via request attributes; query bag merge is
+        // a fallback for callers that pass `?id=` explicitly.
+        $rawId  = $request->getAttribute('id') ?? ($request->getQueryParams()['id'] ?? 0);
+        $userId = (int) $rawId;
         if ($userId <= 0) {
             throw new ValidationException(['id' => $this->translator->trans('ramon-verified.api.user_missing')]);
         }

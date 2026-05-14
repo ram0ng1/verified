@@ -7,7 +7,9 @@ use Flarum\Api\Resource\ForumResource;
 use Flarum\Api\Resource\UserResource;
 use Flarum\Api\Schema;
 use Flarum\Extend;
+use Flarum\User\Event\AvatarDeleting;
 use Flarum\User\Event\AvatarSaving;
+use Flarum\User\Event\Deleting as UserDeleting;
 use Flarum\User\User;
 use Ramon\Verified\Access\VerificationRequestPolicy;
 use Ramon\Verified\Api\Controller\DeleteBadgeSvgController;
@@ -19,11 +21,13 @@ use Ramon\Verified\Api\Controller\UploadBadgeSvgController;
 use Ramon\Verified\Api\Controller\UploadDocumentController;
 use Ramon\Verified\Api\Controller\VerifyUserController;
 use Ramon\Verified\Api\Resource\VerificationRequestResource;
+use Ramon\Verified\Api\Throttler\VerifiedActionsThrottler;
 use Ramon\Verified\Api\UserResourceFields;
 use Ramon\Verified\Console\PurgeDocumentsCommand;
 use Ramon\Verified\Event\UserVerified;
 use Ramon\Verified\Listener\EnforceAvatarLock;
 use Ramon\Verified\Listener\PurgeDocumentOnRequestDelete;
+use Ramon\Verified\Listener\PurgeDocumentsOnUserDelete;
 use Ramon\Verified\Listener\SendNotificationWhenUserIsVerified;
 use Ramon\Verified\Models\VerificationRequest;
 use Ramon\Verified\Notification\UserVerifiedBlueprint;
@@ -82,7 +86,16 @@ return [
         ->serializeToForum('ramonVerifiedLockAvatar',         'ramon-verified.lock_avatar',          'boolval')
         ->serializeToForum('ramonVerifiedShowTooltip',        'ramon-verified.show_tooltip',         'boolval')
         ->serializeToForum('ramonVerifiedBadgeSvgPath',       'ramon-verified.badge_svg_path')
-        ->serializeToForum('ramonVerifiedBadgeSvgContent',    'ramon-verified.badge_svg_content')
+        // Defense-in-depth: the upload controller already sanitises before
+        // writing, but a DB restore, admin tinker, or a future migration
+        // could land unsanitised SVG in this setting. Re-sanitise on every
+        // read so the forum frontend never sees raw `<script>` / event
+        // handlers (CLAUDE.md §21 + audit F18). `throwOnInvalid=false`
+        // degrades to "" — frontend `getBadgeSvg.ts` falls back to its
+        // built-in default badge when the attribute is empty.
+        ->serializeToForum('ramonVerifiedBadgeSvgContent',    'ramon-verified.badge_svg_content', fn ($raw) =>
+            is_string($raw) && $raw !== '' ? UploadBadgeSvgController::sanitizeSvg($raw, false) : ''
+        )
         ->serializeToForum('ramonVerifiedBadgeSize',          'ramon-verified.badge_size')
         ->serializeToForum('ramonVerifiedDocumentTypes',      'ramon-verified.document_types', function ($raw) {
             // Parse the JSON config into a proper array. Bail to an empty list
@@ -134,7 +147,13 @@ return [
         ->namespace('ramon-verified', __DIR__.'/views'),
 
     (new Extend\Event())
+        // Avatar lock fires on BOTH save AND delete. Listening only to save
+        // (the original wiring) left a verified user able to wipe their
+        // avatar via `DELETE /api/users/{id}/avatar` even with the lock on
+        // — defeating the impersonation defense (audit N5). Both events
+        // share `(User $user, User $actor)`, so one listener handles both.
         ->listen(AvatarSaving::class, EnforceAvatarLock::class)
+        ->listen(AvatarDeleting::class, EnforceAvatarLock::class)
         ->listen(UserVerified::class, SendNotificationWhenUserIsVerified::class)
         // Hard-delete cleanup: when a VerificationRequest row is deleted (a
         // user dropping their pending request, an admin purge, etc.) wipe the
@@ -142,7 +161,28 @@ return [
         // upload + submit + delete in a loop, leaving every uploaded file
         // orphaned on disk. Eloquent dispatches model events as string-keyed
         // names (`eloquent.deleting: ClassName`), not the global event class.
-        ->listen('eloquent.deleting: '.VerificationRequest::class, PurgeDocumentOnRequestDelete::class),
+        ->listen('eloquent.deleting: '.VerificationRequest::class, PurgeDocumentOnRequestDelete::class)
+        // User hard-delete cleanup, BOTH paths:
+        //   1) `UserResource::deleting()` dispatches the high-level
+        //      `User\Event\Deleting` event — covered by listener (a).
+        //   2) Direct `$user->delete()` from tinker / a future CLI command /
+        //      a non-API admin tool does NOT raise the high-level event. The
+        //      FK `onDelete('cascade')` then silently drops the request rows
+        //      WITHOUT firing the per-row listener above — files orphan in
+        //      `storage/verified-documents/{userId}/`. Audit N6 adds a
+        //      second listener on the Eloquent `deleting` model event to
+        //      close that path. Both listeners are idempotent
+        //      (`purgeAllForUser` no-ops on missing directories), so dual
+        //      registration is safe.
+        ->listen(UserDeleting::class, PurgeDocumentsOnUserDelete::class)
+        ->listen('eloquent.deleting: '.User::class, PurgeDocumentsOnUserDelete::class),
+
+    // Per-actor rate limiting for mutating endpoints. Token-authenticated
+    // requests still bypass this (CLAUDE.md §16) — that's fine for
+    // service-to-service traffic but not for typical user/admin sessions.
+    // Audit F2.
+    (new Extend\ThrottleApi())
+        ->set('verified.actions', VerifiedActionsThrottler::class),
 
     (new Extend\Console())
         ->command(PurgeDocumentsCommand::class)
