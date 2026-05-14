@@ -14,6 +14,7 @@ use Flarum\Settings\SettingsRepositoryInterface;
 use Flarum\User\User;
 use Illuminate\Contracts\Events\Dispatcher;
 use Illuminate\Database\Eloquent\Builder;
+use Ramon\Verified\Documents\DocumentPathResolver;
 use Ramon\Verified\Documents\DocumentRetention;
 use Ramon\Verified\Event\UserVerified;
 use Ramon\Verified\Models\VerificationRequest;
@@ -28,7 +29,8 @@ class VerificationRequestResource extends AbstractDatabaseResource
         protected SettingsRepositoryInterface $settings,
         protected TranslatorInterface $translator,
         protected Dispatcher $events,
-        protected DocumentRetention $retention
+        protected DocumentRetention $retention,
+        protected DocumentPathResolver $pathResolver
     ) {
     }
 
@@ -54,9 +56,14 @@ class VerificationRequestResource extends AbstractDatabaseResource
     public function endpoints(): array
     {
         return [
+            // Index relies on the `scope()` method above to restrict
+            // non-admins to their own rows. The explicit page-size limits
+            // here mirror `ListApprovedUsersController` defaults and cap the
+            // worst-case row count an authenticated client can ask for in a
+            // single request — defense-in-depth against pagination abuse.
             Endpoint\Index::make()
                 ->authenticated()
-                ->paginate()
+                ->paginate(15, 50)
                 ->defaultInclude(['user', 'handler']),
 
             Endpoint\Show::make()
@@ -110,16 +117,37 @@ class VerificationRequestResource extends AbstractDatabaseResource
                         $documentType = mb_substr($documentType, 0, 32);
                     }
 
+                    // Validate `documentType` against the admin-configured
+                    // allowlist. Anything outside the list is dropped to
+                    // null — silent rather than throwing because the field
+                    // is technically optional. Prevents the audit trail
+                    // being used as a covert sidechannel (audit F3) and
+                    // mirrors the tier-id resolution pattern in
+                    // VerifyUserController::resolveTierId.
+                    if ($documentType !== null && $documentType !== '') {
+                        $documentType = $this->resolveDocumentType($documentType);
+                    }
+
                     $documentRequired = (bool) $this->settings->get('ramon-verified.require_document');
 
+                    // The token's shape AND the backing file's presence are
+                    // both validated here (audit N4). A pure shape-check
+                    // would let a stale token (file purged by an aged-out
+                    // sweep between upload and submit) persist as a row
+                    // pointing at nothing — admin downloads would 404.
+                    $documentIsLive = $documentPath !== null
+                        && $documentPath !== ''
+                        && $this->isOwnedDocument($actor, $documentPath)
+                        && $this->documentFileExists($actor, $documentPath);
+
                     if ($documentRequired) {
-                        if (! $documentPath || ! $this->isOwnedDocument($actor, $documentPath)) {
+                        if (! $documentIsLive) {
                             throw new ValidationException([
                                 'documentPath' => $this->translator->trans('ramon-verified.api.document_required'),
                             ]);
                         }
                     } else {
-                        if ($documentPath && ! $this->isOwnedDocument($actor, $documentPath)) {
+                        if (! $documentIsLive) {
                             $documentPath = null;
                         }
                     }
@@ -143,10 +171,9 @@ class VerificationRequestResource extends AbstractDatabaseResource
 
             Endpoint\Endpoint::make('verified.approve')
                 ->route('POST', '/{id}/approve')
-                ->authenticated()
+                ->admin()
                 ->action(function (Context $context) {
                     $actor = $context->getActor();
-                    $actor->assertAdmin();
 
                     /** @var VerificationRequest|null $request */
                     $request = VerificationRequest::query()->find($context->modelId);
@@ -189,10 +216,9 @@ class VerificationRequestResource extends AbstractDatabaseResource
 
             Endpoint\Endpoint::make('verified.reject')
                 ->route('POST', '/{id}/reject')
-                ->authenticated()
+                ->admin()
                 ->action(function (Context $context) {
                     $actor = $context->getActor();
-                    $actor->assertAdmin();
 
                     /** @var VerificationRequest|null $request */
                     $request = VerificationRequest::query()->find($context->modelId);
@@ -219,10 +245,9 @@ class VerificationRequestResource extends AbstractDatabaseResource
 
             Endpoint\Endpoint::make('verified.revoke')
                 ->route('POST', '/{id}/revoke')
-                ->authenticated()
+                ->admin()
                 ->action(function (Context $context) {
                     $actor = $context->getActor();
-                    $actor->assertAdmin();
 
                     /** @var VerificationRequest|null $request */
                     $request = VerificationRequest::query()->find($context->modelId);
@@ -262,19 +287,41 @@ class VerificationRequestResource extends AbstractDatabaseResource
 
     public function fields(): array
     {
+        // SECURITY INVARIANT (audit N9 + CLAUDE.md §7):
+        //
+        // None of the fields below declare `->writable(...)`. That alone
+        // means "field is NOT writable from the JSON:API client" — but
+        // ONLY when the endpoint actions follow the default code path
+        // that enforces `assertFieldsWritable`. The custom `->action(fn)`
+        // closures registered on the Create endpoint REPLACE that default
+        // action and read only three named body keys (`reason`,
+        // `documentType`, `documentPath`); every other field is
+        // server-derived.
+        //
+        // If you ever register `Endpoint\Update::make(...)` or refactor
+        // the Create action to call `setValues($context, $data)`, you
+        // MUST decorate every writable field individually — there is NO
+        // implicit allowlist. To make the intent explicit, server-only
+        // fields below carry `->writable(fn() => false)`, which no-ops
+        // today but documents the contract for future readers.
+        $serverOnly = fn () => false;
+
         return [
-            Schema\Str::make('status'),
+            Schema\Str::make('status')->writable($serverOnly),
             Schema\Str::make('documentType')
                 ->property('document_type')
                 ->nullable(),
+            // SECURITY: `documentPath` resolves to a virtual URL the owner
+            // can't actually download (DownloadDocumentController is
+            // admin-only). Exposing it to the owner only leaks the upload
+            // existence + file extension — gate the field to admins to
+            // match the download-controller posture and avoid the leak
+            // entirely (audit F14).
             Schema\Str::make('documentPath')
                 ->property('document_path')
                 ->nullable()
-                ->visible(function (VerificationRequest $request, Context $context) {
-                    $actor = $context->getActor();
-
-                    return $actor->isAdmin() || $actor->id === (int) $request->user_id;
-                }),
+                ->visible(fn (VerificationRequest $request, Context $context) =>
+                    $context->getActor()->isAdmin()),
             Schema\Str::make('reason')->nullable(),
             // SECURITY NOTE: `adminNote` is intentionally readable by the
             // request owner (so they see the rejection reason). If your forum
@@ -284,14 +331,18 @@ class VerificationRequestResource extends AbstractDatabaseResource
             // and surface user-facing feedback through a separate field.
             Schema\Str::make('adminNote')
                 ->property('admin_note')
-                ->nullable(),
+                ->nullable()
+                ->writable($serverOnly),
             Schema\DateTime::make('createdAt')
-                ->property('created_at'),
+                ->property('created_at')
+                ->writable($serverOnly),
             Schema\DateTime::make('updatedAt')
-                ->property('updated_at'),
+                ->property('updated_at')
+                ->writable($serverOnly),
             Schema\DateTime::make('handledAt')
                 ->property('handled_at')
-                ->nullable(),
+                ->nullable()
+                ->writable($serverOnly),
             Schema\Relationship\ToOne::make('user')
                 ->type('users')
                 ->includable(),
@@ -312,17 +363,49 @@ class VerificationRequestResource extends AbstractDatabaseResource
 
     protected function isOwnedDocument(User $user, string $path): bool
     {
-        $expectedPrefix = '/assets/verified/'.((int) $user->id).'/';
+        // Delegate to the single hardened resolver — never re-implement the
+        // checks (CLAUDE.md §13 / audit F6). The resolver covers traversal,
+        // stream wrappers, null bytes, and integer-id strictness.
+        return $this->pathResolver->isOwnedDocumentToken($path, (int) $user->id);
+    }
 
-        if (! str_starts_with($path, $expectedPrefix)) {
-            return false;
+    /**
+     * Liveness check on a `documentPath` token — confirms the backing
+     * file actually exists on disk under the user's verified-documents
+     * directory. Used by the Create action to refuse stale tokens whose
+     * file was swept by an unrelated upload (audit N4).
+     */
+    protected function documentFileExists(User $user, string $path): bool
+    {
+        $absolute = $this->pathResolver->resolveAbsolute($path, (int) $user->id);
+        return $absolute !== null && is_file($absolute);
+    }
+
+    /**
+     * Drop a submitted `documentType` value if it isn't in the admin's
+     * configured allowlist. Returns null when no allowlist is configured
+     * (admin emptied the setting) so the audit row isn't blocked entirely
+     * — mirrors the tier-id resolution shape elsewhere.
+     */
+    protected function resolveDocumentType(string $requested): ?string
+    {
+        $configured = $this->settings->get('ramon-verified.document_types');
+        $list       = is_string($configured) ? json_decode($configured, true) : null;
+
+        if (! is_array($list) || empty($list)) {
+            // No allowlist configured — allow the request through with the
+            // submitted value rather than failing the request silently.
+            return $requested;
         }
 
-        if (str_contains($path, '..')) {
-            return false;
+        $valid = [];
+        foreach ($list as $row) {
+            if (! is_array($row)) continue;
+            $id = isset($row['id']) ? trim((string) $row['id']) : '';
+            if ($id !== '') $valid[mb_substr($id, 0, 32)] = true;
         }
 
-        return true;
+        return isset($valid[$requested]) ? $requested : null;
     }
 
     protected function extractNote(Context $context, ?string $default = null): ?string

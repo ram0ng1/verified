@@ -50,7 +50,7 @@ class UploadBadgeSvgController extends UploadImageController
             ]);
         }
 
-        $sanitized = $this->sanitizeSvg($content);
+        $sanitized = self::sanitizeSvg($content);
 
         // Persist the sanitised SVG content directly as a setting so the
         // forum frontend can render it inline on every page load — no fetch,
@@ -66,8 +66,21 @@ class UploadBadgeSvgController extends UploadImageController
         return new Stream($resource);
     }
 
-    private function sanitizeSvg(string $content): string
+    /**
+     * Sanitise an SVG string in place. Public + static so the same
+     * routine can be called from `extend.php` as a `serializeToForum`
+     * cast — defending against the case where unsanitised SVG ends up
+     * in the `ramon-verified.badge_svg_content` setting through any
+     * non-upload path (DB restore, admin tinkering, external migration).
+     *
+     * Returns the sanitised SVG, or the empty string when the input
+     * isn't a parseable SVG. Callers that want hard rejection (e.g. the
+     * upload controller) call `sanitizeSvg($content, throwOnInvalid: true)`.
+     */
+    public static function sanitizeSvg(string $content, bool $throwOnInvalid = true): string
     {
+        if ($content === '') return '';
+
         // Defense in depth against XXE / billion-laughs. PHP 8+ libxml2
         // already refuses to expand external entities unless `LIBXML_NOENT`
         // is set, and we never pass it. Reject any SVG that even DECLARES
@@ -75,9 +88,12 @@ class UploadBadgeSvgController extends UploadImageController
         // sanitiser, and keeps the door shut even on older libxml2 builds
         // that may behave differently.
         if (preg_match('/<!DOCTYPE/i', $content) || preg_match('/<!ENTITY/i', $content)) {
-            throw new ValidationException([
-                'badge_svg' => 'SVG must not contain DOCTYPE or ENTITY declarations.',
-            ]);
+            if ($throwOnInvalid) {
+                throw new ValidationException([
+                    'badge_svg' => 'SVG must not contain DOCTYPE or ENTITY declarations.',
+                ]);
+            }
+            return '';
         }
 
         $prev = libxml_use_internal_errors(true);
@@ -88,22 +104,28 @@ class UploadBadgeSvgController extends UploadImageController
         // LIBXML_DTDLOAD (which would fetch external DTDs).
         if (! $dom->loadXML($content, LIBXML_NONET | LIBXML_NOBLANKS)) {
             libxml_use_internal_errors($prev);
-            throw new ValidationException([
-                'badge_svg' => 'Invalid SVG: could not parse XML.',
-            ]);
+            if ($throwOnInvalid) {
+                throw new ValidationException([
+                    'badge_svg' => 'Invalid SVG: could not parse XML.',
+                ]);
+            }
+            return '';
         }
 
         libxml_use_internal_errors($prev);
 
         $root = $dom->documentElement;
         if (! $root || strtolower($root->localName) !== 'svg') {
-            throw new ValidationException([
-                'badge_svg' => 'The uploaded file must be a valid SVG.',
-            ]);
+            if ($throwOnInvalid) {
+                throw new ValidationException([
+                    'badge_svg' => 'The uploaded file must be a valid SVG.',
+                ]);
+            }
+            return '';
         }
 
-        $this->cleanNode($root);
-        $this->replaceFillsWithCurrentColor($root);
+        self::cleanNode($root);
+        self::replaceFillsWithCurrentColor($root);
 
         return (string) $dom->saveXML($root);
     }
@@ -116,7 +138,7 @@ class UploadBadgeSvgController extends UploadImageController
      * shapes (typically the inner check on a verified-style seal), so the
      * "middle white" stays white on dark backgrounds.
      */
-    private function replaceFillsWithCurrentColor(\DOMNode $node): void
+    private static function replaceFillsWithCurrentColor(\DOMNode $node): void
     {
         if ($node instanceof \DOMElement) {
             if ($node->hasAttribute('fill')) {
@@ -124,7 +146,7 @@ class UploadBadgeSvgController extends UploadImageController
                 $skip = $current === ''
                     || $current === 'none'
                     || $current === 'transparent'
-                    || $this->isWhiteFill($current);
+                    || self::isWhiteFill($current);
                 if (! $skip) {
                     $node->setAttribute('fill', 'currentColor');
                 }
@@ -149,7 +171,7 @@ class UploadBadgeSvgController extends UploadImageController
         }
 
         foreach (iterator_to_array($node->childNodes) as $child) {
-            $this->replaceFillsWithCurrentColor($child);
+            self::replaceFillsWithCurrentColor($child);
         }
     }
 
@@ -158,7 +180,7 @@ class UploadBadgeSvgController extends UploadImageController
      * inner check of a verified-style seal stays white instead of being
      * recoloured to currentColor.
      */
-    private function isWhiteFill(string $value): bool
+    private static function isWhiteFill(string $value): bool
     {
         $value = strtolower(trim($value));
         if ($value === 'white' || $value === '#fff' || $value === '#ffffff') {
@@ -170,7 +192,7 @@ class UploadBadgeSvgController extends UploadImageController
         return false;
     }
 
-    private function cleanNode(\DOMNode $node): void
+    private static function cleanNode(\DOMNode $node): void
     {
         // - script/foreignobject/iframe/object/embed/base/link/style: classic
         //   active-content vectors.
@@ -192,7 +214,7 @@ class UploadBadgeSvgController extends UploadImageController
                     $node->removeChild($child);
                     continue;
                 }
-                $this->cleanNode($child);
+                self::cleanNode($child);
             } elseif ($child instanceof \DOMProcessingInstruction) {
                 $node->removeChild($child);
             }

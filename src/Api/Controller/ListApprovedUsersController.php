@@ -93,6 +93,9 @@ class ListApprovedUsersController implements RequestHandlerInterface
         });
 
         if ($q !== '') {
+            // LIKE wildcard escape — neutralise %, _ and \ from the user's
+            // query so a typed `_` doesn't match every single character on
+            // the column (CLAUDE.md §10 / "LIKE — escape user wildcards").
             $like = '%'.str_replace(['\\', '%', '_'], ['\\\\', '\\%', '\\_'], $q).'%';
             $columns = $this->searchableColumns();
             $query->where(function (Builder $w) use ($like, $columns) {
