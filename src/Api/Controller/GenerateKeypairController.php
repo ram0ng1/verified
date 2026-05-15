@@ -7,8 +7,8 @@ use Flarum\Foundation\ValidationException;
 use Flarum\Http\RequestUtil;
 use Flarum\Locale\TranslatorInterface;
 use Flarum\User\Exception\PermissionDeniedException;
-use Illuminate\Support\Facades\Log;
 use Laminas\Diactoros\Response\JsonResponse;
+use Psr\Log\LoggerInterface;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\RequestHandlerInterface;
@@ -43,7 +43,8 @@ class GenerateKeypairController implements RequestHandlerInterface
         protected DocumentCipher $cipher,
         protected TranslatorInterface $translator,
         protected Paths $paths,
-        protected DocumentPathResolver $resolver
+        protected DocumentPathResolver $resolver,
+        protected LoggerInterface $logger
     ) {
     }
 
@@ -102,7 +103,7 @@ class GenerateKeypairController implements RequestHandlerInterface
         // the action discoverable in `storage/logs/flarum.log` (mirroring
         // CLAUDE.md §23) so ops can trace who triggered a wipe — without
         // ever logging the private key itself.
-        Log::warning('verified: encryption keypair regenerated', [
+        $this->logger->warning('verified: encryption keypair regenerated', [
             'actor_id'           => (int) $actor->id,
             'actor_username'     => (string) $actor->username,
             'orphaned_documents' => $orphaned,
