@@ -17,6 +17,7 @@ use Ramon\Verified\Documents\DocumentRetention;
 use Ramon\Verified\Event\UserVerified;
 use Ramon\Verified\Models\VerificationRequest;
 use Ramon\Verified\TierConfig;
+use Ramon\Verified\TierResolver;
 
 /**
  * Lets an admin (or any actor with `verified.verifyUsers`) flip a user's
@@ -33,7 +34,8 @@ class VerifyUserController implements RequestHandlerInterface
         protected TranslatorInterface $translator,
         protected Dispatcher $events,
         protected DocumentRetention $retention,
-        protected SettingsRepositoryInterface $settings
+        protected SettingsRepositoryInterface $settings,
+        protected TierResolver $tiers
     ) {
     }
 
@@ -103,9 +105,16 @@ class VerifyUserController implements RequestHandlerInterface
         }
 
         $resolvedTierId = $this->resolveTierId($tierId);
+        $adminNote      = $note ?: $this->translator->trans('ramon-verified.api.verified_by_admin_note');
 
-        // Mark any pending request handled, then create an audit row.
-        VerificationRequest::query()
+        // Flip every pending request for this user to APPROVED in one
+        // atomic UPDATE. Eloquent's `update()` returns the affected row
+        // count — we use that DIRECTLY to decide whether to insert a fresh
+        // audit row (previous code re-queried with EXISTS, which both read
+        // wrong as `$hasPending` and opened a tiny race between the UPDATE
+        // and the SELECT-EXISTS where two concurrent verifies could each
+        // insert a duplicate APPROVED row — audit F3).
+        $flippedRows = VerificationRequest::query()
             ->where('user_id', $target->id)
             ->where('status', VerificationRequest::STATUS_PENDING)
             ->update([
@@ -113,20 +122,15 @@ class VerifyUserController implements RequestHandlerInterface
                 'handled_by' => (int) $actor->id,
                 'handled_at' => $now,
                 'updated_at' => $now,
-                'admin_note' => $note ?: $this->translator->trans('ramon-verified.api.verified_by_admin_note'),
+                'admin_note' => $adminNote,
             ]);
 
-        $hasPending = VerificationRequest::query()
-            ->where('user_id', $target->id)
-            ->where('handled_at', $now)
-            ->exists();
-
-        if (! $hasPending) {
+        if ($flippedRows === 0) {
             VerificationRequest::query()->insert([
                 'user_id'       => (int) $target->id,
                 'status'        => VerificationRequest::STATUS_APPROVED,
                 'reason'        => null,
-                'admin_note'    => $note ?: $this->translator->trans('ramon-verified.api.verified_by_admin_note'),
+                'admin_note'    => $adminNote,
                 'handled_by'    => (int) $actor->id,
                 'handled_at'    => $now,
                 'created_at'    => $now,
@@ -187,16 +191,41 @@ class VerifyUserController implements RequestHandlerInterface
         $target->verified_tier = null;
         $target->save();
 
+        // Auto-grant overlap: an admin (or the user themselves via the
+        // avatar-change flow) just cleared the MANUAL verification, but
+        // the target is also in a group that auto-grants a tier — so
+        // `TierResolver::isVerified` still returns true on the next read,
+        // and the badge stays visible (audit L5). The unverify still has
+        // its effect: `EnforceAvatarLock` reads the column, not the
+        // resolver, so the avatar IS now editable. Surface this asymmetry
+        // in `meta.autoTierPersists` so the caller / frontend toast can
+        // tell the truth instead of pretending the badge is gone.
+        $target->load('groups');
+        $autoTier = $this->tiers->resolveAutoTier($target);
+
+        $meta = $autoTier !== null
+            ? ['autoTierPersists' => [
+                'id'    => $autoTier['id'],
+                'label' => $autoTier['label'],
+            ]]
+            // Empty object (not array) so JSON serialises as `{}`, not
+            // `[]` — clients can `if (response.meta.autoTierPersists)`
+            // without first checking the type of `meta` itself.
+            : new \stdClass();
+
         return new JsonResponse([
             'data' => [
                 'type' => 'users',
                 'id'   => (string) $target->id,
                 'attributes' => [
-                    'isVerified'   => false,
+                    // Truthful: the user is "verified" iff the resolver
+                    // still says so (i.e. an auto-tier survives).
+                    'isVerified'   => $autoTier !== null,
                     'verifiedAt'   => null,
-                    'verifiedTier' => null,
+                    'verifiedTier' => $autoTier['id'] ?? null,
                 ],
             ],
+            'meta' => $meta,
         ], 200);
     }
 

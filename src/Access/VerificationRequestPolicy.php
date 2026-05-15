@@ -19,7 +19,10 @@ class VerificationRequestPolicy extends AbstractPolicy
 
     public function view(User $actor, VerificationRequest $request): ?string
     {
-        if ($actor->id === (int) $request->user_id) {
+        // Strict integer compare on BOTH sides (CLAUDE.md §3 — `null == 0`
+        // is true in PHP, and depending on the DB driver `$actor->id` can
+        // come back as a numeric string).
+        if ((int) $actor->id === (int) $request->user_id) {
             return $this->allow();
         }
 
@@ -28,7 +31,7 @@ class VerificationRequestPolicy extends AbstractPolicy
 
     public function delete(User $actor, VerificationRequest $request): ?string
     {
-        if ($actor->id === (int) $request->user_id && $request->isPending()) {
+        if ((int) $actor->id === (int) $request->user_id && $request->isPending()) {
             return $this->allow();
         }
 
