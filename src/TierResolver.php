@@ -78,9 +78,26 @@ class TierResolver
         }
 
         // Not manually verified — try auto-grant by group membership.
-        $userGroupIds = $user->groups->pluck('id')->map(fn ($id) => (int) $id)->all();
-        $autoTier = TierConfig::autoTierFor($tiers, $userGroupIds);
+        $autoTier = $this->resolveAutoTier($user);
         return $autoTier['id'] ?? null;
+    }
+
+    /**
+     * Return the tier this user would receive purely through group auto-grant,
+     * regardless of `is_verified`. Used by the self-revoke flow to surface
+     * the post-revoke state: when an admin unflips `is_verified` but the user
+     * is also in an `autoGroups` member group, the badge survives via the
+     * group path — callers must inform the user (audit L-self-revoke).
+     *
+     * @return array{id:string,label:string,color:string,description:string,learnMoreUrl:string,autoGroups:int[]}|null
+     */
+    public function resolveAutoTier(User $user): ?array
+    {
+        $tiers = $this->tiers();
+        if (empty($tiers)) return null;
+
+        $userGroupIds = $user->groups->pluck('id')->map(fn ($id) => (int) $id)->all();
+        return TierConfig::autoTierFor($tiers, $userGroupIds);
     }
 
     /**
