@@ -90,14 +90,13 @@
 // the badge sits at the top of the page — opening the popover UPWARD would
 // either be clipped by the header or fall above the viewport. Flip the
 // popover so it opens DOWNWARD: panel below the badge, arrow on top, hover
-// bridge below.
+// bridge below. Shadow inherits from the base `.VerifiedPopover` rule in
+// `badge.less` so the panel reads as a real card lifted off the hero
+// background, matching the discussion-list hover-card popover.
 .UserCard-identity .VerifiedPopover,
 .AvocadoUserPage-hero-name .VerifiedPopover {
   bottom: auto;
   top: calc(100% + 8px);
-  // The profile hero already sits on a coloured/decorated background and
-  // the popover overlays it — a drop shadow there reads as visual noise.
-  box-shadow: none;
 }
 
 // Avocado's hero h1 has `overflow: hidden` for username ellipsis truncation,
