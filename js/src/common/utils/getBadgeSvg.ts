@@ -180,7 +180,11 @@ function loadSessionCache(): void {
     const raw = sessionStorage.getItem(SESSION_STORAGE_KEY);
     if (!raw) return;
     const parsed = JSON.parse(raw) as { url?: string; svg?: string };
-    if (parsed && typeof parsed.url === "string" && typeof parsed.svg === "string") {
+    if (
+      parsed &&
+      typeof parsed.url === "string" &&
+      typeof parsed.svg === "string"
+    ) {
       cachedFetchedFromUrl = parsed.url;
       cachedFetchedSvg = parsed.svg;
     }
@@ -233,7 +237,8 @@ function fetchCustomSvg(url: string): void {
       // 256 KB ceiling matches the server-side upload cap. A misbehaving
       // asset URL handing back a megabyte stream gets short-circuited
       // BEFORE we buffer the body.
-      if (contentLength && parseInt(contentLength, 10) > 256 * 1024) return null;
+      if (contentLength && parseInt(contentLength, 10) > 256 * 1024)
+        return null;
       return response.text();
     })
     .then((raw) => {
