@@ -9,12 +9,14 @@ import VerifiedBadge from "../common/components/VerifiedBadge";
 /**
  * Append a verified badge inside the identity h1 of UserCard.
  *
- * The same UserCard component renders both the full profile hero
- * (`className="Hero UserHero"`) and the floating hover card you see when
- * mousing over a username in a discussion list (`className="UserCard--popover"`).
- * The hover card IS itself a popover, so nesting our own VerifiedPopover
- * inside it would stack two popovers — there we render the bare badge with
- * a simple title tooltip. On the profile hero we want the rich popover.
+ * Always renders the rich popover (gated only by the `show_tooltip` admin
+ * setting). Earlier versions forced `plain` mode inside the
+ * `UserCard--popover` hover card to avoid stacking two popovers, but that
+ * silently downgraded the badge to a native `title="<tier>"` tooltip even
+ * when the admin had the rich popover enabled — visibly inconsistent with
+ * every other surface (profile hero, post header, Avocado cards). Letting
+ * the popover open inside the hover card stacks visually but functionally
+ * matches the configured rule.
  */
 export default function addBadgeToUserCard(): void {
   extend(
@@ -31,15 +33,8 @@ export default function addBadgeToUserCard(): void {
         | undefined;
       if (!identityItem) return;
 
-      const cardClass = String(this.attrs.className || "");
-      const isHoverPopover = cardClass.indexOf("UserCard--popover") !== -1;
-
       const badge = (
-        <VerifiedBadge
-          user={user}
-          className="VerifiedBadge--card"
-          plain={isHoverPopover}
-        />
+        <VerifiedBadge user={user} className="VerifiedBadge--card" />
       );
 
       items.setContent(
