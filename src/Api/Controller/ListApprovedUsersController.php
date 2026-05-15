@@ -117,32 +117,106 @@ class ListApprovedUsersController implements RequestHandlerInterface
             });
         }
 
-        // Tier filter is applied in PHP after we resolve each user's tier
-        // (auto-tier comes from groups, not a single column, so SQL alone
-        // can't express the manual-beats-auto precedence). To keep memory
-        // bounded on big forums we stream candidate rows via chunkById
-        // instead of buffering the entire matching set in one collection
-        // (audit T1) — at most TIER_FILTER_CHUNK User models live in memory
-        // at once.
+        // Tier filter (audit F2): split the resolution into two paths so the
+        // common case (admin filtering by a configured tier) becomes pure
+        // SQL instead of a full PHP scan of the verified set.
+        //
+        //   MANUAL fast path — `is_verified=1` users whose `verified_tier`
+        //   column directly matches the needle. The legacy `verified_tier
+        //   IS NULL` fallback (resolves to the default 'blue' tier in
+        //   `TierResolver::resolveTierId`) is folded into the WHERE when
+        //   the needle IS the default and the default is still configured.
+        //
+        //   AUTO fast path — `is_verified=0` users in any auto-grant group.
+        //   The exact tier they receive still depends on tier-priority
+        //   ordering vs other auto-groups they belong to, so this candidate
+        //   set is run through `TierResolver::resolveTierId` per row via
+        //   `chunkById`. The candidate set is typically a small fraction
+        //   of the verified universe — anyone manually verified is
+        //   excluded.
+        //
+        // Manual-tier matches come before auto-tier matches in the union,
+        // preserving the original `is_verified DESC` ordering at the
+        // outer level.
         if ($tierFilter !== '') {
             $needle = strtolower($tierFilter);
-            $matchingIds = [];
+            $isDefaultTier = $needle === TierConfig::DEFAULT_TIER_ID;
+            $blueIsConfigured = TierConfig::findById($tiers, TierConfig::DEFAULT_TIER_ID) !== null;
 
-            $query
-                ->orderBy('is_verified', 'desc')
-                ->orderBy('verified_at', 'desc')
-                ->orderBy('username', 'asc')
-                ->orderBy('id', 'asc')
-                ->chunkById(self::TIER_FILTER_CHUNK, function ($users) use ($needle, &$matchingIds) {
-                    $users->load('groups');
-                    foreach ($users as $user) {
-                        $tierId = $this->tierResolver->resolveTierId($user);
-                        if ($tierId !== null && $tierId === $needle) {
-                            $matchingIds[] = (int) $user->id;
+            // Reusable LIKE filter — same shape for both paths.
+            $applySearch = function (Builder $w) use ($q): void {
+                if ($q === '') return;
+                $like = '%'.str_replace(['\\', '%', '_'], ['\\\\', '\\%', '\\_'], $q).'%';
+                $columns = $this->searchableColumns();
+                $w->where(function (Builder $inner) use ($like, $columns) {
+                    foreach ($columns as $i => $col) {
+                        if ($i === 0) {
+                            $inner->where($col, 'like', $like);
+                        } else {
+                            $inner->orWhere($col, 'like', $like);
                         }
                     }
                 });
+            };
 
+            // ---- Manual fast path ----
+            $manualQuery = User::query()
+                ->where('is_verified', true)
+                ->where(function (Builder $w) use ($needle, $isDefaultTier, $blueIsConfigured) {
+                    $w->where('verified_tier', $needle);
+                    // `verified_tier IS NULL` only resolves to the needle
+                    // when the needle IS the default tier AND the default
+                    // is still in the admin's configured list.
+                    if ($isDefaultTier && $blueIsConfigured) {
+                        $w->orWhereNull('verified_tier');
+                    }
+                });
+            $applySearch($manualQuery);
+
+            $manualIds = $manualQuery
+                ->orderBy('verified_at', 'desc')
+                ->orderBy('username', 'asc')
+                ->orderBy('id', 'asc')
+                ->pluck('id')
+                ->map(fn ($id) => (int) $id)
+                ->all();
+
+            // ---- Auto-only path ----
+            $autoIds = [];
+            if (! empty($autoVerifiedGroupIds)) {
+                $autoQuery = User::query()
+                    ->where('is_verified', false)
+                    ->whereExists(function ($sub) use ($autoVerifiedGroupIds) {
+                        $sub->from('group_user')
+                            ->whereColumn('group_user.user_id', 'users.id')
+                            ->whereIn('group_user.group_id', $autoVerifiedGroupIds);
+                    });
+
+                if (! $adminAllowed) {
+                    $autoQuery->whereNotExists(function ($sub) {
+                        $sub->from('group_user')
+                            ->whereColumn('group_user.user_id', 'users.id')
+                            ->where('group_id', Group::ADMINISTRATOR_ID);
+                    });
+                }
+
+                $applySearch($autoQuery);
+
+                $autoQuery
+                    ->orderBy('username', 'asc')
+                    ->orderBy('id', 'asc')
+                    ->chunkById(self::TIER_FILTER_CHUNK, function ($users) use ($needle, &$autoIds) {
+                        $users->load('groups');
+                        foreach ($users as $user) {
+                            $tierId = $this->tierResolver->resolveTierId($user);
+                            if ($tierId === $needle) {
+                                $autoIds[] = (int) $user->id;
+                            }
+                        }
+                    });
+            }
+
+            $matchingIds = array_merge($manualIds, $autoIds);
             $total   = count($matchingIds);
             $pageIds = array_slice($matchingIds, $offset, $limit);
 
