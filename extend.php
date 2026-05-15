@@ -81,8 +81,12 @@ return [
         ->default('ramon-verified.tiers', '[{"id":"blue","label":"Verificado","color":"#1d9bf0","description":"Esta conta tem a <strong>identidade verificada</strong>.","learnMoreUrl":"","autoGroups":[]},{"id":"gold","label":"Ouro","color":"#d4af37","description":"Conta de organização com <strong>identidade verificada</strong>.","learnMoreUrl":"","autoGroups":[]},{"id":"partner","label":"Parceiro","color":"#9b59b6","description":"Conta afiliada ou parceira oficial com <strong>identidade verificada</strong>.","learnMoreUrl":"","autoGroups":[]}]')
         ->serializeToForum('ramonVerifiedRequestsOpen',       'ramon-verified.requests_open',        'boolval')
         ->serializeToForum('ramonVerifiedRequireDocument',    'ramon-verified.require_document',     'boolval')
-        ->serializeToForum('ramonVerifiedDocumentRetention',  'ramon-verified.document_retention')
-        ->serializeToForum('ramonVerifiedDocumentRetentionDays', 'ramon-verified.document_retention_days', 'intval')
+        // NB: `document_retention` and `document_retention_days` are NOT
+        // serialised to the forum frontend — they're admin-only and read
+        // directly from `app.data.settings[...]` in the admin panel. Every
+        // additional `serializeToForum` payload is shipped to EVERY user
+        // (incl. guests) on every page, so settings without a forum-side
+        // consumer stay off the wire (audit M-retention).
         ->serializeToForum('ramonVerifiedLockAvatar',         'ramon-verified.lock_avatar',          'boolval')
         ->serializeToForum('ramonVerifiedShowTooltip',        'ramon-verified.show_tooltip',         'boolval')
         ->serializeToForum('ramonVerifiedBadgeSvgPath',       'ramon-verified.badge_svg_path')
@@ -93,9 +97,19 @@ return [
         // handlers (CLAUDE.md §21 + audit F18). `throwOnInvalid=false`
         // degrades to "" — frontend `getBadgeSvg.ts` falls back to its
         // built-in default badge when the attribute is empty.
-        ->serializeToForum('ramonVerifiedBadgeSvgContent',    'ramon-verified.badge_svg_content', fn ($raw) =>
-            is_string($raw) && $raw !== '' ? UploadBadgeSvgController::sanitizeSvg($raw, false) : ''
-        )
+        //
+        // ALSO — performance guard (audit H-SVG): only inline when the
+        // sanitised SVG is small enough that shipping it on EVERY forum
+        // page is cheap. Above the threshold we ship just the path so the
+        // frontend can fetch + cache the asset via a single HTTP request
+        // (with static-asset Cache-Control headers) instead of bloating
+        // every JSON-API forum payload by up to 256 KB.
+        ->serializeToForum('ramonVerifiedBadgeSvgContent',    'ramon-verified.badge_svg_content', function ($raw) {
+            if (! is_string($raw) || $raw === '') return '';
+            $clean = UploadBadgeSvgController::sanitizeSvg($raw, false);
+            if ($clean === '') return '';
+            return strlen($clean) <= UploadBadgeSvgController::INLINE_SVG_THRESHOLD ? $clean : '';
+        })
         ->serializeToForum('ramonVerifiedBadgeSize',          'ramon-verified.badge_size')
         ->serializeToForum('ramonVerifiedDocumentTypes',      'ramon-verified.document_types', function ($raw) {
             // Parse the JSON config into a proper array. Bail to an empty list

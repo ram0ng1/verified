@@ -4,7 +4,7 @@ namespace Ramon\Verified\Listener;
 
 use Flarum\User\Event\Deleting;
 use Flarum\User\User;
-use Illuminate\Support\Facades\Log;
+use Psr\Log\LoggerInterface;
 use Ramon\Verified\Documents\DocumentRetention;
 use Throwable;
 
@@ -31,7 +31,8 @@ use Throwable;
 class PurgeDocumentsOnUserDelete
 {
     public function __construct(
-        protected DocumentRetention $retention
+        protected DocumentRetention $retention,
+        protected LoggerInterface $logger
     ) {
     }
 
@@ -49,7 +50,7 @@ class PurgeDocumentsOnUserDelete
         } catch (Throwable $e) {
             // FS failures must not block the user delete — log and move on.
             // Files orphan rather than blocking the GDPR/admin action.
-            Log::warning('verified: failed to purge documents on user delete', [
+            $this->logger->warning('verified: failed to purge documents on user delete', [
                 'user_id' => $userId,
                 'error'   => $e->getMessage(),
             ]);

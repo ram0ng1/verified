@@ -2,7 +2,7 @@
 
 namespace Ramon\Verified\Listener;
 
-use Illuminate\Support\Facades\Log;
+use Psr\Log\LoggerInterface;
 use Ramon\Verified\Documents\DocumentRetention;
 use Ramon\Verified\Models\VerificationRequest;
 use Throwable;
@@ -24,7 +24,8 @@ use Throwable;
 class PurgeDocumentOnRequestDelete
 {
     public function __construct(
-        protected DocumentRetention $retention
+        protected DocumentRetention $retention,
+        protected LoggerInterface $logger
     ) {
     }
 
@@ -37,7 +38,7 @@ class PurgeDocumentOnRequestDelete
         try {
             $this->retention->purgeFileForRequest($model);
         } catch (Throwable $e) {
-            Log::warning('verified: failed to purge document on request delete', [
+            $this->logger->warning('verified: failed to purge document on request delete', [
                 'request_id' => (int) $model->id,
                 'error'      => $e->getMessage(),
             ]);

@@ -3,7 +3,7 @@
 namespace Ramon\Verified\Listener;
 
 use Flarum\Notification\NotificationSyncer;
-use Illuminate\Support\Facades\Log;
+use Psr\Log\LoggerInterface;
 use Ramon\Verified\Event\UserVerified;
 use Ramon\Verified\Notification\UserVerifiedBlueprint;
 use Throwable;
@@ -11,7 +11,8 @@ use Throwable;
 class SendNotificationWhenUserIsVerified
 {
     public function __construct(
-        protected NotificationSyncer $notifications
+        protected NotificationSyncer $notifications,
+        protected LoggerInterface $logger
     ) {
     }
 
@@ -27,7 +28,7 @@ class SendNotificationWhenUserIsVerified
                 [$event->user]
             );
         } catch (Throwable $e) {
-            Log::warning('verified: failed to send user-verified notification', [
+            $this->logger->warning('verified: failed to send user-verified notification', [
                 'user_id' => (int) $event->user->id,
                 'error'   => $e->getMessage(),
             ]);
