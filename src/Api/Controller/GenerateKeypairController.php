@@ -162,11 +162,30 @@ class GenerateKeypairController implements RequestHandlerInterface
             ->chunk(200, function ($rows) use (&$purged) {
                 foreach ($rows as $row) {
                     $absolute = $this->resolver->resolveAbsolute((string) $row->document_path, (int) $row->user_id);
-                    if ($absolute !== null && DocumentCipher::isEncryptedFile($absolute)) {
-                        @unlink($absolute);
+                    if ($absolute === null || ! DocumentCipher::isEncryptedFile($absolute)) {
+                        continue;
+                    }
+
+                    // Order matters (audit L6): only null the row when
+                    // the file is actually gone. The previous shape
+                    // (`@unlink; save`) lost both signals — a failed
+                    // unlink (Windows file-lock, permission denied, race
+                    // with another worker) still persisted `null` to the
+                    // DB, leaving an orphan file with no pointer back.
+                    // After this fix, a failed unlink leaves the row
+                    // pointing at the still-present file so the next
+                    // sweep can retry, and the failure is logged for
+                    // ops visibility (CLAUDE.md §23).
+                    $unlinked = @unlink($absolute);
+                    if ($unlinked || ! is_file($absolute)) {
                         $row->document_path = null;
                         $row->save();
                         $purged++;
+                    } else {
+                        $this->logger->warning('verified: keypair regenerate failed to unlink encrypted document', [
+                            'request_id' => (int) $row->id,
+                            'user_id'    => (int) $row->user_id,
+                        ]);
                     }
                 }
             });

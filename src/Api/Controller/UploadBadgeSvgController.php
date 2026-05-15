@@ -257,6 +257,20 @@ class UploadBadgeSvgController extends UploadImageController
             if (in_array($name, ['href', 'xlink:href', 'src', 'action'], true)
                 && preg_match('/^data\s*:/i', $val)) {
                 $remove[] = $attr->name;
+                continue;
+            }
+
+            // Reject cross-origin / protocol-relative refs on `href` /
+            // `xlink:href` — these reach `<use>`, `<image>`, and `<a>` in
+            // SVG. `<a>` is already stripped wholesale above, but `<use>`
+            // is allowed (legitimate `#fragment` refs for symbols) and an
+            // external URL there turns every badge render into an outbound
+            // GET to attacker-controlled origin (tracker / SSRF-lite —
+            // CLAUDE.md §9.5 calls out `use[href^="http"]` explicitly).
+            // Mirrored client-side in `getBadgeSvg.ts::sanitizeSvg`.
+            if (in_array($name, ['href', 'xlink:href'], true)
+                && preg_match('#^(https?:)?//#i', $val)) {
+                $remove[] = $attr->name;
             }
         }
 

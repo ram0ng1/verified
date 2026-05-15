@@ -123,12 +123,20 @@ export function sanitizeSvg(raw: unknown): string | null {
         const el = node as Element;
         for (const attr of Array.from(el.attributes)) {
           const an = attr.name.toLowerCase();
-          if (an.startsWith("on")) el.removeAttribute(attr.name);
-          else if (
-            (an === "href" || an === "xlink:href") &&
-            /javascript:/i.test(attr.value)
-          ) {
+          if (an.startsWith("on")) {
             el.removeAttribute(attr.name);
+          } else if (an === "href" || an === "xlink:href") {
+            // Reject `javascript:` AND cross-origin / protocol-relative
+            // URLs — the latter lets a tampered custom-badge SVG turn
+            // every render into an outbound GET to a third-party origin
+            // (tracker / SSRF-lite). The server-side sanitiser mirrors
+            // this rejection.
+            if (
+              /javascript:/i.test(attr.value) ||
+              /^(https?:)?\/\//i.test(attr.value)
+            ) {
+              el.removeAttribute(attr.name);
+            }
           }
         }
       }
