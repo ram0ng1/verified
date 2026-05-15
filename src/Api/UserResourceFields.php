@@ -7,15 +7,16 @@ use Flarum\Api\Schema;
 use Flarum\Settings\SettingsRepositoryInterface;
 use Flarum\User\User;
 use Ramon\Verified\Models\VerificationRequest;
-use Ramon\Verified\TierConfig;
+use Ramon\Verified\TierResolver;
 
 class UserResourceFields
 {
-    /** @var array<int, array>|null Cache of parsed tier list. */
-    protected ?array $tiers = null;
+    /** @var array<int,bool>|null Per-request cache of users with a pending request. */
+    protected ?array $pendingUserIds = null;
 
     public function __construct(
-        protected SettingsRepositoryInterface $settings
+        protected SettingsRepositoryInterface $settings,
+        protected TierResolver $tiers
     ) {
     }
 
@@ -23,14 +24,14 @@ class UserResourceFields
     {
         return [
             Schema\Boolean::make('isVerified')
-                ->get(fn (User $user) => $this->isVerified($user)),
+                ->get(fn (User $user) => $this->tiers->isVerified($user)),
 
             Schema\DateTime::make('verifiedAt')
                 ->property('verified_at')
                 ->nullable(),
 
             Schema\Str::make('verifiedTier')
-                ->get(fn (User $user) => $this->resolveTierId($user))
+                ->get(fn (User $user) => $this->tiers->resolveTierId($user))
                 ->nullable(),
 
             Schema\Boolean::make('canRequestVerification')
@@ -41,7 +42,7 @@ class UserResourceFields
                         return false;
                     }
 
-                    if ($this->isVerified($user)) {
+                    if ($this->tiers->isVerified($user)) {
                         return false;
                     }
 
@@ -54,12 +55,7 @@ class UserResourceFields
                         return false;
                     }
 
-                    $hasPending = VerificationRequest::query()
-                        ->where('user_id', $user->id)
-                        ->where('status', VerificationRequest::STATUS_PENDING)
-                        ->exists();
-
-                    return ! $hasPending;
+                    return ! $this->userHasPending((int) $user->id);
                 }),
 
             Schema\Boolean::make('hasPendingVerificationRequest')
@@ -70,10 +66,7 @@ class UserResourceFields
                         return false;
                     }
 
-                    return VerificationRequest::query()
-                        ->where('user_id', $user->id)
-                        ->where('status', VerificationRequest::STATUS_PENDING)
-                        ->exists();
+                    return $this->userHasPending((int) $user->id);
                 }),
 
             Schema\Boolean::make('isAvatarLocked')
@@ -98,67 +91,26 @@ class UserResourceFields
     }
 
     /**
-     * A user is "verified" when they hold a tier — either explicitly assigned
-     * by an admin (column `verified_tier` filled, or legacy `is_verified=1`)
-     * or implicitly via group auto-grant configured per tier.
-     */
-    protected function isVerified(User $user): bool
-    {
-        if ((bool) $user->is_verified) {
-            return true;
-        }
-
-        return $this->resolveTierId($user) !== null;
-    }
-
-    /**
-     * Resolve the user's effective tier id. Manual assignment beats auto.
+     * Per-request membership check for "user has any pending verification
+     * request". On the first call we preload the WHOLE set of pending user
+     * ids in one query — pending is a transient state, so the row count is
+     * bounded even on busy forums. Subsequent lookups are O(1) hash hits.
      *
-     * Returns null when the user has no tier (i.e. is not verified).
+     * Without this cache the field getters fired one EXISTS query per row
+     * during admin user listings (audit F-N+1), turning a 50-row page into
+     * 50 round-trips against `verification_requests`.
      */
-    protected function resolveTierId(User $user): ?string
+    protected function userHasPending(int $userId): bool
     {
-        $tiers = $this->getTiers();
-        if (empty($tiers)) {
-            return null;
+        if ($this->pendingUserIds === null) {
+            $this->pendingUserIds = VerificationRequest::query()
+                ->where('status', VerificationRequest::STATUS_PENDING)
+                ->pluck('user_id')
+                ->map(fn ($id) => (int) $id)
+                ->flip()
+                ->all();
         }
 
-        // Manual verification path requires `is_verified=true`. The
-        // `verified_tier` column alone is NOT enough — verify/unverify flows
-        // always toggle both together, but stale rows from older bugs or
-        // manual SQL edits can leave a tier id behind on an unverified user.
-        // Treating verified_tier as the source of truth would silently keep
-        // those users branded as verified forever.
-        if ((bool) $user->is_verified) {
-            $manual = is_string($user->verified_tier) && $user->verified_tier !== ''
-                ? strtolower($user->verified_tier)
-                : null;
-
-            if ($manual !== null) {
-                $tier = TierConfig::findById($tiers, $manual);
-                if ($tier) return $tier['id'];
-                // Manual tier id was deleted from settings — fall back to
-                // the default tier so the badge stays visible.
-            }
-
-            $fallback = TierConfig::findById($tiers, TierConfig::DEFAULT_TIER_ID) ?? $tiers[0];
-            return $fallback['id'];
-        }
-
-        // Not manually verified — try auto-grant by group membership.
-        $userGroupIds = $user->groups->pluck('id')->map(fn ($id) => (int) $id)->all();
-        $autoTier = TierConfig::autoTierFor($tiers, $userGroupIds);
-        return $autoTier['id'] ?? null;
-    }
-
-    /**
-     * @return array<int, array>
-     */
-    protected function getTiers(): array
-    {
-        if ($this->tiers === null) {
-            $this->tiers = TierConfig::fromSettings($this->settings);
-        }
-        return $this->tiers;
+        return isset($this->pendingUserIds[$userId]);
     }
 }

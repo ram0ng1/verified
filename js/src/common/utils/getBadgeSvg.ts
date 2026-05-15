@@ -4,9 +4,15 @@
  * Resolution order:
  *  1. Custom SVG content stored on the `ramonVerifiedBadgeSvgContent`
  *     setting (sanitised at upload time on the server). Inlined into the
- *     forum payload, so it's available SYNCHRONOUSLY on every page load
- *     with no fetch race.
- *  2. Default Twitter-style verified mark.
+ *     forum payload ONLY when small enough — see
+ *     `UploadBadgeSvgController::INLINE_SVG_THRESHOLD` (8 KB). When set,
+ *     it's available synchronously on every page load with no fetch race.
+ *  2. Async-fetched custom SVG: the asset at `ramonVerifiedBadgeSvgPath`
+ *     is loaded over HTTP once per session, sanitised in the browser,
+ *     cached in module memory + sessionStorage, and triggers a redraw
+ *     when ready. Used for larger custom SVGs that aren't worth inlining
+ *     into every forum payload (audit H-SVG).
+ *  3. Default Twitter-style verified mark.
  *
  * The SVG fill is rewritten to `currentColor` server-side, so the badge
  * inherits the CSS `color` applied by the parent `.VerifiedBadge` element.
@@ -25,6 +31,13 @@ const DEFAULT_VERIFIED_SVG: string =
 
 let cachedCustomSvg: string | null = null;
 let cachedFromAttribute: string | null = null;
+
+// State for the async URL-fetch path.
+let cachedFetchedSvg: string | null = null;
+let cachedFetchedFromUrl: string | null = null;
+let inflightFetchUrl: string | null = null;
+
+const SESSION_STORAGE_KEY = "ramon-verified.badge-svg-cache.v1";
 
 function normalisePath(path: string): string {
   return String(path)
@@ -156,9 +169,102 @@ function readSetting(forumAttr: string, adminKey: string): unknown {
 }
 
 /**
- * Synchronously returns the badge SVG markup. Reads from the inlined
- * setting on every call (cheap), with a one-shot sanitiser cache keyed
- * on the raw attribute value so we don't re-parse on every render.
+ * Hydrate the URL-fetch cache from sessionStorage on first call. This
+ * means a forum-wide navigation reusing the same custom SVG only pays
+ * the fetch on the very first page load of the session.
+ */
+function loadSessionCache(): void {
+  if (cachedFetchedSvg !== null || cachedFetchedFromUrl !== null) return;
+  try {
+    if (typeof sessionStorage === "undefined") return;
+    const raw = sessionStorage.getItem(SESSION_STORAGE_KEY);
+    if (!raw) return;
+    const parsed = JSON.parse(raw) as { url?: string; svg?: string };
+    if (parsed && typeof parsed.url === "string" && typeof parsed.svg === "string") {
+      cachedFetchedFromUrl = parsed.url;
+      cachedFetchedSvg = parsed.svg;
+    }
+  } catch (e) {
+    // ignore
+  }
+}
+
+function saveSessionCache(url: string, svg: string): void {
+  try {
+    if (typeof sessionStorage === "undefined") return;
+    sessionStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify({ url, svg }));
+  } catch (e) {
+    // QuotaExceededError, private mode, etc — silent fail; in-memory
+    // cache still works for the rest of the session.
+  }
+}
+
+/**
+ * Kick off an async fetch of the custom SVG at `url`. Resolves the
+ * cached, sanitised content into module state and triggers a Mithril
+ * redraw so live components pick it up. Idempotent — concurrent calls
+ * for the same URL coalesce.
+ */
+function fetchCustomSvg(url: string): void {
+  if (cachedFetchedFromUrl === url && cachedFetchedSvg !== null) return;
+  if (inflightFetchUrl === url) return;
+  inflightFetchUrl = url;
+
+  // Same-origin guard (CLAUDE.md §14): only fetch when the asset URL
+  // lives on the forum's own origin. A tampered setting that pointed
+  // at an external host would otherwise turn this into a browser-side
+  // SSRF helper.
+  let parsed: URL;
+  try {
+    parsed = new URL(url, location.origin);
+  } catch (e) {
+    inflightFetchUrl = null;
+    return;
+  }
+  if (parsed.origin !== location.origin) {
+    inflightFetchUrl = null;
+    return;
+  }
+
+  fetch(parsed.href, { credentials: "same-origin" })
+    .then((response) => {
+      if (!response.ok) return null;
+      const contentLength = response.headers.get("Content-Length");
+      // 256 KB ceiling matches the server-side upload cap. A misbehaving
+      // asset URL handing back a megabyte stream gets short-circuited
+      // BEFORE we buffer the body.
+      if (contentLength && parseInt(contentLength, 10) > 256 * 1024) return null;
+      return response.text();
+    })
+    .then((raw) => {
+      inflightFetchUrl = null;
+      if (raw === null) return;
+      // Hard cap on body size even when Content-Length is missing.
+      if (raw.length > 256 * 1024) return;
+      const clean = sanitizeSvg(raw);
+      if (!clean) return;
+      cachedFetchedSvg = clean;
+      cachedFetchedFromUrl = url;
+      saveSessionCache(url, clean);
+      try {
+        if (typeof m !== "undefined" && typeof m.redraw === "function") {
+          m.redraw();
+        }
+      } catch (e) {
+        // ignore
+      }
+    })
+    .catch(() => {
+      inflightFetchUrl = null;
+    });
+}
+
+/**
+ * Synchronously returns the badge SVG markup. Uses the inlined setting
+ * when available, falls back to a previously-fetched-and-cached SVG
+ * from the asset URL, otherwise returns the default mark while a
+ * background fetch (if a custom path is configured) populates the
+ * cache for the next render.
  */
 export default function getBadgeSvg(): string {
   try {
@@ -175,6 +281,26 @@ export default function getBadgeSvg(): string {
     } else if (cachedFromAttribute !== null) {
       cachedCustomSvg = null;
       cachedFromAttribute = null;
+    }
+
+    // No inline content available — try the URL-fetched cache. This
+    // covers the audit H-SVG case where a large custom SVG was uploaded
+    // but stripped from the forum payload; the file URL is still
+    // serialised via `ramonVerifiedBadgeSvgPath`.
+    const pathRaw = readSetting(
+      "ramonVerifiedBadgeSvgPath",
+      "ramon-verified.badge_svg_path",
+    );
+    if (typeof pathRaw === "string" && pathRaw.trim()) {
+      const url = resolveAssetUrl(pathRaw);
+      if (url) {
+        loadSessionCache();
+        if (cachedFetchedFromUrl === url && cachedFetchedSvg) {
+          return cachedFetchedSvg;
+        }
+        // Trigger a background fetch on the first render that needs it.
+        fetchCustomSvg(url);
+      }
     }
   } catch (e) {
     // ignore

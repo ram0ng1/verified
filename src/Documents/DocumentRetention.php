@@ -5,7 +5,7 @@ namespace Ramon\Verified\Documents;
 use Carbon\Carbon;
 use Flarum\Foundation\Paths;
 use Flarum\Settings\SettingsRepositoryInterface;
-use Illuminate\Support\Facades\Log;
+use Psr\Log\LoggerInterface;
 use Ramon\Verified\Models\VerificationRequest;
 use Throwable;
 
@@ -44,7 +44,8 @@ class DocumentRetention
     public function __construct(
         protected SettingsRepositoryInterface $settings,
         protected Paths $paths,
-        protected DocumentPathResolver $resolver
+        protected DocumentPathResolver $resolver,
+        protected LoggerInterface $logger
     ) {
     }
 
@@ -151,7 +152,7 @@ class DocumentRetention
                 return true;
             }
         } catch (Throwable $e) {
-            Log::warning('verified: unlink threw exception', [
+            $this->logger->warning('verified: unlink threw exception', [
                 'path'       => $absolute,
                 'request_id' => $requestId,
                 'error'      => $e->getMessage(),
@@ -162,7 +163,7 @@ class DocumentRetention
         // The file may have been removed by something else between is_file()
         // and unlink() — that's fine; only log when it is still there.
         if (file_exists($absolute)) {
-            Log::warning('verified: failed to unlink document', [
+            $this->logger->warning('verified: failed to unlink document', [
                 'path'       => $absolute,
                 'request_id' => $requestId,
             ]);
@@ -284,7 +285,7 @@ class DocumentRetention
                         $this->purgeRequest($row);
                         $purged++;
                     } catch (Throwable $e) {
-                        Log::warning('verified: purgeExpired failed for request', [
+                        $this->logger->warning('verified: purgeExpired failed for request', [
                             'request_id' => (int) $row->id,
                             'error'      => $e->getMessage(),
                         ]);
