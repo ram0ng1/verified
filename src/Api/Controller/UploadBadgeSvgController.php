@@ -26,6 +26,20 @@ class UploadBadgeSvgController extends UploadImageController
 
     public const MAX_SVG_BYTES = 256 * 1024;
 
+    /**
+     * Above this many bytes of SANITISED SVG, `extend.php` strips the
+     * `ramonVerifiedBadgeSvgContent` forum attribute and the frontend
+     * falls back to fetching the file at `ramonVerifiedBadgeSvgPath`
+     * over HTTP (with whatever static-asset caching the host serves it
+     * under). Below the threshold the SVG is inlined into the forum
+     * payload so badge rendering stays synchronous with no fetch race
+     * (typical verified-mark designs sit well under 8 KB; even fancy
+     * multi-path seals rarely cross 4 KB).
+     *
+     * Audit H-SVG (badge content embedded in every forum payload).
+     */
+    public const INLINE_SVG_THRESHOLD = 8 * 1024;
+
     #[\Override]
     protected function makeImage(UploadedFileInterface $file): EncodedImageInterface|StreamInterface
     {

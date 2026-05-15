@@ -6,7 +6,6 @@ use Flarum\Group\Group;
 use Flarum\Http\RequestUtil;
 use Flarum\Settings\SettingsRepositoryInterface;
 use Flarum\User\User;
-use Illuminate\Database\ConnectionInterface;
 use Illuminate\Database\Eloquent\Builder;
 use Laminas\Diactoros\Response\JsonResponse;
 use Psr\Http\Message\ResponseInterface;
@@ -14,6 +13,7 @@ use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\RequestHandlerInterface;
 use Ramon\Verified\Models\VerificationRequest;
 use Ramon\Verified\TierConfig;
+use Ramon\Verified\TierResolver;
 
 /**
  * Paginated, searchable list of every "approved" user — includes both users
@@ -36,9 +36,17 @@ class ListApprovedUsersController implements RequestHandlerInterface
     public const DEFAULT_LIMIT = 15;
     public const MAX_LIMIT = 50;
 
+    /**
+     * Batch size for the tier-filter scan. Big enough that small/medium
+     * forums finish in one round-trip; small enough that a tier with
+     * tens of thousands of users doesn't try to materialise them all
+     * into memory at once (audit T1).
+     */
+    private const TIER_FILTER_CHUNK = 200;
+
     public function __construct(
         protected SettingsRepositoryInterface $settings,
-        protected ConnectionInterface $db
+        protected TierResolver $tierResolver
     ) {
     }
 
@@ -55,7 +63,7 @@ class ListApprovedUsersController implements RequestHandlerInterface
         if ($limit <= 0) $limit = self::DEFAULT_LIMIT;
         if ($limit > self::MAX_LIMIT) $limit = self::MAX_LIMIT;
 
-        $tiers = TierConfig::fromSettings($this->settings);
+        $tiers = $this->tierResolver->tiers();
 
         // Union of every group ID that auto-grants any tier.
         $autoVerifiedGroupIds = [];
@@ -110,26 +118,48 @@ class ListApprovedUsersController implements RequestHandlerInterface
         }
 
         // Tier filter is applied in PHP after we resolve each user's tier
-        // (because auto-tier comes from groups, not a direct DB column).
-        // To keep pagination meaningful when filtering, we fetch all matches
-        // for that tier first then slice. The `q` + tier filter scope is
-        // typically small enough that this isn't a perf concern.
+        // (auto-tier comes from groups, not a single column, so SQL alone
+        // can't express the manual-beats-auto precedence). To keep memory
+        // bounded on big forums we stream candidate rows via chunkById
+        // instead of buffering the entire matching set in one collection
+        // (audit T1) — at most TIER_FILTER_CHUNK User models live in memory
+        // at once.
         if ($tierFilter !== '') {
-            $allMatching = $query
+            $needle = strtolower($tierFilter);
+            $matchingIds = [];
+
+            $query
                 ->orderBy('is_verified', 'desc')
                 ->orderBy('verified_at', 'desc')
                 ->orderBy('username', 'asc')
-                ->get();
-            $allMatching->load('groups');
+                ->orderBy('id', 'asc')
+                ->chunkById(self::TIER_FILTER_CHUNK, function ($users) use ($needle, &$matchingIds) {
+                    $users->load('groups');
+                    foreach ($users as $user) {
+                        $tierId = $this->tierResolver->resolveTierId($user);
+                        if ($tierId !== null && $tierId === $needle) {
+                            $matchingIds[] = (int) $user->id;
+                        }
+                    }
+                });
 
-            $needle = strtolower($tierFilter);
-            $filtered = $allMatching->filter(function (User $user) use ($tiers, $needle) {
-                $tierId = $this->resolveTierId($user, $tiers);
-                return $tierId !== null && $tierId === $needle;
-            })->values();
+            $total   = count($matchingIds);
+            $pageIds = array_slice($matchingIds, $offset, $limit);
 
-            $total = $filtered->count();
-            $users = $filtered->slice($offset, $limit)->values();
+            if (empty($pageIds)) {
+                $users = collect();
+            } else {
+                // Re-fetch only the page's worth of users with groups loaded.
+                // Re-order in PHP to match $pageIds so pagination is stable —
+                // avoids portability traps with MySQL's `FIELD()`, which
+                // doesn't exist on every backend Flarum may run against.
+                $fetched = User::query()->whereIn('id', $pageIds)->get()->keyBy('id');
+                $users = collect($pageIds)
+                    ->map(fn (int $id) => $fetched->get($id))
+                    ->filter()
+                    ->values();
+                $users->load('groups');
+            }
         } else {
             $total = (clone $query)->count();
             $users = $query
@@ -177,7 +207,7 @@ class ListApprovedUsersController implements RequestHandlerInterface
 
         $autoVerifiedGroupSet = array_flip($autoVerifiedGroupIds);
 
-        $data = $users->map(function (User $user) use ($approvedRequests, $handlers, $autoVerifiedGroupSet, $tiers) {
+        $data = $users->map(function (User $user) use ($approvedRequests, $handlers, $autoVerifiedGroupSet) {
             $latestRequest = $approvedRequests->has($user->id)
                 ? $approvedRequests[$user->id]->first()
                 : null;
@@ -207,7 +237,7 @@ class ListApprovedUsersController implements RequestHandlerInterface
                 'source'             => $source,
                 'isVerified'         => (bool) $user->is_verified,
                 'verifiedAt'         => $user->verified_at ? $user->verified_at->toRfc3339String() : null,
-                'verifiedTier'       => $this->resolveTierId($user, $tiers),
+                'verifiedTier'       => $this->tierResolver->resolveTierId($user),
                 'autoVerifiedGroups' => $autoGroups,
             ];
 
@@ -245,38 +275,6 @@ class ListApprovedUsersController implements RequestHandlerInterface
     }
 
     /**
-     * Same logic as `UserResourceFields::resolveTierId` — kept colocated so
-     * we don't need to instantiate that class here. Returns the tier id or
-     * null when the user has no tier and no legacy verified flag.
-     *
-     * @param array<int, array> $tiers
-     */
-    private function resolveTierId(User $user, array $tiers): ?string
-    {
-        if (empty($tiers)) return null;
-
-        // Manual verification requires is_verified=true. See
-        // `UserResourceFields::resolveTierId` for the full rationale.
-        if ((bool) $user->is_verified) {
-            $manual = is_string($user->verified_tier) && $user->verified_tier !== ''
-                ? strtolower($user->verified_tier)
-                : null;
-
-            if ($manual !== null) {
-                $tier = TierConfig::findById($tiers, $manual);
-                if ($tier) return $tier['id'];
-            }
-
-            $fallback = TierConfig::findById($tiers, TierConfig::DEFAULT_TIER_ID) ?? $tiers[0];
-            return $fallback['id'];
-        }
-
-        $userGroupIds = $user->groups->pluck('id')->map(fn ($id) => (int) $id)->all();
-        $autoTier = TierConfig::autoTierFor($tiers, $userGroupIds);
-        return $autoTier['id'] ?? null;
-    }
-
-    /**
      * Tier metadata sent down with every page so the frontend can render
      * tab/badge labels without re-reading settings.
      *
@@ -299,9 +297,12 @@ class ListApprovedUsersController implements RequestHandlerInterface
      * (flarum/nicknames, custom forks); we probe at runtime so an admin search
      * doesn't 500 on forums that lack them.
      *
-     * NB: we go through the injected `ConnectionInterface` rather than the
-     * `Schema` facade — Flarum doesn't bootstrap Laravel's Facade root, so
-     * `Schema::hasColumn(...)` blows up with "A facade root has not been set".
+     * NB: we resolve the schema builder via the Eloquent model rather than
+     * injecting `ConnectionInterface` directly — keeps the controller free
+     * of raw Laravel DB plumbing (audit C-conventions). Flarum doesn't
+     * bootstrap Laravel's Facade root, so `Schema::hasColumn(...)` blows
+     * up with "A facade root has not been set"; reaching through the model
+     * avoids that footgun.
      *
      * @return string[]
      */
@@ -311,7 +312,7 @@ class ListApprovedUsersController implements RequestHandlerInterface
         if ($cached !== null) return $cached;
 
         $columns = ['username', 'email'];
-        $schema = $this->db->getSchemaBuilder();
+        $schema  = (new User())->getConnection()->getSchemaBuilder();
         foreach (['nickname', 'display_name'] as $optional) {
             if ($schema->hasColumn('users', $optional)) {
                 $columns[] = $optional;
