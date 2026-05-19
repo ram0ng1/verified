@@ -62,9 +62,9 @@ class VerifyUserController implements RequestHandlerInterface
         }
 
         $isSelf = (int) $actor->id === $userId;
-        if (! $isSelf) {
-            $actor->assertCan('verified.verifyUsers');
-        }
+        $method = strtoupper($request->getMethod());
+
+        $this->assertCanActOn($actor, $isSelf, $method);
 
         /** @var User|null $target */
         $target = User::query()->find($userId);
@@ -81,8 +81,7 @@ class VerifyUserController implements RequestHandlerInterface
             ? trim($body['tier'])
             : null;
 
-        $method = strtoupper($request->getMethod());
-        $now    = Carbon::now();
+        $now = Carbon::now();
 
         if ($method === 'DELETE') {
             if ($isSelf && ! $actor->isAdmin()) {
@@ -91,11 +90,32 @@ class VerifyUserController implements RequestHandlerInterface
             return $this->unverify($target, $actor, $note, $now);
         }
 
-        if ($isSelf && ! $actor->isAdmin()) {
+        return $this->verify($target, $actor, $note, $tierId, $now);
+    }
+
+    /**
+     * Gate explícito por rota (§3, §4): cross-user sempre exige
+     * `verifyUsers`; self-revoke é uma capabilidade separada (`selfRevoke`,
+     * default MEMBER_ID) que admins podem desabilitar sem afetar a
+     * permissão de moderação. Sem o gate, qualquer membro verificado
+     * dropa o próprio badge bypassando o painel admin.
+     */
+    private function assertCanActOn(User $actor, bool $isSelf, string $method): void
+    {
+        if (! $isSelf) {
             $actor->assertCan('verified.verifyUsers');
+            return;
         }
 
-        return $this->verify($target, $actor, $note, $tierId, $now);
+        if ($method === 'DELETE') {
+            if (! $actor->hasPermission('verified.selfRevoke')
+                && ! $actor->hasPermission('verified.verifyUsers')) {
+                $actor->assertCan('verified.selfRevoke');
+            }
+            return;
+        }
+
+        $actor->assertCan('verified.verifyUsers');
     }
 
     /**
@@ -161,20 +181,30 @@ class VerifyUserController implements RequestHandlerInterface
     }
 
     /**
-     * Revogação: limpa as colunas manuais e grava REJECTED na auditoria.
-     * Quando o alvo ainda pertence a algum `autoGroups` de um tier, o
-     * resolver continua dando "verified" — `meta.autoTierPersists` informa
-     * o caller para que o toast diga a verdade.
+     * Revogação: cobre os dois shapes possíveis de "verified".
+     *
+     *  - **Manual** (linha em `user_verification` com `is_verified=true`):
+     *    apaga a linha e grava REJECTED na auditoria. Se o usuário ainda
+     *    pertencer a `autoGroups`, o auto-tier reaparece — `meta.autoTierPersists`
+     *    avisa o caller.
+     *  - **Auto-tier** (sem linha manual, mas o `TierResolver` devolve tier
+     *    via grupo): grava um tombstone `auto_revoked_at` para que o
+     *    `TierResolver` pare de devolver auto-tier para esse usuário.
+     *    Necessário porque o user não controla os grupos a que pertence,
+     *    e sem tombstone clicar "Revoke" não tinha efeito.
      */
     private function unverify(User $target, User $actor, ?string $note, Carbon $now): JsonResponse
     {
-        if (! $this->verifiedStatus->isVerified($target)) {
+        $hasManualVerification = $this->verifiedStatus->isVerified($target);
+        $hasAutoTier = ! $hasManualVerification && $this->tiers->resolveAutoTier($target) !== null;
+
+        if (! $hasManualVerification && ! $hasAutoTier) {
             throw new ValidationException(['status' => $this->translator->trans('ramon-verified.api.not_verified')]);
         }
 
         $defaultNote = $this->translator->trans('ramon-verified.api.revoked_default_note');
 
-        $this->transaction(function () use ($target, $actor, $note, $now, $defaultNote) {
+        $this->transaction(function () use ($target, $actor, $note, $now, $defaultNote, $hasManualVerification) {
             VerificationRequest::query()->insert([
                 'user_id'    => (int) $target->id,
                 'status'     => VerificationRequest::STATUS_REJECTED,
@@ -186,13 +216,25 @@ class VerifyUserController implements RequestHandlerInterface
                 'updated_at' => $now,
             ]);
 
-            $this->verifiedStatus->clear($target);
+            if ($hasManualVerification) {
+                $this->verifiedStatus->clear($target);
+            } else {
+                $this->verifiedStatus->markAutoRevoked($target, $now);
+            }
         });
 
         $target->load('groups');
-        $autoTier = $this->tiers->resolveAutoTier($target);
 
-        $meta = $autoTier !== null
+        /*
+         * Após `markAutoRevoked` o TierResolver respeita o tombstone e
+         * devolve `null`, então `autoTierPersists` só aparece quando havia
+         * uma verificação manual sobreposta sobre um grupo auto-tier-eligible
+         * — semântica original preservada.
+         */
+        $autoTier = $this->tiers->resolveAutoTier($target);
+        $autoTierStillEffective = $autoTier !== null && $this->tiers->resolveTierId($target) !== null;
+
+        $meta = $autoTierStillEffective
             ? ['autoTierPersists' => [
                 'id'    => $autoTier['id'],
                 'label' => $autoTier['label'],
@@ -204,9 +246,9 @@ class VerifyUserController implements RequestHandlerInterface
                 'type' => 'users',
                 'id'   => (string) $target->id,
                 'attributes' => [
-                    'isVerified'   => $autoTier !== null,
+                    'isVerified'   => $autoTierStillEffective,
                     'verifiedAt'   => null,
-                    'verifiedTier' => $autoTier['id'] ?? null,
+                    'verifiedTier' => $autoTierStillEffective ? $autoTier['id'] : null,
                 ],
             ],
             'meta' => $meta,
