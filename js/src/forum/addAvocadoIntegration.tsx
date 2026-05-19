@@ -106,12 +106,18 @@ function patchHeroView(proto: any): void {
   patchedHeroProtos.add(proto);
 
   const originalView = proto.view;
-  proto.view = function (this: any, ...args: unknown[]) {
+  proto.view = function (this: { user?: User }, ...args: unknown[]) {
     const tree = originalView.apply(this, args);
+    /*
+     * Defensive catch: o tree do Avocado pode mudar de shape entre versões
+     * (Vnode array vs Vnode único, atributos opcionais). Lançar daqui
+     * derrubaria o render inteiro do hero do Avocado, então engole o erro
+     * para preservar a página — esta extensão é integração opcional.
+     */
     try {
-      injectIntoHeroName(tree, (this as any).user);
+      injectIntoHeroName(tree, this.user);
     } catch {
-      /* defensive */
+      /* swallow on purpose */
     }
     return tree;
   };

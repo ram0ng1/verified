@@ -107,18 +107,32 @@ class ApprovedUserQuery
         $this->applySearch($query, $criteria->q);
 
         $total = (clone $query)->count();
-        $users = $query
+        $users = $this->orderByPresenceAndPaginate($query, $criteria);
+        $users->load(['groups', 'verification']);
+
+        return ['users' => $users, 'total' => $total, 'truncated' => false];
+    }
+
+    /**
+     * Ordena por presença da linha companion (manuais primeiro, depois
+     * auto-tier), data de verificação e username. Usa `IS NULL ASC` em
+     * vez de `IS NOT NULL DESC` por portabilidade (§39.2): MySQL aceita
+     * predicado booleano em ORDER BY como 0/1, PostgreSQL não — `IS NULL
+     * ASC` produz a mesma ordem nos dois dialetos e em SQLite.
+     *
+     * @return \Illuminate\Database\Eloquent\Collection<int, \Flarum\User\User>
+     */
+    private function orderByPresenceAndPaginate($query, ApprovedUserCriteria $criteria)
+    {
+        return $query
             ->leftJoin('user_verification', 'user_verification.user_id', '=', 'users.id')
             ->select('users.*')
-            ->orderByRaw('user_verification.user_id IS NOT NULL DESC')
+            ->orderByRaw('user_verification.user_id IS NULL ASC')
             ->orderByDesc('user_verification.verified_at')
             ->orderBy('users.username', 'asc')
             ->skip($criteria->offset)
             ->take($criteria->limit)
             ->get();
-        $users->load(['groups', 'verification']);
-
-        return ['users' => $users, 'total' => $total, 'truncated' => false];
     }
 
     /**

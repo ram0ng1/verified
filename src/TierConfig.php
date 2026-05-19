@@ -37,9 +37,17 @@ class TierConfig
      * `serializeToForum` (toda montagem do payload) — sem cache, o sanitizer
      * SVG roda DOMDocument por tier, em cada page-load.
      *
+     * Cap LRU em `CACHE_LIMIT` (§44.2): em mod_php/php-fpm o array reseta a
+     * cada request, mas em queue workers / Octane / FrankenPHP / RoadRunner
+     * o processo vive por horas. Sem cap, cada save de configuração no admin
+     * adiciona uma entrada nova que vive para sempre — leak previsível.
+     *
      * @var array<string, array<int, array>>
      */
     private static array $parseCache = [];
+
+    /** Cap LRU do cache em escopo de processo (§44.2). */
+    private const CACHE_LIMIT = 16;
 
     /**
      * Parse de um valor cru (JSON string ou array já decodificado) para uma
@@ -60,12 +68,22 @@ class TierConfig
             : (is_array($raw) ? 'a:'.hash('xxh128', serialize($raw)) : null);
 
         if ($cacheKey !== null && isset(self::$parseCache[$cacheKey])) {
-            return self::$parseCache[$cacheKey];
+            /*
+             * LRU touch: move o hit para o final do array para que entradas
+             * frias sejam descartadas primeiro quando o cap for atingido.
+             */
+            $hit = self::$parseCache[$cacheKey];
+            unset(self::$parseCache[$cacheKey]);
+            self::$parseCache[$cacheKey] = $hit;
+            return $hit;
         }
 
         $result = self::doParse($raw);
 
         if ($cacheKey !== null) {
+            if (count(self::$parseCache) >= self::CACHE_LIMIT) {
+                array_shift(self::$parseCache);
+            }
             self::$parseCache[$cacheKey] = $result;
         }
 
