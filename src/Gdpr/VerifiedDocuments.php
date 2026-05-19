@@ -21,10 +21,23 @@ use Throwable;
 /**
  * DataType do flarum/gdpr. Exporta/anonimiza/deleta as linhas de
  * `verification_requests` e o estado em `user_verification` deste usuário.
- * Aceita `DocumentCipher` opcional no 7º arg para uso em testes.
+ *
+ * GDPR instancia tipos via `new $type(...)` com exatamente 6 args fixos
+ * (vendor/flarum/gdpr/src/Exporter.php:56), então não há janela de DI direta
+ * para `VerifiedStatus`, `DocumentPathResolver` e `DocumentCipher`. O acesso
+ * estático ao container é confinado ao construtor (com `bound()` checks per
+ * §44.3) e os serviços resolvidos viram propriedades — os métodos de
+ * domínio nunca tocam `Container::getInstance()`. O 7º arg opcional
+ * `?DocumentCipher` continua existindo para os testes.
  */
 class VerifiedDocuments extends Type
 {
+    protected DocumentPathResolver $pathResolver;
+
+    protected ?VerifiedStatus $verifiedStatus = null;
+
+    protected ?DocumentCipher $cipher;
+
     public function __construct(
         User $user,
         ?ErasureRequest $erasureRequest,
@@ -32,9 +45,35 @@ class VerifiedDocuments extends Type
         SettingsRepositoryInterface $settings,
         UrlGenerator $url,
         TranslatorInterface $translator,
-        protected ?DocumentCipher $cipher = null
+        ?DocumentCipher $cipher = null
     ) {
         parent::__construct($user, $erasureRequest, $factory, $settings, $url, $translator);
+
+        $container = Container::getInstance();
+
+        $this->pathResolver = $container->bound(DocumentPathResolver::class)
+            ? $container->make(DocumentPathResolver::class)
+            : new DocumentPathResolver();
+
+        if ($container->bound(VerifiedStatus::class)) {
+            try {
+                $this->verifiedStatus = $container->make(VerifiedStatus::class);
+            } catch (Throwable $e) {
+                $this->verifiedStatus = null;
+            }
+        }
+
+        if ($cipher !== null) {
+            $this->cipher = $cipher;
+        } elseif ($container->bound(DocumentCipher::class)) {
+            try {
+                $this->cipher = $container->make(DocumentCipher::class);
+            } catch (Throwable $e) {
+                $this->cipher = null;
+            }
+        } else {
+            $this->cipher = null;
+        }
     }
 
     public static function dataType(): string
@@ -70,7 +109,7 @@ class VerifiedDocuments extends Type
     {
         $exportData = [];
 
-        $status = $this->statusService();
+        $status = $this->verifiedStatus;
 
         $exportData[] = ['verified/status.json' => $this->encodeForExport([
             'is_verified' => $status ? $status->isVerified($this->user) : false,
@@ -156,7 +195,7 @@ class VerifiedDocuments extends Type
 
         $this->deleteDocumentFiles();
 
-        $this->statusService()?->clear($this->user);
+        $this->verifiedStatus?->clear($this->user);
     }
 
     /**
@@ -169,13 +208,13 @@ class VerifiedDocuments extends Type
     private function collectDocumentFiles(): array
     {
         $disk    = $this->disk();
-        $userDir = (new DocumentPathResolver())->userDirectory((int) $this->user->id);
+        $userDir = $this->pathResolver->userDirectory((int) $this->user->id);
 
         if (! $disk->directoryExists($userDir)) {
             return [];
         }
 
-        $cipher = $this->resolveCipher();
+        $cipher = $this->cipher;
 
         $out = [];
         $skippedEncrypted = 0;
@@ -219,7 +258,7 @@ class VerifiedDocuments extends Type
     private function deleteDocumentFiles(): void
     {
         $disk    = $this->disk();
-        $userDir = (new DocumentPathResolver())->userDirectory((int) $this->user->id);
+        $userDir = $this->pathResolver->userDirectory((int) $this->user->id);
 
         if (! $disk->directoryExists($userDir)) {
             return;
@@ -234,43 +273,5 @@ class VerifiedDocuments extends Type
     private function disk(): Filesystem
     {
         return $this->getDisk(DocumentPathResolver::DISK);
-    }
-
-    /**
-     * `VerifiedStatus` é resolvido pelo container — GDPR instancia este
-     * Type com 6 args fixos (Exporter / ErasureJob), então DI direta no
-     * construtor não é possível (mesma restrição do `resolveCipher`).
-     * Try/catch alinhado com `resolveCipher`: classe concreta autowire
-     * raramente falha, mas a borda fica defensiva.
-     */
-    private function statusService(): ?VerifiedStatus
-    {
-        try {
-            return Container::getInstance()->make(VerifiedStatus::class);
-        } catch (Throwable $e) {
-            return null;
-        }
-    }
-
-    /**
-     * Resolve o `DocumentCipher` pelo container quando não foi injetado.
-     * GDPR chama `new $type(...)` com 6 args fixos, então o construtor desta
-     * classe não pode pedir o cipher via DI direta — o §44.3 sanciona
-     * `Container::make` com `bound()` como alternativa explícita ao
-     * `resolve()` global.
-     */
-    private function resolveCipher(): ?DocumentCipher
-    {
-        if ($this->cipher !== null) {
-            return $this->cipher;
-        }
-
-        $container = Container::getInstance();
-
-        try {
-            return $this->cipher = $container->make(DocumentCipher::class);
-        } catch (Throwable $e) {
-            return null;
-        }
     }
 }
