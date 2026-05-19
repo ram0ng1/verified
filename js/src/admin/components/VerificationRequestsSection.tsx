@@ -85,7 +85,10 @@ export default class VerificationRequestsSection extends Component<ComponentAttr
   renderRequestTab(): Mithril.Children {
     const tab = this.tab as "pending" | "rejected";
 
-    if (this.requests.loadingFor(tab) && this.requests.requestsFor(tab).length === 0) {
+    if (
+      this.requests.loadingFor(tab) &&
+      this.requests.requestsFor(tab).length === 0
+    ) {
       return (
         <div className="VerifiedRequests-empty">
           <LoadingIndicator />
