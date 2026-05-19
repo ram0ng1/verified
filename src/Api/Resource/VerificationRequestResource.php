@@ -14,13 +14,12 @@ use Flarum\Settings\SettingsRepositoryInterface;
 use Flarum\User\User;
 use Illuminate\Contracts\Events\Dispatcher;
 use Illuminate\Contracts\Filesystem\Factory as FilesystemFactory;
-use Illuminate\Database\ConnectionInterface;
 use Illuminate\Database\Eloquent\Builder;
 use Ramon\Verified\Documents\DocumentPathResolver;
 use Ramon\Verified\Documents\DocumentRetention;
 use Ramon\Verified\Event\UserVerified;
 use Ramon\Verified\Models\VerificationRequest;
-use Ramon\Verified\TierConfig;
+use Ramon\Verified\TierResolver;
 use Ramon\Verified\VerifiedStatus;
 
 /**
@@ -35,9 +34,19 @@ class VerificationRequestResource extends AbstractDatabaseResource
         protected DocumentRetention $retention,
         protected DocumentPathResolver $pathResolver,
         protected FilesystemFactory $filesystem,
-        protected ConnectionInterface $db,
-        protected VerifiedStatus $verifiedStatus
+        protected VerifiedStatus $verifiedStatus,
+        protected TierResolver $tiers
     ) {
+    }
+
+    /**
+     * Roda o callback dentro de uma transação do connection do Flarum,
+     * resolvido pelo próprio model — evita injetar `ConnectionInterface`
+     * direto no resource só para acessar `->transaction()`.
+     */
+    private function transaction(callable $cb): mixed
+    {
+        return VerificationRequest::query()->getConnection()->transaction($cb);
     }
 
     public function type(): string
@@ -56,6 +65,27 @@ class VerificationRequestResource extends AbstractDatabaseResource
 
         if (! $actor->isAdmin()) {
             $query->where('user_id', $actor->id);
+        }
+
+        $params = $context->request->getQueryParams();
+        $filter = isset($params['filter']) && is_array($params['filter']) ? $params['filter'] : [];
+        $rawStatus = $filter['status'] ?? null;
+
+        if ($rawStatus !== null) {
+            $statuses = is_array($rawStatus)
+                ? $rawStatus
+                : array_map('trim', explode(',', (string) $rawStatus));
+
+            $allowed = [
+                VerificationRequest::STATUS_PENDING,
+                VerificationRequest::STATUS_APPROVED,
+                VerificationRequest::STATUS_REJECTED,
+            ];
+            $statuses = array_values(array_intersect(array_map('strval', $statuses), $allowed));
+
+            if (! empty($statuses)) {
+                $query->whereIn('status', $statuses);
+            }
         }
     }
 
@@ -255,9 +285,9 @@ class VerificationRequestResource extends AbstractDatabaseResource
 
         $now = Carbon::now();
         $note = $this->extractNote($context);
-        $tier = $this->resolveTierFromContext($context);
+        $tier = $this->tiers->resolveRequestedTierId($this->readRequestedTier($context));
 
-        $this->db->transaction(function () use ($request, $user, $actor, $now, $note, $tier) {
+        $this->transaction(function () use ($request, $user, $actor, $now, $note, $tier) {
             $request->status     = VerificationRequest::STATUS_APPROVED;
             $request->handled_by = (int) $actor->id;
             $request->handled_at = $now;
@@ -285,7 +315,7 @@ class VerificationRequestResource extends AbstractDatabaseResource
         $now = Carbon::now();
         $note = $this->extractNote($context);
 
-        $this->db->transaction(function () use ($request, $actor, $now, $note) {
+        $this->transaction(function () use ($request, $actor, $now, $note) {
             $request->status     = VerificationRequest::STATUS_REJECTED;
             $request->handled_by = (int) $actor->id;
             $request->handled_at = $now;
@@ -314,7 +344,7 @@ class VerificationRequestResource extends AbstractDatabaseResource
             $this->translator->trans('ramon-verified.api.revoked_default_note')
         );
 
-        $this->db->transaction(function () use ($request, $user, $actor, $now, $note) {
+        $this->transaction(function () use ($request, $user, $actor, $now, $note) {
             $request->status     = VerificationRequest::STATUS_REJECTED;
             $request->handled_by = (int) $actor->id;
             $request->handled_at = $now;
@@ -411,25 +441,14 @@ class VerificationRequestResource extends AbstractDatabaseResource
     }
 
     /**
-     * Resolve o tier requisitado no corpo da aprovação contra o allowlist
-     * configurado. Falls back ao default quando ausente/inválido — não
-     * bloqueia aprovação.
+     * Lê o tier requisitado de qualquer um dos shapes aceitos no body:
+     * `meta.tier` ou `data.attributes.tier`. A normalização (default/null)
+     * fica em `TierResolver::resolveRequestedTierId()`.
      */
-    private function resolveTierFromContext(Context $context): ?string
+    private function readRequestedTier(Context $context): ?string
     {
         $body = $context->body();
-        $requested = $body['meta']['tier'] ?? $body['data']['attributes']['tier'] ?? null;
-        $requested = is_string($requested) ? trim($requested) : null;
-
-        $tiers = TierConfig::fromSettings($this->settings);
-        if (empty($tiers)) return null;
-
-        if ($requested) {
-            $found = TierConfig::findById($tiers, $requested);
-            if ($found) return $found['id'];
-        }
-
-        $fallback = TierConfig::findById($tiers, TierConfig::DEFAULT_TIER_ID) ?? $tiers[0];
-        return $fallback['id'];
+        $raw = $body['meta']['tier'] ?? $body['data']['attributes']['tier'] ?? null;
+        return is_string($raw) ? $raw : null;
     }
 }
