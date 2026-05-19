@@ -3,7 +3,7 @@
 namespace Ramon\Verified\Listener;
 
 use Flarum\Settings\Event\Saving;
-use Ramon\Verified\Api\Controller\UploadBadgeSvgController;
+use Ramon\Verified\Support\SvgSanitizer;
 use Ramon\Verified\TierConfig;
 
 /**
@@ -44,7 +44,7 @@ class SanitizeTiersOnSave
                     $row['badgeSvg'] = '';
                     $row['badgeEnabled'] = false;
                 } else {
-                    $sanitised = UploadBadgeSvgController::sanitizeSvg($row['badgeSvg'], false);
+                    $sanitised = SvgSanitizer::sanitize($row['badgeSvg'], false);
                     if ($sanitised === '' || strlen($sanitised) > TierConfig::BADGE_SVG_MAX) {
                         $row['badgeSvg'] = '';
                         $row['badgeEnabled'] = false;
