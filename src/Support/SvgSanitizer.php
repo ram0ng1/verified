@@ -7,9 +7,11 @@ use Flarum\Foundation\ValidationException;
 /**
  * Sanitiza SVGs admin-uploaded. Remove DOCTYPE/ENTITY (XXE), tags ativas
  * (script, foreignObject, iframe, etc.), handlers `on*`, URLs `javascript:` /
- * `data:`, links absolutos/protocolo-relativos e referências `url(...)` para
- * recursos externos em atributos e em CSS inline. Opcionalmente reescreve
- * `fill` para `currentColor`, deixando o frontend pilotar a cor pelo tier.
+ * `data:`, qualquer `href`/`xlink:href` que não seja referência interna
+ * `#fragment` (defeats `<use href="evil.svg#x">`, relativo ou absoluto), e
+ * referências `url(...)` para recursos externos em atributos e em CSS
+ * inline. Opcionalmente reescreve `fill` para `currentColor`, deixando o
+ * frontend pilotar a cor pelo tier.
  *
  * Usado em três call sites — UploadBadgeSvgController (upload),
  * SanitizeTiersOnSave (persistência de settings de tier) e TierConfig
@@ -230,7 +232,7 @@ class SvgSanitizer
             }
 
             if (in_array($name, ['href', 'xlink:href'], true)
-                && preg_match('#^(https?:)?//#i', $val)) {
+                && ! str_starts_with($val, '#')) {
                 $remove[] = $attr->name;
                 continue;
             }

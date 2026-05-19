@@ -6,16 +6,15 @@ use Flarum\Foundation\ValidationException;
 use Flarum\Http\RequestUtil;
 use Flarum\Locale\TranslatorInterface;
 use Flarum\User\Exception\PermissionDeniedException;
-use Illuminate\Contracts\Filesystem\Factory;
+use Illuminate\Contracts\Bus\Dispatcher as BusDispatcher;
 use Laminas\Diactoros\Response\JsonResponse;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\RequestHandlerInterface;
 use Psr\Log\LoggerInterface;
 use Ramon\Verified\Crypto\DocumentCipher;
-use Ramon\Verified\Documents\DocumentPathResolver;
+use Ramon\Verified\Job\PurgeOrphanedDocumentsJob;
 use Ramon\Verified\Models\VerificationRequest;
-use Throwable;
 
 /**
  * Gera um par de chaves de criptografia. A pública é persistida como
@@ -27,18 +26,22 @@ use Throwable;
  * - Sem chave pública prévia → gera livremente.
  * - Estado saudável (público + privado coincidem) → rotação só com
  *   `acknowledgeLoss=true`. Documentos cifrados pela chave antiga são
- *   apagados ANTES da nova chave entrar em jogo.
+ *   enfileirados para purga via `PurgeOrphanedDocumentsJob`.
  * - Estado quebrado (público sem privado) → mesmo shape; documentos
- *   cifrados são apagados porque já não eram legíveis.
+ *   cifrados também são enfileirados porque já não eram legíveis.
+ *
+ * A purga é despachada como job (§50) — em queue driver `sync` (default)
+ * roda inline, mas a request retorna assim que `forget+generate+dispatch`
+ * completa. Sob driver real (`redis`, `database`) a purga full-corpus
+ * acontece em worker sem amarrar o request do admin.
  */
 class GenerateKeypairController implements RequestHandlerInterface
 {
     public function __construct(
         protected DocumentCipher $cipher,
         protected TranslatorInterface $translator,
-        protected Factory $filesystem,
-        protected DocumentPathResolver $resolver,
-        protected LoggerInterface $logger
+        protected LoggerInterface $logger,
+        protected BusDispatcher $bus
     ) {
     }
 
@@ -62,7 +65,7 @@ class GenerateKeypairController implements RequestHandlerInterface
         $body = (array) $request->getParsedBody();
         $acknowledged = ! empty($body['acknowledgeLoss']);
 
-        $orphaned = 0;
+        $orphanedCandidates = 0;
 
         if ($hasPublic) {
             if (! $acknowledged) {
@@ -71,78 +74,37 @@ class GenerateKeypairController implements RequestHandlerInterface
                 ]);
             }
 
+            // Conta antes do `forget` para que uploads concorrentes (que
+            // virão plaintext após o forget) não sejam contabilizados.
+            $orphanedCandidates = (int) VerificationRequest::query()
+                ->whereNotNull('document_path')
+                ->count();
+
             $this->cipher->forgetPublicKey();
-            $orphaned = $this->purgeOrphanedDocuments();
         }
 
         $pair = $this->cipher->generateKeypair();
 
+        if ($hasPublic) {
+            $this->bus->dispatch(new PurgeOrphanedDocumentsJob());
+        }
+
         $this->logger->warning('verified: encryption keypair regenerated', [
-            'actor_id'           => (int) $actor->id,
-            'actor_username'     => (string) $actor->username,
-            'orphaned_documents' => $orphaned,
-            'rotation'           => $hasPublic,
+            'actor_id'             => (int) $actor->id,
+            'actor_username'       => (string) $actor->username,
+            'orphaned_candidates'  => $orphanedCandidates,
+            'rotation'             => $hasPublic,
         ]);
 
         return (new JsonResponse([
             'publicKey'         => $pair['public'],
             'privateKey'        => $pair['private'],
             'configKey'         => DocumentCipher::CONFIG_PRIVATE_KEY,
-            'orphanedDocuments' => $orphaned,
+            'orphanedDocuments' => $orphanedCandidates,
         ], 200))
             ->withHeader('Cache-Control', 'no-store, max-age=0, must-revalidate, private')
             ->withHeader('Pragma', 'no-cache')
             ->withHeader('Expires', '0')
             ->withHeader('Clear-Site-Data', '"cache"');
-    }
-
-    /**
-     * Apaga arquivos cifrados pela chave antiga. Ordem
-     * (forget→purge→generate) garante que uploads concorrentes caiam no
-     * path plaintext durante a janela.
-     */
-    private function purgeOrphanedDocuments(): int
-    {
-        $disk = $this->filesystem->disk(DocumentPathResolver::DISK);
-        $purged = 0;
-
-        VerificationRequest::query()
-            ->whereNotNull('document_path')
-            ->orderBy('id')
-            ->chunk(200, function ($rows) use ($disk, &$purged) {
-                foreach ($rows as $row) {
-                    $relative = $this->resolver->resolveRelative(
-                        (string) $row->document_path,
-                        (int) $row->user_id
-                    );
-                    if ($relative === null || ! $disk->exists($relative)) {
-                        continue;
-                    }
-
-                    $blob = $disk->get($relative);
-                    if (! is_string($blob) || ! DocumentCipher::isEncryptedBlob($blob)) {
-                        continue;
-                    }
-
-                    try {
-                        $deleted = $disk->delete($relative);
-                    } catch (Throwable $e) {
-                        $deleted = false;
-                    }
-
-                    if ($deleted || ! $disk->exists($relative)) {
-                        $row->document_path = null;
-                        $row->save();
-                        $purged++;
-                    } else {
-                        $this->logger->warning('verified: keypair regenerate failed to unlink encrypted document', [
-                            'request_id' => (int) $row->id,
-                            'user_id'    => (int) $row->user_id,
-                        ]);
-                    }
-                }
-            });
-
-        return $purged;
     }
 }
