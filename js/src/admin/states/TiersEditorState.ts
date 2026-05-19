@@ -11,6 +11,8 @@ const trans = (key: string) =>
 const SETTING_KEY = "ramon-verified.tiers";
 const FLUSH_DEBOUNCE_MS = 400;
 
+export const BADGE_SVG_MAX = 8 * 1024;
+
 export interface TierRow {
   id: string;
   label: string;
@@ -18,6 +20,8 @@ export interface TierRow {
   description: string;
   learnMoreUrl: string;
   autoGroups: number[];
+  badgeEnabled: boolean;
+  badgeSvg: string;
 }
 
 function emptyRow(): TierRow {
@@ -28,6 +32,8 @@ function emptyRow(): TierRow {
     description: "",
     learnMoreUrl: "",
     autoGroups: [],
+    badgeEnabled: false,
+    badgeSvg: "",
   };
 }
 
@@ -62,6 +68,11 @@ export default class TiersEditorState {
           string,
           unknown
         >;
+        const badgeSvgRaw =
+          typeof row.badgeSvg === "string" ? row.badgeSvg : "";
+        const badgeEnabled =
+          Boolean(row.badgeEnabled) && badgeSvgRaw.trim().length > 0;
+
         return {
           id: String(row.id || "").trim(),
           label: String(row.label || "").trim(),
@@ -73,6 +84,8 @@ export default class TiersEditorState {
                 .map((g) => parseInt(String(g), 10))
                 .filter((n) => Number.isFinite(n) && n > 0)
             : [],
+          badgeEnabled,
+          badgeSvg: badgeSvgRaw.length > BADGE_SVG_MAX ? "" : badgeSvgRaw,
         };
       });
     } catch (e) {
@@ -84,14 +97,20 @@ export default class TiersEditorState {
     return JSON.stringify(
       this.rows
         .filter((r) => r.id.trim() && r.label.trim())
-        .map((r) => ({
-          id: r.id.trim().toLowerCase(),
-          label: r.label.trim(),
-          color: r.color.trim(),
-          description: r.description.trim(),
-          learnMoreUrl: this.normaliseUrl(r.learnMoreUrl),
-          autoGroups: r.autoGroups,
-        })),
+        .map((r) => {
+          const trimmedSvg = (r.badgeSvg || "").trim();
+          const badgeEnabled = r.badgeEnabled && trimmedSvg.length > 0;
+          return {
+            id: r.id.trim().toLowerCase(),
+            label: r.label.trim(),
+            color: r.color.trim(),
+            description: r.description.trim(),
+            learnMoreUrl: this.normaliseUrl(r.learnMoreUrl),
+            autoGroups: r.autoGroups,
+            badgeEnabled,
+            badgeSvg: badgeEnabled ? trimmedSvg : "",
+          };
+        }),
     );
   }
 
