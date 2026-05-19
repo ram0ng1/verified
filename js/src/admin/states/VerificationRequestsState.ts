@@ -1,9 +1,20 @@
 import app from "flarum/admin/app";
 import extractText from "flarum/common/utils/extractText";
 
-import type VerificationRequest from "../../common/models/VerificationRequest";
+import VerificationRequest from "../../common/models/VerificationRequest";
 import apiCall from "../../common/utils/apiCall";
 import promptTier from "../../common/utils/promptTier";
+
+interface JsonApiResource {
+  type: string;
+  id: string | number;
+}
+
+interface JsonApiListPayload {
+  data: JsonApiResource[];
+  included?: JsonApiResource[];
+  meta?: { page?: { total?: number } };
+}
 
 export type RequestAction = "approve" | "reject" | "revoke";
 export type RequestTab = "pending" | "approved" | "rejected";
@@ -92,22 +103,48 @@ export default class VerificationRequestsState {
     m.redraw();
 
     try {
-      const res = await app.store.find<VerificationRequest[]>(
-        "verification-requests",
-        {
-          sort: "-createdAt",
-          filter: { status: tab },
-          page: { limit: REQUESTS_PAGE_SIZE, offset: state.offset },
-          include: "user,handler",
-        },
-      );
+      // `app.request` em vez de `app.store.find` porque o backend lê
+      // `byStatus=...` como query param custom — duas regras do
+      // Flarum 2 / json-api-server tornam isso necessário:
+      //   1. `AbstractDatabaseResource::filters()` é `final` e lança "use
+      //      a model searcher" sempre que o JSON:API server detecta um
+      //      `filter[]` no request.
+      //   2. `JsonApi::validateQueryParameters` rejeita query params
+      //      cujo nome seja só `[a-z]` minúsculo (`status` falha;
+      //      `byStatus` passa). Por isso o camelCase obrigatório.
+      // Integração com o store via `pushPayload`, preservando cache em
+      // memória e hidratação das relações `user`/`handler`.
+      const params = new URLSearchParams();
+      params.set("sort", "-createdAt");
+      params.set("byStatus", tab);
+      params.set("page[limit]", String(REQUESTS_PAGE_SIZE));
+      params.set("page[offset]", String(state.offset));
+      params.set("include", "user,handler");
 
-      const meta = (
-        res as { payload?: { meta?: { page?: { total?: number } } } }
-      ).payload?.meta?.page;
-      state.total = meta && typeof meta.total === "number" ? meta.total : 0;
+      const payload = await app.request<JsonApiListPayload>({
+        method: "GET",
+        url:
+          app.forum.attribute("apiUrl") +
+          "/verification-requests?" +
+          params.toString(),
+      });
 
-      const list: VerificationRequest[] = Array.isArray(res) ? res.slice() : [];
+      app.store.pushPayload(payload as any);
+
+      const total = payload?.meta?.page?.total;
+      state.total = typeof total === "number" ? total : 0;
+
+      const list: VerificationRequest[] = (payload?.data ?? [])
+        .map((row) =>
+          app.store.getById<VerificationRequest>(
+            "verification-requests",
+            String(row.id),
+          ),
+        )
+        .filter(
+          (m): m is VerificationRequest => m instanceof VerificationRequest,
+        );
+
       list.sort((a, b) => {
         const av = a.createdAt() ? (a.createdAt() as Date).getTime() : 0;
         const bv = b.createdAt() ? (b.createdAt() as Date).getTime() : 0;
