@@ -20,12 +20,10 @@ use Ramon\Verified\VerifiedStatus;
 
 /**
  * Recebe o upload de um documento de verificação, grava no disco privado
- * `flarum-verified-documents` (fora do webroot público) e devolve um token
- * opaco que o usuário pode anexar a uma solicitação de verificação.
- *
- * O token tem o formato `verified-documents/{userId}/{filename}` e só é
- * resolvido pelo endpoint de download. O frontend recebe um pseudo-path
- * `/assets/verified/{userId}/{filename}`.
+ * `flarum-verified-documents` (fora do webroot público) e devolve o
+ * pseudo-path `/assets/verified/{userId}/{filename}` que o usuário anexa
+ * à solicitação. A resolução real para o disco privado acontece no
+ * endpoint de download, via DocumentPathResolver.
  */
 class UploadDocumentController implements RequestHandlerInterface
 {
@@ -108,12 +106,8 @@ class UploadDocumentController implements RequestHandlerInterface
             ]);
         }
 
-        $token       = 'verified-documents/'.$userId.'/'.$filename;
-        $publicToken = '/assets/verified/'.$userId.'/'.$filename;
-
         return new JsonResponse([
-            'documentPath' => $publicToken,
-            'token'        => $token,
+            'documentPath' => '/assets/verified/'.$userId.'/'.$filename,
         ], 200);
     }
 
