@@ -4,7 +4,7 @@ namespace Ramon\Verified;
 
 use Flarum\Group\Group;
 use Flarum\Settings\SettingsRepositoryInterface;
-use Ramon\Verified\Api\Controller\UploadBadgeSvgController;
+use Ramon\Verified\Support\SvgSanitizer;
 
 /**
  * Configuração multi-tier do badge. A lista vive como JSON em
@@ -143,7 +143,7 @@ class TierConfig
             if ($badgeEnabled && isset($row['badgeSvg']) && is_string($row['badgeSvg'])) {
                 $candidate = $row['badgeSvg'];
                 if ($candidate !== '' && strlen($candidate) <= self::BADGE_SVG_MAX) {
-                    $sanitised = UploadBadgeSvgController::sanitizeSvg($candidate, false);
+                    $sanitised = SvgSanitizer::sanitize($candidate, false);
                     if ($sanitised !== '' && strlen($sanitised) <= self::BADGE_SVG_MAX) {
                         $badgeSvg = $sanitised;
                     }
