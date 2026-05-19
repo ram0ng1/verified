@@ -249,12 +249,16 @@ class UploadBadgeSvgController extends UploadImageController
      * Remove tags ativas e atributos perigosos. `<a>` é stripado para matar
      * phishing-via-badge; `animate*` é stripado porque SMIL pode reescrever
      * `xlink:href` em tempo de execução, contornando o scrub estático.
+     * `<image>` e `<feImage>` são stripados porque mesmo após zerar
+     * `href`/`xlink:href`, o elemento aceita atributos `style: url(...)` e
+     * sintaxes percent-encoded que reescapam o filtro de URL externa.
      */
     private static function cleanNode(\DOMNode $node): void
     {
         static $dangerous = [
             'script', 'foreignobject', 'iframe', 'object', 'embed', 'base', 'link', 'style',
             'a', 'animate', 'animatetransform', 'animatemotion', 'set',
+            'image', 'feimage',
         ];
 
         $children = iterator_to_array($node->childNodes);

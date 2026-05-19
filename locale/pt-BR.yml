@@ -175,6 +175,7 @@ ramon-verified:
     permissions:
       request_label: "Solicitar verificação"
       verify_users_label: "Verificar usuários diretamente"
+      self_revoke_label: "Revogar o próprio selo verificado"
       auto_verified_label: "Receber selo verificado automaticamente"
 
     encryption:

@@ -50,6 +50,7 @@ class VerifiedStatus
         $row->verified_at = $when;
         $row->verified_by = $adminId;
         $row->verified_tier = $tier;
+        $row->auto_revoked_at = null;
         $row->save();
 
         $user->setRelation('verification', $row);
@@ -58,12 +59,40 @@ class VerifiedStatus
     /**
      * Apaga a linha companheira. Apagar (em vez de zerar) mantém a tabela
      * pequena — usuários não-verificados não pagam aluguel de uma linha
-     * com todos os campos null.
+     * com todos os campos null. Também limpa qualquer opt-out de auto-tier
+     * existente — `clear` é "voltar ao estado original".
      */
     public function clear(User $user): void
     {
         UserVerification::query()->where('user_id', $user->id)->delete();
         $user->setRelation('verification', null);
+    }
+
+    /**
+     * Tombstone do opt-out: persiste uma linha com `is_verified=false` e
+     * `auto_revoked_at` setado. `TierResolver` honra esse marcador para
+     * não devolver auto-tier por grupo. Usado quando um usuário verificado
+     * apenas via auto-grant clica em Revoke — não há row pra deletar, mas
+     * precisamos registrar a intenção.
+     */
+    public function markAutoRevoked(User $user, Carbon $when): void
+    {
+        $row = $this->loadOrNew($user);
+        $row->user_id = (int) $user->id;
+        $row->is_verified = false;
+        $row->verified_at = null;
+        $row->verified_by = null;
+        $row->verified_tier = null;
+        $row->auto_revoked_at = $when;
+        $row->save();
+
+        $user->setRelation('verification', $row);
+    }
+
+    public function autoRevokedAt(User $user): ?Carbon
+    {
+        $v = $this->read($user)->auto_revoked_at;
+        return $v instanceof Carbon ? $v : null;
     }
 
     /**
