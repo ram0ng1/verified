@@ -37,6 +37,11 @@ class TierResolver
      * Resolve o tier efetivo. Manual ganha do auto. Manual exige
      * `verification.is_verified=true` — coluna `verified_tier` sozinha não
      * basta: tier configurado e removido em runtime cai no default.
+     *
+     * Tombstone de opt-out: quando há row com `auto_revoked_at` set e
+     * `is_verified=false`, o usuário pediu para sair do auto-tier — não
+     * devolvemos auto-grant via grupo. `mark()` limpa o tombstone ao
+     * reverificar manualmente; `clear()` também (volta ao estado original).
      */
     public function resolveTierId(User $user): ?string
     {
@@ -59,6 +64,10 @@ class TierResolver
 
             $fallback = TierConfig::findById($tiers, TierConfig::DEFAULT_TIER_ID) ?? $tiers[0];
             return $fallback['id'];
+        }
+
+        if ($ver && $ver->auto_revoked_at !== null) {
+            return null;
         }
 
         $autoTier = $this->resolveAutoTier($user);

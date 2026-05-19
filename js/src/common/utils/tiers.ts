@@ -56,15 +56,37 @@ export function getConfiguredTiers(): VerifiedTier[] {
             return parsed.map(normalise).filter(Boolean) as VerifiedTier[];
           }
         } catch (e) {
-          // ignore
+          warnDev("tier config JSON parse failed", e);
         }
       }
     }
   } catch (e) {
-    // ignore
+    warnDev("tier config read failed", e);
   }
 
   return [];
+}
+
+/**
+ * `console.warn` apenas em desenvolvimento — silencioso em produção (§40.2).
+ * Tier config corrompida é raro e útil pro admin ver durante debug; em
+ * produção, falhar para `[]` mantém o forum funcional sem encher console.
+ */
+function warnDev(msg: string, err: unknown): void {
+  try {
+    if (
+      typeof process !== "undefined" &&
+      process.env &&
+      process.env.NODE_ENV === "production"
+    ) {
+      return;
+    }
+  } catch (_e) {
+    /* `process` undefined em browser puro — segue pro console.warn */
+  }
+  if (typeof console !== "undefined" && console.warn) {
+    console.warn("[verified] " + msg, err);
+  }
 }
 
 /**
