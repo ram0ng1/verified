@@ -6,7 +6,7 @@ import extractText from "flarum/common/utils/extractText";
 import type Mithril from "mithril";
 import type User from "flarum/common/models/User";
 import getBadgeSvg, { getBadgeSize } from "../utils/getBadgeSvg";
-import { resolveTierForUser, getTierColor } from "../utils/tiers";
+import { resolveTierForUser, getTierColor, sanitiseDescription } from "../utils/tiers";
 
 export interface VerifiedPopoverAttrs extends ComponentAttrs {
   user: User;
@@ -45,9 +45,16 @@ export default class VerifiedPopover extends Component<VerifiedPopoverAttrs> {
     // the previous design had. When no description is configured for a tier,
     // we fall back to the universal "identidade verificada" translation so
     // the popover never renders empty.
+    //
+    // Defense-in-depth (§9.2): `tier.description` ALREADY went through
+    // `sanitiseDescription` in `tiers.ts:normalise` AND server-side
+    // `TierConfig::sanitiseDescription`. We re-run the JS sanitiser at the
+    // render site so any future code path that builds a tier object outside
+    // `normalise` (admin previews, test fixtures, hot-reloaded settings)
+    // can't sneak raw HTML into `m.trust`.
     const tierDescription = tier && tier.description ? tier.description : null;
     const headline: Mithril.Children = tierDescription
-      ? m.trust(tierDescription)
+      ? m.trust(sanitiseDescription(tierDescription))
       : app.translator.trans("ramon-verified.lib.popover.headline");
 
     const learnMoreUrl = tier && tier.learnMoreUrl ? tier.learnMoreUrl : "";

@@ -62,7 +62,21 @@ class VerifyUserController implements RequestHandlerInterface
         }
 
         $isSelf = (int) $actor->id === $userId;
+        $method = strtoupper($request->getMethod());
+
+        // Gate explícito por rota (§3, §4): cross-user sempre exige
+        // `verifyUsers`; self-revoke é uma capabilidade separada
+        // (`selfRevoke`, default MEMBER_ID) que admins podem desabilitar sem
+        // afetar a permissão de moderação. Sem o gate, qualquer membro
+        // verificado dropa o próprio badge bypassando o painel admin.
         if (! $isSelf) {
+            $actor->assertCan('verified.verifyUsers');
+        } elseif ($method === 'DELETE') {
+            if (! $actor->hasPermission('verified.selfRevoke')
+                && ! $actor->hasPermission('verified.verifyUsers')) {
+                $actor->assertCan('verified.selfRevoke');
+            }
+        } else {
             $actor->assertCan('verified.verifyUsers');
         }
 
@@ -81,18 +95,13 @@ class VerifyUserController implements RequestHandlerInterface
             ? trim($body['tier'])
             : null;
 
-        $method = strtoupper($request->getMethod());
-        $now    = Carbon::now();
+        $now = Carbon::now();
 
         if ($method === 'DELETE') {
             if ($isSelf && ! $actor->isAdmin()) {
                 $note = $this->translator->trans('ramon-verified.api.self_revoked_note');
             }
             return $this->unverify($target, $actor, $note, $now);
-        }
-
-        if ($isSelf && ! $actor->isAdmin()) {
-            $actor->assertCan('verified.verifyUsers');
         }
 
         return $this->verify($target, $actor, $note, $tierId, $now);
