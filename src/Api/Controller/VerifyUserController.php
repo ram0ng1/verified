@@ -9,7 +9,6 @@ use Flarum\Locale\TranslatorInterface;
 use Flarum\Settings\SettingsRepositoryInterface;
 use Flarum\User\User;
 use Illuminate\Contracts\Events\Dispatcher;
-use Illuminate\Database\ConnectionInterface;
 use Laminas\Diactoros\Response\JsonResponse;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
@@ -17,7 +16,6 @@ use Psr\Http\Server\RequestHandlerInterface;
 use Ramon\Verified\Documents\DocumentRetention;
 use Ramon\Verified\Event\UserVerified;
 use Ramon\Verified\Models\VerificationRequest;
-use Ramon\Verified\TierConfig;
 use Ramon\Verified\TierResolver;
 use Ramon\Verified\VerifiedStatus;
 
@@ -37,9 +35,19 @@ class VerifyUserController implements RequestHandlerInterface
         protected DocumentRetention $retention,
         protected SettingsRepositoryInterface $settings,
         protected TierResolver $tiers,
-        protected ConnectionInterface $db,
         protected VerifiedStatus $verifiedStatus
     ) {
+    }
+
+    /**
+     * Executa o callback dentro de uma transação do connection do Flarum.
+     * Pega o connection pelo próprio model em vez de injetar
+     * `ConnectionInterface` — assim o controller declara só dependências de
+     * domínio, e a transação herda o resolver de connection do core.
+     */
+    private function transaction(callable $cb): mixed
+    {
+        return VerificationRequest::query()->getConnection()->transaction($cb);
     }
 
     public function handle(ServerRequestInterface $request): ResponseInterface
@@ -100,10 +108,10 @@ class VerifyUserController implements RequestHandlerInterface
             throw new ValidationException(['status' => $this->translator->trans('ramon-verified.api.already_verified')]);
         }
 
-        $resolvedTierId = $this->resolveTierId($tierId);
+        $resolvedTierId = $this->tiers->resolveRequestedTierId($tierId);
         $adminNote      = $note ?: $this->translator->trans('ramon-verified.api.verified_by_admin_note');
 
-        $this->db->transaction(function () use ($target, $actor, $now, $resolvedTierId, $adminNote) {
+        $this->transaction(function () use ($target, $actor, $now, $resolvedTierId, $adminNote) {
             $flippedRows = VerificationRequest::query()
                 ->where('user_id', $target->id)
                 ->where('status', VerificationRequest::STATUS_PENDING)
@@ -166,7 +174,7 @@ class VerifyUserController implements RequestHandlerInterface
 
         $defaultNote = $this->translator->trans('ramon-verified.api.revoked_default_note');
 
-        $this->db->transaction(function () use ($target, $actor, $note, $now, $defaultNote) {
+        $this->transaction(function () use ($target, $actor, $note, $now, $defaultNote) {
             VerificationRequest::query()->insert([
                 'user_id'    => (int) $target->id,
                 'status'     => VerificationRequest::STATUS_REJECTED,
@@ -203,27 +211,5 @@ class VerifyUserController implements RequestHandlerInterface
             ],
             'meta' => $meta,
         ], 200);
-    }
-
-    /**
-     * Resolve o tier requisitado contra a lista configurada. Falls back ao
-     * default (ou ao primeiro tier configurado) para que input ausente ou
-     * inválido nunca bloqueie um verify. Lista vazia devolve `null` —
-     * resource layer renderiza fallback.
-     */
-    private function resolveTierId(?string $requested): ?string
-    {
-        $tiers = TierConfig::fromSettings($this->settings);
-        if (empty($tiers)) {
-            return null;
-        }
-
-        if ($requested) {
-            $found = TierConfig::findById($tiers, $requested);
-            if ($found) return $found['id'];
-        }
-
-        $fallback = TierConfig::findById($tiers, TierConfig::DEFAULT_TIER_ID) ?? $tiers[0];
-        return $fallback['id'];
     }
 }
