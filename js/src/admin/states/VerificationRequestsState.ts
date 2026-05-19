@@ -35,8 +35,20 @@ export default class VerificationRequestsState {
   busy: Record<string, boolean> = {};
 
   private tabs: Record<"pending" | "rejected", TabState> = {
-    pending: { loading: false, loaded: false, requests: [], total: 0, offset: 0 },
-    rejected: { loading: false, loaded: false, requests: [], total: 0, offset: 0 },
+    pending: {
+      loading: false,
+      loaded: false,
+      requests: [],
+      total: 0,
+      offset: 0,
+    },
+    rejected: {
+      loading: false,
+      loaded: false,
+      requests: [],
+      total: 0,
+      offset: 0,
+    },
   };
 
   loadingFor(tab: "pending" | "rejected"): boolean {
