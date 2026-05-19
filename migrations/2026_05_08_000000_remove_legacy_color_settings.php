@@ -2,6 +2,11 @@
 
 use Illuminate\Database\Schema\Builder;
 
+/**
+ * Limpa settings legados de cor que foram substituídos pela config multi-tier.
+ * Sem helper `Migration::*` para esse caso — alcança a conexão pelo
+ * `SchemaBuilder` (único argumento passado pelo migrator do Flarum).
+ */
 return [
     'up' => function (Builder $schema) {
         $schema->getConnection()
@@ -13,6 +18,5 @@ return [
             ->delete();
     },
     'down' => function (Builder $schema) {
-        // No rollback — defaults are restored on extension boot if reintroduced.
     },
 ];

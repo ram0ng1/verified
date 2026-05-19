@@ -1,22 +1,22 @@
 /**
  * Verified-badge SVG resolution.
  *
- * Resolution order:
- *  1. Custom SVG content stored on the `ramonVerifiedBadgeSvgContent`
- *     setting (sanitised at upload time on the server). Inlined into the
- *     forum payload ONLY when small enough — see
- *     `UploadBadgeSvgController::INLINE_SVG_THRESHOLD` (8 KB). When set,
- *     it's available synchronously on every page load with no fetch race.
- *  2. Async-fetched custom SVG: the asset at `ramonVerifiedBadgeSvgPath`
- *     is loaded over HTTP once per session, sanitised in the browser,
- *     cached in module memory + sessionStorage, and triggers a redraw
- *     when ready. Used for larger custom SVGs that aren't worth inlining
- *     into every forum payload (audit H-SVG).
- *  3. Default Twitter-style verified mark.
+ * Order de prioridade:
+ *  1. Tier customizado: quando o tier do usuário tem `badgeEnabled=true`
+ *     com um `badgeSvg` válido, o SVG do tier vence todos os fallbacks.
+ *     Sanitização foi feita server-side em `TierConfig::parse`; aqui
+ *     ainda revalidamos antes do `m.trust` (defesa em profundidade).
+ *  2. Custom SVG global em `ramonVerifiedBadgeSvgContent`. Inlined se
+ *     pequeno (cap em `UploadBadgeSvgController::INLINE_SVG_THRESHOLD`).
+ *  3. Custom SVG global em `ramonVerifiedBadgeSvgPath` — fetch assíncrono
+ *     com cache em sessionStorage para SVGs maiores.
+ *  4. Default Twitter-style verified mark.
  *
- * The SVG fill is rewritten to `currentColor` server-side, so the badge
- * inherits the CSS `color` applied by the parent `.VerifiedBadge` element.
+ * O fill é reescrito para `currentColor`, então a cor do CSS sobre o
+ * elemento pai pilota o resultado visual.
  */
+
+import type { VerifiedTier } from "./tiers";
 
 const SEAL_PATH =
   "M20.396 11c-.018-.646-.215-1.275-.57-1.816-.354-.54-.852-.972-1.438-1.246.223-.607.27-1.264.14-1.897-.131-.634-.437-1.218-.882-1.687-.47-.445-1.053-.75-1.687-.882-.633-.13-1.29-.083-1.897.14-.273-.587-.704-1.086-1.245-1.44S11.647 1.62 11 1.604c-.646.017-1.273.213-1.813.568s-.969.854-1.24 1.44c-.608-.223-1.267-.272-1.902-.14-.635.13-1.22.436-1.69.882-.445.47-.749 1.055-.878 1.688-.13.633-.08 1.29.144 1.896-.587.274-1.087.705-1.443 1.245-.356.54-.555 1.17-.574 1.817.02.647.218 1.276.574 1.817.356.54.856.972 1.443 1.245-.224.606-.274 1.263-.144 1.896.13.634.433 1.218.877 1.688.47.443 1.054.747 1.687.878.633.132 1.29.084 1.897-.136.274.586.705 1.084 1.246 1.439.54.354 1.17.551 1.816.569.647-.016 1.276-.213 1.817-.567s.972-.854 1.245-1.44c.604.239 1.266.296 1.903.164.636-.132 1.22-.447 1.68-.907.46-.46.776-1.044.908-1.681s.075-1.299-.165-1.903c.586-.274 1.084-.705 1.439-1.246.354-.54.551-1.17.569-1.816z";
@@ -31,6 +31,26 @@ const DEFAULT_VERIFIED_SVG: string =
 
 let cachedCustomSvg: string | null = null;
 let cachedFromAttribute: string | null = null;
+
+/**
+ * LRU bounded em ~32 entradas. No forum o map estaciona em ≤ N_tiers
+ * (configurado pelo admin, na prática 3-8). No painel admin do TiersEditor
+ * cada redraw alimenta o cache com SVG cru não-persistido — sem o cap, a
+ * sessão admin de horas cresceria sem teto. 32 é folga
+ * confortável para qualquer setup razoável.
+ */
+const TIER_BADGE_CACHE_LIMIT = 32;
+const tierBadgeCache = new Map<string, string | null>();
+
+function rememberTierBadge(raw: string, clean: string | null): void {
+  if (tierBadgeCache.has(raw)) {
+    tierBadgeCache.delete(raw);
+  } else if (tierBadgeCache.size >= TIER_BADGE_CACHE_LIMIT) {
+    const oldest = tierBadgeCache.keys().next().value;
+    if (oldest !== undefined) tierBadgeCache.delete(oldest);
+  }
+  tierBadgeCache.set(raw, clean);
+}
 
 // State for the async URL-fetch path.
 let cachedFetchedSvg: string | null = null;
@@ -66,23 +86,53 @@ export function resolveAssetUrl(
 }
 
 /**
+ * Aplica cada regex em loop até a string parar de mudar. Necessário porque
+ * uma única passada pode deixar fragmentos que se recombinam (ex.:
+ * `<<!--!-->!--X-->` vira `<!--X-->` após a primeira remoção). Loop até
+ * fixed-point garante remoção completa.
+ */
+function stripUntilStable(input: string, patterns: RegExp[]): string {
+  let previous: string;
+  let current = input;
+  do {
+    previous = current;
+    for (const pattern of patterns) {
+      current = current.replace(pattern, "");
+    }
+  } while (current !== previous);
+  return current;
+}
+
+/**
  * Defensive sanitiser. The backend already strips scripts and event
  * handlers on upload, but we re-validate before injecting via `m.trust`
  * so a tampered settings row can't smuggle XSS through the frontend.
+ *
+ * `<!DOCTYPE>` e `<!ENTITY>` são removidos via regex antes do parse —
+ * SVGs reais (Inkscape/Illustrator) sempre carregam DOCTYPE no header.
+ * Rejeitar quebraria 90 % dos uploads. Como o DOMParser não expande
+ * entidades externas e não pedimos `LIBXML_NOENT` no servidor, removê-las
+ * inteiramente é equivalente a "rejeitar tudo que tenta abrir entidade"
+ * sem o falso positivo.
  */
 export function sanitizeSvg(raw: unknown): string | null {
   if (typeof raw !== "string") return null;
-  const trimmed = raw.trim();
+  let trimmed = raw.trim();
   if (!trimmed) return null;
-  if (
-    !/^<\?xml[^?]*\?>\s*<svg[\s>]/i.test(trimmed) &&
-    !/^<svg[\s>]/i.test(trimmed)
-  )
-    return null;
+
+  trimmed = stripUntilStable(trimmed, [
+    /<!DOCTYPE\b[^>\[]*(?:\[[\s\S]*?\])?\s*>/gi,
+    /<!ENTITY\b[\s\S]*?>/gi,
+    /<!--[\s\S]*?-->/g,
+  ])
+    .replace(/^<\?xml\b[^?]*\?>/i, "")
+    .trim();
+  if (!trimmed) return null;
+
+  if (!/^<svg[\s>]/i.test(trimmed)) return null;
   if (/<\s*script\b/i.test(trimmed)) return null;
   if (/\son\w+\s*=/i.test(trimmed)) return null;
   if (/javascript:/i.test(trimmed)) return null;
-  if (/<!ENTITY/i.test(trimmed) || /<!DOCTYPE/i.test(trimmed)) return null;
 
   if (typeof DOMParser === "undefined") return trimmed;
 
@@ -112,7 +162,7 @@ export function sanitizeSvg(raw: unknown): string | null {
       "symbol",
     ]);
 
-    const walker = doc.createTreeWalker(root, 1 /* SHOW_ELEMENT */);
+    const walker = doc.createTreeWalker(root, 1);
     const toRemove: Element[] = [];
     let node: Node | null = walker.currentNode;
     while (node) {
@@ -126,11 +176,6 @@ export function sanitizeSvg(raw: unknown): string | null {
           if (an.startsWith("on")) {
             el.removeAttribute(attr.name);
           } else if (an === "href" || an === "xlink:href") {
-            // Reject `javascript:` AND cross-origin / protocol-relative
-            // URLs — the latter lets a tampered custom-badge SVG turn
-            // every render into an outbound GET to a third-party origin
-            // (tracker / SSRF-lite). The server-side sanitiser mirrors
-            // this rejection.
             if (
               /javascript:/i.test(attr.value) ||
               /^(https?:)?\/\//i.test(attr.value)
@@ -139,6 +184,8 @@ export function sanitizeSvg(raw: unknown): string | null {
             }
           }
         }
+
+        rewriteFillToCurrentColor(el);
       }
       node = walker.nextNode();
     }
@@ -147,6 +194,36 @@ export function sanitizeSvg(raw: unknown): string | null {
     return new XMLSerializer().serializeToString(root);
   } catch (e) {
     return null;
+  }
+}
+
+/**
+ * Espelha `UploadBadgeSvgController::replaceFillsWithCurrentColor` no
+ * cliente: reescreve `fill` (exceto `none`/`transparent`/branco-ish) para
+ * `currentColor` e remove `fill:` de `style` inline. Sem isso, o preview
+ * do admin não herda a cor do tier antes do save.
+ */
+function rewriteFillToCurrentColor(el: Element): void {
+  if (el.hasAttribute("fill")) {
+    const v = (el.getAttribute("fill") || "").trim().toLowerCase();
+    const skip =
+      v === "" ||
+      v === "none" ||
+      v === "transparent" ||
+      v === "white" ||
+      v === "#fff" ||
+      v === "#ffffff" ||
+      /^rgba?\(\s*255\s*,\s*255\s*,\s*255(\s*,\s*[0-9.]+)?\s*\)$/.test(v);
+    if (!skip) el.setAttribute("fill", "currentColor");
+  }
+
+  if (el.hasAttribute("style")) {
+    const cleaned = (el.getAttribute("style") || "")
+      .replace(/\s*fill\s*:\s*[^;]+;?/gi, "")
+      .replace(/[;\s]+$/, "")
+      .trim();
+    if (cleaned === "") el.removeAttribute("style");
+    else el.setAttribute("style", cleaned);
   }
 }
 
@@ -222,10 +299,6 @@ function fetchCustomSvg(url: string): void {
   if (inflightFetchUrl === url) return;
   inflightFetchUrl = url;
 
-  // Same-origin guard (CLAUDE.md §14): only fetch when the asset URL
-  // lives on the forum's own origin. A tampered setting that pointed
-  // at an external host would otherwise turn this into a browser-side
-  // SSRF helper.
   let parsed: URL;
   try {
     parsed = new URL(url, location.origin);
@@ -273,13 +346,37 @@ function fetchCustomSvg(url: string): void {
 }
 
 /**
- * Synchronously returns the badge SVG markup. Uses the inlined setting
- * when available, falls back to a previously-fetched-and-cached SVG
- * from the asset URL, otherwise returns the default mark while a
- * background fetch (if a custom path is configured) populates the
- * cache for the next render.
+ * SVG do tier quando o tier tem badge customizado opt-in. O cache keyado
+ * pelo SVG cru evita re-sanitizar a cada render — relevante em listagens
+ * com muitos avatares verificados.
  */
-export default function getBadgeSvg(): string {
+function getTierBadgeSvg(tier: VerifiedTier | null | undefined): string | null {
+  if (!tier || !tier.badgeEnabled) return null;
+  const raw = tier.badgeSvg;
+  if (typeof raw !== "string" || !raw.trim()) return null;
+
+  if (tierBadgeCache.has(raw)) {
+    const hit = tierBadgeCache.get(raw) ?? null;
+    rememberTierBadge(raw, hit);
+    return hit;
+  }
+
+  const clean = sanitizeSvg(raw);
+  rememberTierBadge(raw, clean);
+  return clean;
+}
+
+/**
+ * SVG do badge para render imediato. Aceita um tier opcional — quando o
+ * tier tem badge customizado, vence o resolvedor global; sem isso,
+ * resolve via setting global → URL → default.
+ */
+export default function getBadgeSvg(
+  tier?: VerifiedTier | null | undefined,
+): string {
+  const tierSvg = getTierBadgeSvg(tier);
+  if (tierSvg) return tierSvg;
+
   try {
     const raw = readSetting(
       "ramonVerifiedBadgeSvgContent",

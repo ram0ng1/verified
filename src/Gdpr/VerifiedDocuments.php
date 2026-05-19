@@ -2,42 +2,49 @@
 
 namespace Ramon\Verified\Gdpr;
 
-use Flarum\Foundation\Paths;
 use Flarum\Gdpr\Data\Type;
+use Flarum\Gdpr\Models\ErasureRequest;
+use Flarum\Http\UrlGenerator;
+use Flarum\Settings\SettingsRepositoryInterface;
+use Flarum\User\User;
+use Illuminate\Contracts\Container\Container;
+use Illuminate\Contracts\Filesystem\Factory;
+use Illuminate\Contracts\Filesystem\Filesystem;
 use Ramon\Verified\Crypto\DocumentCipher;
+use Ramon\Verified\Documents\DocumentPathResolver;
+use Ramon\Verified\Models\UserVerification;
 use Ramon\Verified\Models\VerificationRequest;
+use Ramon\Verified\VerifiedStatus;
+use Symfony\Contracts\Translation\TranslatorInterface;
 use Throwable;
 
 /**
- * GDPR DataType — exposes the data this extension stores per user to
- * flarum/gdpr's export / anonymize / delete pipeline.
- *
- * What this DataType covers, per user:
- *   - rows in `verification_requests` (as submitter AND as handler)
- *   - the actual document files in `storage/verified-documents/{userId}/`
- *   - the verified_at / verified_by / is_verified columns on `users`
- *
- * Lifecycle:
- *   - export()    → bundle everything (request rows JSON + raw documents) into the user's export zip
- *   - anonymize() → strip PII (reason / admin_note / document_path), nuke document files, null out handled_by references
- *   - delete()    → hard-delete every request + documents, reset verified state
- *
- * NOTE: this class extends `Flarum\Gdpr\Data\Type`, which only exists when
- * flarum/gdpr is installed. The class is only autoloaded when our extend.php
- * registers it (which we gate with `class_exists` on the GDPR extender), so
- * forums without flarum/gdpr never trigger autoload of this file.
+ * DataType do flarum/gdpr. Exporta/anonimiza/deleta as linhas de
+ * `verification_requests` e o estado em `user_verification` deste usuário.
+ * Aceita `DocumentCipher` opcional no 7º arg para uso em testes.
  */
 class VerifiedDocuments extends Type
 {
+    public function __construct(
+        User $user,
+        ?ErasureRequest $erasureRequest,
+        Factory $factory,
+        SettingsRepositoryInterface $settings,
+        UrlGenerator $url,
+        TranslatorInterface $translator,
+        protected ?DocumentCipher $cipher = null
+    ) {
+        parent::__construct($user, $erasureRequest, $factory, $settings, $url, $translator);
+    }
+
     public static function dataType(): string
     {
         return 'VerifiedDocuments';
     }
 
     /**
-     * Fields treated as PII when GDPR serializes events for external sinks
-     * (message brokers etc.) — these get masked even when the rest of the
-     * request payload is forwarded.
+     * Campos tratados como PII quando o GDPR serializa eventos para sinks
+     * externos. Mascarados mesmo quando o restante do payload é encaminhado.
      */
     public static function piiFields(): array
     {
@@ -63,13 +70,13 @@ class VerifiedDocuments extends Type
     {
         $exportData = [];
 
-        // Verified status snapshot — always include, even if no requests exist.
+        $status = $this->statusService();
+
         $exportData[] = ['verified/status.json' => $this->encodeForExport([
-            'is_verified' => (bool) $this->user->is_verified,
-            'verified_at' => optional($this->user->verified_at)->toRfc3339String(),
+            'is_verified' => $status ? $status->isVerified($this->user) : false,
+            'verified_at' => $status ? optional($status->verifiedAt($this->user))->toRfc3339String() : null,
         ])];
 
-        // Verification requests (as submitter).
         $submitted = VerificationRequest::query()
             ->where('user_id', $this->user->id)
             ->orderBy('created_at', 'asc')
@@ -88,11 +95,6 @@ class VerifiedDocuments extends Type
             ])];
         }
 
-        // Verification requests this user handled as an admin. We export
-        // only the action footprint (request id + their own admin_note +
-        // when), strictly scoped to data this user generated. NO submitter
-        // identifier is included — that would be data about another person,
-        // outside the GDPR scope of "the data subject's own data".
         $handled = VerificationRequest::query()
             ->where('handled_by', $this->user->id)
             ->orderBy('handled_at', 'asc')
@@ -107,8 +109,6 @@ class VerifiedDocuments extends Type
             ])];
         }
 
-        // Bundle the actual document files — these are the actor's own ID
-        // photos / PDFs, so they belong in their export.
         foreach ($this->collectDocumentFiles() as $name => $contents) {
             $exportData[] = ["verified/documents/{$name}" => $contents];
         }
@@ -116,10 +116,13 @@ class VerifiedDocuments extends Type
         return $exportData;
     }
 
+    /**
+     * Remove a PII das linhas, preservando o trilho de auditoria (status,
+     * datas). O `is_verified` permanece intencionalmente — o histórico
+     * espera o flag verdadeiro mesmo após a anonimização.
+     */
     public function anonymize(): void
     {
-        // Strip PII from request rows but keep the audit trail (status, dates)
-        // so other forum data referencing these requests stays consistent.
         VerificationRequest::query()
             ->where('user_id', $this->user->id)
             ->update([
@@ -128,76 +131,65 @@ class VerifiedDocuments extends Type
                 'document_path' => null,
             ]);
 
-        // Where the user acted as a handler (admin), null the back-reference
-        // so we don't keep a foreign key to an anonymized identity.
         VerificationRequest::query()
             ->where('handled_by', $this->user->id)
             ->update(['handled_by' => null]);
 
-        // Documents themselves are PII (government IDs, photos) — wipe them.
         $this->deleteDocumentFiles();
 
-        // Verified state is part of the user identity — let it carry through
-        // anonymization. The Gdpr User type doesn't touch our columns since
-        // it doesn't know about them, and we don't want is_verified flipped
-        // either (the audit trail expects it). Reset only `verified_by` to
-        // detach from any handler that no longer means anything.
-        $this->user->verified_by = null;
-        $this->user->save();
+        $row = UserVerification::query()->where('user_id', $this->user->id)->first();
+        if ($row instanceof UserVerification) {
+            $row->verified_by = null;
+            $row->save();
+        }
     }
 
     public function delete(): void
     {
-        // Hard-delete all requests submitted by the user.
         VerificationRequest::query()
             ->where('user_id', $this->user->id)
             ->delete();
 
-        // Detach handler back-references on rows the user previously moderated.
         VerificationRequest::query()
             ->where('handled_by', $this->user->id)
             ->update(['handled_by' => null]);
 
-        // Delete document files from storage/verified-documents/{id}/.
         $this->deleteDocumentFiles();
 
-        // Reset the verified columns. The user model itself is deleted by the
-        // Gdpr User type (which runs in the same erasure pipeline), but if
-        // some other DataType saves the user later, we want a clean slate.
-        $this->user->is_verified = false;
-        $this->user->verified_at = null;
-        $this->user->verified_by = null;
-        $this->user->save();
+        $this->statusService()?->clear($this->user);
     }
 
     /**
-     * Read every file in the user's verified-documents directory and return
-     * `[filename => binary contents]`. Returns an empty array when the
-     * directory doesn't exist.
+     * Lê cada arquivo do diretório do usuário no disco privado e devolve
+     * `[filename => bytes]`. Arquivos cifrados sem chave privada disponível
+     * são pulados e contabilizados em `_encrypted_skipped.txt` — o sujeito
+     * tem direito ao próprio dado em claro, então ciphertext nunca sai no
+     * export.
      */
     private function collectDocumentFiles(): array
     {
-        $dir = $this->getUserDocumentsDirectory();
-        if (! is_dir($dir)) return [];
+        $disk    = $this->disk();
+        $userDir = (new DocumentPathResolver())->userDirectory((int) $this->user->id);
 
-        // Decrypt on the fly when the file is sealed. The data subject is
-        // entitled to receive their own data in clear — so we only export
-        // a file if we can produce its plaintext. If the private key is
-        // missing in config.php, encrypted files are skipped (logged via
-        // the export marker file below) rather than emitted as ciphertext.
+        if (! $disk->directoryExists($userDir)) {
+            return [];
+        }
+
         $cipher = $this->resolveCipher();
 
         $out = [];
         $skippedEncrypted = 0;
-        $entries = @scandir($dir) ?: [];
 
-        foreach ($entries as $entry) {
-            if ($entry === '.' || $entry === '..') continue;
-            $full = $dir.DIRECTORY_SEPARATOR.$entry;
-            if (! is_file($full)) continue;
+        foreach ($disk->files($userDir) as $relative) {
+            $name = basename($relative);
+            if ($name === '.' || $name === '..') continue;
 
-            $contents = @file_get_contents($full);
-            if ($contents === false) continue;
+            try {
+                $contents = $disk->get($relative);
+            } catch (Throwable $e) {
+                continue;
+            }
+            if (! is_string($contents)) continue;
 
             if (DocumentCipher::isEncryptedBlob($contents)) {
                 if ($cipher === null || ! $cipher->canDecrypt()) {
@@ -212,11 +204,9 @@ class VerifiedDocuments extends Type
                 }
             }
 
-            $out[$entry] = $contents;
+            $out[$name] = $contents;
         }
 
-        // Surface skipped files so the export ZIP makes the gap explicit
-        // instead of looking like the user simply had nothing on file.
         if ($skippedEncrypted > 0) {
             $out['_encrypted_skipped.txt'] =
                 "{$skippedEncrypted} encrypted document file(s) could not be exported because\n"
@@ -226,40 +216,61 @@ class VerifiedDocuments extends Type
         return $out;
     }
 
-    private function resolveCipher(): ?DocumentCipher
+    private function deleteDocumentFiles(): void
+    {
+        $disk    = $this->disk();
+        $userDir = (new DocumentPathResolver())->userDirectory((int) $this->user->id);
+
+        if (! $disk->directoryExists($userDir)) {
+            return;
+        }
+
+        try {
+            $disk->deleteDirectory($userDir);
+        } catch (Throwable $e) {
+        }
+    }
+
+    private function disk(): Filesystem
+    {
+        return $this->getDisk(DocumentPathResolver::DISK);
+    }
+
+    /**
+     * `VerifiedStatus` é resolvido pelo container — GDPR instancia este
+     * Type com 6 args fixos (Exporter / ErasureJob), então DI direta no
+     * construtor não é possível (mesma restrição do `resolveCipher`).
+     * Try/catch alinhado com `resolveCipher`: classe concreta autowire
+     * raramente falha, mas a borda fica defensiva.
+     */
+    private function statusService(): ?VerifiedStatus
     {
         try {
-            return resolve(DocumentCipher::class);
+            return Container::getInstance()->make(VerifiedStatus::class);
         } catch (Throwable $e) {
             return null;
         }
     }
 
     /**
-     * Remove every file in the user's verified-documents directory and the
-     * directory itself. Silent on permission errors — the caller is the
-     * GDPR pipeline, which logs failures upstream.
+     * Resolve o `DocumentCipher` pelo container quando não foi injetado.
+     * GDPR chama `new $type(...)` com 6 args fixos, então o construtor desta
+     * classe não pode pedir o cipher via DI direta — o §44.3 sanciona
+     * `Container::make` com `bound()` como alternativa explícita ao
+     * `resolve()` global.
      */
-    private function deleteDocumentFiles(): void
+    private function resolveCipher(): ?DocumentCipher
     {
-        $dir = $this->getUserDocumentsDirectory();
-        if (! is_dir($dir)) return;
-
-        $entries = @scandir($dir) ?: [];
-        foreach ($entries as $entry) {
-            if ($entry === '.' || $entry === '..') continue;
-            $full = $dir.DIRECTORY_SEPARATOR.$entry;
-            if (is_file($full)) @unlink($full);
+        if ($this->cipher !== null) {
+            return $this->cipher;
         }
-        @rmdir($dir);
-    }
 
-    private function getUserDocumentsDirectory(): string
-    {
-        /** @var Paths $paths */
-        $paths = resolve(Paths::class);
-        return rtrim($paths->storage, '/\\')
-            .DIRECTORY_SEPARATOR.'verified-documents'
-            .DIRECTORY_SEPARATOR.((int) $this->user->id);
+        $container = Container::getInstance();
+
+        try {
+            return $this->cipher = $container->make(DocumentCipher::class);
+        } catch (Throwable $e) {
+            return null;
+        }
     }
 }
