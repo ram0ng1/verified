@@ -91,6 +91,25 @@ class UploadBadgeSvgController extends UploadImageController
     }
 
     /**
+     * Aplica cada padrão em loop até a string parar de mudar. Strip de
+     * uma passada deixa recombinações (`<<!--!-->!--X-->` → `<!--X-->`);
+     * loop até fixed-point garante remoção completa.
+     *
+     * @param string[] $patterns
+     */
+    private static function stripUntilStable(string $input, array $patterns): string
+    {
+        do {
+            $previous = $input;
+            foreach ($patterns as $pattern) {
+                $input = (string) preg_replace($pattern, '', $input);
+            }
+        } while ($input !== $previous);
+
+        return $input;
+    }
+
+    /**
      * Sanitiza um SVG. Devolve string vazia em entrada não-parseável;
      * `throwOnInvalid=true` lança ValidationException em vez disso.
      */
@@ -98,9 +117,11 @@ class UploadBadgeSvgController extends UploadImageController
     {
         if ($content === '') return '';
 
-        $content = preg_replace('/<!DOCTYPE\b[^>\[]*(?:\[[\s\S]*?\])?\s*>/i', '', $content);
-        $content = preg_replace('/<!ENTITY\b[\s\S]*?>/i', '', $content);
-        $content = ltrim((string) $content);
+        $content = self::stripUntilStable($content, [
+            '/<!DOCTYPE\b[^>\[]*(?:\[[\s\S]*?\])?\s*>/i',
+            '/<!ENTITY\b[\s\S]*?>/i',
+        ]);
+        $content = ltrim($content);
 
         if ($content === '') {
             if ($throwOnInvalid) {

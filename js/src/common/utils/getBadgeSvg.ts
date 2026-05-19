@@ -86,6 +86,24 @@ export function resolveAssetUrl(
 }
 
 /**
+ * Aplica cada regex em loop até a string parar de mudar. Necessário porque
+ * uma única passada pode deixar fragmentos que se recombinam (ex.:
+ * `<<!--!-->!--X-->` vira `<!--X-->` após a primeira remoção). Loop até
+ * fixed-point garante remoção completa.
+ */
+function stripUntilStable(input: string, patterns: RegExp[]): string {
+  let previous: string;
+  let current = input;
+  do {
+    previous = current;
+    for (const pattern of patterns) {
+      current = current.replace(pattern, "");
+    }
+  } while (current !== previous);
+  return current;
+}
+
+/**
  * Defensive sanitiser. The backend already strips scripts and event
  * handlers on upload, but we re-validate before injecting via `m.trust`
  * so a tampered settings row can't smuggle XSS through the frontend.
@@ -102,10 +120,11 @@ export function sanitizeSvg(raw: unknown): string | null {
   let trimmed = raw.trim();
   if (!trimmed) return null;
 
-  trimmed = trimmed
-    .replace(/<!DOCTYPE\b[^>\[]*(?:\[[\s\S]*?\])?\s*>/gi, "")
-    .replace(/<!ENTITY\b[\s\S]*?>/gi, "")
-    .replace(/<!--[\s\S]*?-->/g, "")
+  trimmed = stripUntilStable(trimmed, [
+    /<!DOCTYPE\b[^>\[]*(?:\[[\s\S]*?\])?\s*>/gi,
+    /<!ENTITY\b[\s\S]*?>/gi,
+    /<!--[\s\S]*?-->/g,
+  ])
     .replace(/^<\?xml\b[^?]*\?>/i, "")
     .trim();
   if (!trimmed) return null;
