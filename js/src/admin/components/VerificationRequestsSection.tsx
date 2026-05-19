@@ -100,10 +100,20 @@ export default class VerificationRequestsSection extends Component<ComponentAttr
       );
     }
 
+    const hidden = this.requests.hiddenCount();
+
     return (
-      <ul className="VerifiedRequests-list">
-        {list.map((r) => this.renderItem(r))}
-      </ul>
+      <>
+        <ul className="VerifiedRequests-list">
+          {list.map((r) => this.renderItem(r))}
+        </ul>
+        {hidden > 0 && (
+          <p className="VerifiedRequests-truncated">
+            <i className="icon fas fa-circle-info" aria-hidden="true" />{" "}
+            {trans("truncated", { hidden })}
+          </p>
+        )}
+      </>
     );
   }
 

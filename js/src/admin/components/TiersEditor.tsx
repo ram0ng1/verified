@@ -7,8 +7,14 @@ import extractText from "flarum/common/utils/extractText";
 import type Mithril from "mithril";
 
 import getBadgeSvg, { getBadgeSize } from "../../common/utils/getBadgeSvg";
-import { sanitiseDescription } from "../../common/utils/tiers";
-import TiersEditorState, { TierRow } from "../states/TiersEditorState";
+import {
+  sanitiseDescription,
+  type VerifiedTier,
+} from "../../common/utils/tiers";
+import TiersEditorState, {
+  BADGE_SVG_MAX,
+  TierRow,
+} from "../states/TiersEditorState";
 import { wrapTextareaSelection } from "../utils/textareaMarkup";
 
 const trans = (key: string) =>
@@ -83,6 +89,9 @@ export default class TiersEditor extends Component<ComponentAttrs> {
       ? row.color
       : "var(--primary-color)";
     const groupCount = row.autoGroups.length;
+    const swatchTier = this.rowAsTier(row);
+    const swatchHasCustomBadge =
+      swatchTier.badgeEnabled && !!swatchTier.badgeSvg;
 
     return (
       <li
@@ -98,8 +107,18 @@ export default class TiersEditor extends Component<ComponentAttrs> {
           aria-expanded={isExpanded}
           onclick={() => this.tiers.toggleExpand(idx)}
         >
-          <span className="VerifiedTier-swatch" aria-hidden="true">
-            <i className="icon fas fa-certificate" />
+          <span
+            className={
+              "VerifiedTier-swatch" +
+              (swatchHasCustomBadge ? " VerifiedTier-swatch--custom" : "")
+            }
+            aria-hidden="true"
+          >
+            {swatchHasCustomBadge ? (
+              m.trust(getBadgeSvg(swatchTier))
+            ) : (
+              <i className="icon fas fa-certificate" />
+            )}
           </span>
 
           <span className="VerifiedTier-titleBlock">
@@ -244,6 +263,8 @@ export default class TiersEditor extends Component<ComponentAttrs> {
             </div>
           </div>
         </div>
+
+        {this.renderBadgeSection(row, idx)}
 
         <div className="VerifiedTier-section">
           <h4 className="VerifiedTier-sectionTitle">
@@ -408,6 +429,174 @@ export default class TiersEditor extends Component<ComponentAttrs> {
   }
 
   /**
+   * Constrói a `VerifiedTier` virtual a partir da row em edição para que o
+   * preview e os consumidores de `getBadgeSvg(tier)` reflitam o estado
+   * presente da textarea (sem precisar recarregar a página).
+   */
+  protected rowAsTier(row: TierRow): VerifiedTier {
+    const trimmedSvg = (row.badgeSvg || "").trim();
+    const badgeEnabled = row.badgeEnabled && trimmedSvg.length > 0;
+
+    return {
+      id: row.id.trim().toLowerCase(),
+      label: row.label.trim(),
+      color: row.color.trim(),
+      description: row.description.trim(),
+      learnMoreUrl: row.learnMoreUrl.trim(),
+      autoGroups: row.autoGroups,
+      badgeEnabled,
+      badgeSvg: badgeEnabled ? trimmedSvg : "",
+    };
+  }
+
+  /**
+   * Seção opt-in para SVG customizado por tier. UI minimal: toggle, drop
+   * zone com preview do badge ativo (herdando a cor do tier via
+   * `currentColor`), botão "Substituir" + "Remover". O conteúdo bruto do
+   * SVG fica armazenado em estado mas nunca exposto como textarea — o
+   * admin trabalha com arquivos, não markup.
+   */
+  renderBadgeSection(row: TierRow, idx: number): Mithril.Children {
+    const fileInputId = `verified-tier-badge-file-${idx}`;
+    const trimmedSvg = (row.badgeSvg || "").trim();
+    const hasSvg = trimmedSvg.length > 0 && trimmedSvg.length <= BADGE_SVG_MAX;
+    const previewTier = this.rowAsTier(row);
+    const sizeKB = hasSvg ? (trimmedSvg.length / 1024).toFixed(1) : "0";
+
+    return (
+      <div className="VerifiedTier-section VerifiedTier-section--badge">
+        <div className="VerifiedTier-sectionHeader">
+          <div>
+            <h4 className="VerifiedTier-sectionTitle">
+              {trans("settings.tiers.section_badge")}
+            </h4>
+            <p className="VerifiedTier-sectionDesc">
+              {trans("settings.tiers.badge_toggle_help")}
+            </p>
+          </div>
+
+          <label
+            className={
+              "VerifiedTier-switch" +
+              (row.badgeEnabled ? " VerifiedTier-switch--on" : "")
+            }
+            title={extractText(trans("settings.tiers.badge_toggle_label"))}
+          >
+            <input
+              type="checkbox"
+              checked={row.badgeEnabled}
+              onchange={(e: Event) => {
+                const enabled = (e.target as HTMLInputElement).checked;
+                this.tiers.update(idx, {
+                  badgeEnabled: enabled,
+                  badgeSvg: enabled ? row.badgeSvg : "",
+                });
+              }}
+            />
+            <span className="VerifiedTier-switchTrack" aria-hidden="true">
+              <span className="VerifiedTier-switchThumb" />
+            </span>
+            <span className="VerifiedTier-switchLabel">
+              {row.badgeEnabled
+                ? trans("settings.tiers.badge_switch_on")
+                : trans("settings.tiers.badge_switch_off")}
+            </span>
+          </label>
+        </div>
+
+        {row.badgeEnabled && (
+          <div className="VerifiedTier-badgePicker">
+            <input
+              type="file"
+              id={fileInputId}
+              accept="image/svg+xml,.svg"
+              hidden
+              onchange={(e: Event) => this.handleBadgeFile(e, idx)}
+            />
+
+            {hasSvg ? (
+              <div className="VerifiedTier-badgeSlot">
+                <span
+                  className="VerifiedTier-badgeSlotPreview"
+                  aria-hidden="true"
+                >
+                  {m.trust(getBadgeSvg(previewTier))}
+                </span>
+                <span className="VerifiedTier-badgeSlotInfo">
+                  <strong>{trans("settings.tiers.badge_loaded")}</strong>
+                  <span className="VerifiedTier-badgeSlotMeta">
+                    {sizeKB} KB · {trans("settings.tiers.badge_size_max")}
+                  </span>
+                </span>
+                <span className="VerifiedTier-badgeSlotActions">
+                  <label
+                    className="Button Button--text VerifiedTier-badgeSlotBtn"
+                    htmlFor={fileInputId}
+                  >
+                    <i className="icon fas fa-rotate" />{" "}
+                    {trans("settings.tiers.badge_replace")}
+                  </label>
+                  <button
+                    type="button"
+                    className="Button Button--text VerifiedTier-badgeSlotBtn VerifiedTier-badgeSlotBtn--danger"
+                    onclick={() => this.tiers.update(idx, { badgeSvg: "" })}
+                  >
+                    <i className="icon fas fa-trash" />{" "}
+                    {trans("settings.tiers.badge_remove")}
+                  </button>
+                </span>
+              </div>
+            ) : (
+              <label className="VerifiedTier-dropzone" htmlFor={fileInputId}>
+                <span className="VerifiedTier-dropzoneIcon" aria-hidden="true">
+                  <i className="icon fas fa-cloud-arrow-up" />
+                </span>
+                <span className="VerifiedTier-dropzoneText">
+                  <strong>
+                    {trans("settings.tiers.badge_dropzone_title")}
+                  </strong>
+                  <span>{trans("settings.tiers.badge_dropzone_subtitle")}</span>
+                </span>
+              </label>
+            )}
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  /**
+   * Lê o SVG do file picker, valida tamanho, descarta input se acima do
+   * cap antes mesmo de tocar no estado. Sanitização real acontece no
+   * `TierConfig::parse` server-side; o mirror cliente em
+   * `tiers.ts`/`sanitizeSvg` reescreve `fill` para `currentColor` para o
+   * preview herdar a cor do tier.
+   */
+  protected handleBadgeFile(e: Event, idx: number): void {
+    const input = e.target as HTMLInputElement;
+    const file = input.files && input.files[0];
+    if (!file) return;
+
+    if (file.size > BADGE_SVG_MAX) {
+      alert(extractText(trans("settings.tiers.badge_svg_too_large")));
+      input.value = "";
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      const text = String(reader.result || "").trim();
+      if (!text || text.length > BADGE_SVG_MAX) {
+        alert(extractText(trans("settings.tiers.badge_svg_too_large")));
+        return;
+      }
+      this.tiers.update(idx, { badgeSvg: text, badgeEnabled: true });
+    };
+    reader.readAsText(file);
+    input.value = "";
+  }
+
+  /**
    * Toolbar action: find the field's textarea via the click target's closest
    * ancestor, wrap its selection in `<tag>` markup, and push the new value
    * into the row state. The DOM round-trip is needed because we want to
@@ -440,10 +629,12 @@ export default class TiersEditor extends Component<ComponentAttrs> {
   renderPreviewBanner(row: TierRow): Mithril.Children {
     const color = /^#[0-9a-f]{3,8}$/i.test(row.color) ? row.color : null;
     const size = getBadgeSize();
+    const previewTier = this.rowAsTier(row);
     const u = app.session.user;
-    const username = u ? u.username() : "username";
-    const displayName = u ? u.displayName() : "Username";
-    const avatarUrl = u && u.avatarUrl && u.avatarUrl();
+    if (!u) return null;
+    const username = u.username();
+    const displayName = u.displayName();
+    const avatarUrl = u.avatarUrl && u.avatarUrl();
     const ariaLabel = row.label || extractText(trans("settings.tiers.unnamed"));
 
     const badgeStyle: Record<string, string> = { "--verified-size": size };
@@ -472,7 +663,7 @@ export default class TiersEditor extends Component<ComponentAttrs> {
               aria-label={ariaLabel}
               tabIndex={0}
             >
-              {m.trust(getBadgeSvg())}
+              {m.trust(getBadgeSvg(previewTier))}
             </span>
 
             <span className="VerifiedPopover" role="tooltip">
@@ -480,7 +671,7 @@ export default class TiersEditor extends Component<ComponentAttrs> {
 
               <span className="VerifiedPopover-header">
                 <span className="VerifiedPopover-headerIcon">
-                  {m.trust(getBadgeSvg())}
+                  {m.trust(getBadgeSvg(previewTier))}
                 </span>
                 <span className="VerifiedPopover-headerText">
                   {headlineNode}
