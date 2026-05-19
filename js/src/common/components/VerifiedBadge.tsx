@@ -72,7 +72,7 @@ export default class VerifiedBadge extends Component<VerifiedBadgeAttrs> {
         title={tooltip}
         data-tier={tier ? tier.id : undefined}
       >
-        {m.trust(getBadgeSvg())}
+        {m.trust(getBadgeSvg(tier))}
       </span>
     );
   }
