@@ -5,19 +5,19 @@ namespace Ramon\Verified\Api\Controller;
 use Flarum\Api\Controller\UploadImageController;
 use Flarum\Foundation\ValidationException;
 use Flarum\Http\RequestUtil;
-use Flarum\Settings\SettingsRepositoryInterface;
 use Intervention\Image\Interfaces\EncodedImageInterface;
 use Laminas\Diactoros\Stream;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Message\StreamInterface;
 use Psr\Http\Message\UploadedFileInterface;
+use Ramon\Verified\Support\SvgSanitizer;
 
 /**
  * Armazena o SVG customizado do badge no disco `flarum-assets`. O arquivo
- * é sanitizado antes de gravar: script, foreignObject, event handlers e
- * URLs `javascript:` / `data:` são removidos. Se o SVG sanitizado for
- * pequeno o suficiente, o conteúdo vai também para a setting
+ * passa por SvgSanitizer antes de gravar: script, foreignObject, event
+ * handlers e URLs `javascript:` / `data:` são removidos. Se o SVG sanitizado
+ * for pequeno o suficiente, o conteúdo vai também para a setting
  * `ramon-verified.badge_svg_content` para inlining sem fetch.
  */
 class UploadBadgeSvgController extends UploadImageController
@@ -39,10 +39,22 @@ class UploadBadgeSvgController extends UploadImageController
     public const INLINE_SVG_THRESHOLD = 8 * 1024;
 
     /**
-     * Garante que o multipart traga o campo esperado ANTES do parent
-     * chamar `makeImage()` — sem isso, request sem arquivo virava
-     * TypeError → 500 em vez de 422.
+     * Allowlist de extensão e MIME (cliente + server-side) ANTES do parent
+     * chamar `makeImage()`. Sem essas barreiras, um arquivo `.png` com
+     * Content-Type forjado passa direto até o DOMDocument no sanitizer,
+     * onde falha — mas com 500 em vez de 422, e depois de ter sido
+     * carregado em memória.
      */
+    private const ALLOWED_EXTENSIONS = ['svg'];
+
+    private const ALLOWED_MIMES = [
+        'image/svg+xml',
+        'image/svg',
+        'text/xml',
+        'application/xml',
+        'text/plain',
+    ];
+
     public function handle(ServerRequestInterface $request): ResponseInterface
     {
         RequestUtil::getActor($request)->assertAdmin();
@@ -53,6 +65,15 @@ class UploadBadgeSvgController extends UploadImageController
                 'badge_svg' => 'Missing SVG file in the "verified-badge" field.',
             ]);
         }
+
+        if ($file->getError() !== UPLOAD_ERR_OK) {
+            throw new ValidationException([
+                'badge_svg' => 'Upload failed.',
+            ]);
+        }
+
+        $this->validateExtension($file);
+        $this->validateMime($file);
 
         return parent::handle($request);
     }
@@ -76,7 +97,7 @@ class UploadBadgeSvgController extends UploadImageController
             ]);
         }
 
-        $sanitized = self::sanitizeSvg($content);
+        $sanitized = SvgSanitizer::sanitize($content);
 
         $this->settings->set('ramon-verified.badge_svg_content', $sanitized);
 
@@ -90,262 +111,65 @@ class UploadBadgeSvgController extends UploadImageController
         return new Stream($resource);
     }
 
-    /**
-     * Aplica cada padrão em loop até a string parar de mudar. Strip de
-     * uma passada deixa recombinações (`<<!--!-->!--X-->` → `<!--X-->`);
-     * loop até fixed-point garante remoção completa.
-     *
-     * @param string[] $patterns
-     */
-    private static function stripUntilStable(string $input, array $patterns): string
+    private function validateExtension(UploadedFileInterface $file): void
     {
-        do {
-            $previous = $input;
-            foreach ($patterns as $pattern) {
-                $input = (string) preg_replace($pattern, '', $input);
-            }
-        } while ($input !== $previous);
+        $extension = strtolower((string) pathinfo((string) $file->getClientFilename(), PATHINFO_EXTENSION));
 
-        return $input;
-    }
-
-    /**
-     * Sanitiza um SVG. Devolve string vazia em entrada não-parseável;
-     * `throwOnInvalid=true` lança ValidationException em vez disso.
-     */
-    public static function sanitizeSvg(string $content, bool $throwOnInvalid = true): string
-    {
-        if ($content === '') return '';
-
-        $content = self::stripUntilStable($content, [
-            '/<!DOCTYPE\b[^>\[]*(?:\[[\s\S]*?\])?\s*>/i',
-            '/<!ENTITY\b[\s\S]*?>/i',
-        ]);
-        $content = ltrim($content);
-
-        if ($content === '') {
-            if ($throwOnInvalid) {
-                throw new ValidationException([
-                    'badge_svg' => 'Invalid SVG: empty after stripping DOCTYPE/ENTITY.',
-                ]);
-            }
-            return '';
-        }
-
-        $prev = libxml_use_internal_errors(true);
-
-        try {
-            $dom = new \DOMDocument();
-            if (! $dom->loadXML($content, LIBXML_NONET | LIBXML_NOBLANKS)) {
-                if ($throwOnInvalid) {
-                    throw new ValidationException([
-                        'badge_svg' => 'Invalid SVG: could not parse XML.',
-                    ]);
-                }
-                return '';
-            }
-
-            $root = $dom->documentElement;
-            if (! $root || strtolower($root->localName) !== 'svg') {
-                if ($throwOnInvalid) {
-                    throw new ValidationException([
-                        'badge_svg' => 'The uploaded file must be a valid SVG.',
-                    ]);
-                }
-                return '';
-            }
-
-            self::cleanNode($root);
-            self::replaceFillsWithCurrentColor($root);
-
-            return (string) $dom->saveXML($root);
-        } finally {
-            libxml_clear_errors();
-            libxml_use_internal_errors($prev);
+        if (! in_array($extension, self::ALLOWED_EXTENSIONS, true)) {
+            throw new ValidationException([
+                'badge_svg' => 'The uploaded file must have an .svg extension.',
+            ]);
         }
     }
 
     /**
-     * Reescreve cada atributo `fill` (exceto `none`, `transparent` ou
-     * branco-ish) para `currentColor`. Resultado: a cor do tier (ou a
-     * `@primary-color` do fórum) pilota a aparência do selo, preservando
-     * shapes brancos internos (típicos do check central).
+     * Allowlist em duas camadas: cliente-MIME (defesa rápida) + detecção
+     * server-side via `finfo`/`mime_content_type` (defesa real contra
+     * polyglot e Content-Type forjado). Quando o temp file não é legível,
+     * a detecção retorna null — falha o upload, igual ao UploadDocumentController.
      */
-    private static function replaceFillsWithCurrentColor(\DOMNode $node): void
+    private function validateMime(UploadedFileInterface $file): void
     {
-        if ($node instanceof \DOMElement) {
-            if ($node->hasAttribute('fill')) {
-                $current = strtolower(trim($node->getAttribute('fill')));
-                $skip = $current === ''
-                    || $current === 'none'
-                    || $current === 'transparent'
-                    || self::isWhiteFill($current);
-                if (! $skip) {
-                    $node->setAttribute('fill', 'currentColor');
-                }
-            }
-
-            if ($node->hasAttribute('style')) {
-                $style = $node->getAttribute('style');
-                $cleanedStyle = preg_replace('/\s*fill\s*:\s*[^;]+;?/i', '', $style);
-                $cleanedStyle = trim((string) $cleanedStyle, " \t\n\r;");
-                if ($cleanedStyle === '') {
-                    $node->removeAttribute('style');
-                } else {
-                    $node->setAttribute('style', $cleanedStyle);
-                }
-            }
+        $clientMime = strtolower((string) $file->getClientMediaType());
+        if ($clientMime !== '' && ! in_array($clientMime, self::ALLOWED_MIMES, true)) {
+            throw new ValidationException([
+                'badge_svg' => 'Unsupported MIME type for SVG upload.',
+            ]);
         }
 
-        foreach (iterator_to_array($node->childNodes) as $child) {
-            self::replaceFillsWithCurrentColor($child);
-        }
-    }
-
-    /**
-     * Atributos SVG/CSS que aceitam `url(...)` como referência a paint server,
-     * máscara, filtro, marker ou cursor. Sem scrub aqui, um valor como
-     * `filter="url(https://evil.example/leak.svg#x)"` faz o navegador buscar
-     * recursos externos toda vez que o selo é renderizado.
-     */
-    private const URL_REFERENCING_ATTRS = [
-        'fill', 'stroke', 'filter', 'mask', 'clip-path',
-        'marker', 'marker-start', 'marker-mid', 'marker-end',
-        'cursor',
-    ];
-
-    /**
-     * `true` quando o atributo (ou trecho de style) tem qualquer `url(...)`
-     * que não seja referência interna do tipo `url(#fragment)`. Casa `url(`,
-     * `URL(`, aspas opcionais e espaço; rejeita protocolos absolutos, URLs
-     * relativas e protocolo-relativas (`//host/...`).
-     */
-    private static function hasExternalUrlRef(string $value): bool
-    {
-        if (! preg_match_all('/url\s*\(\s*([\'"]?)([^\'")]*)\1\s*\)/i', $value, $matches)) {
-            return false;
-        }
-        foreach ($matches[2] as $target) {
-            $target = trim($target);
-            if ($target === '') continue;
-            if ($target[0] !== '#') return true;
-        }
-        return false;
-    }
-
-    private static function isWhiteFill(string $value): bool
-    {
-        $value = strtolower(trim($value));
-        if ($value === 'white' || $value === '#fff' || $value === '#ffffff') {
-            return true;
-        }
-        if (preg_match('/^rgba?\(\s*255\s*,\s*255\s*,\s*255(\s*,\s*[0-9.]+)?\s*\)$/', $value)) {
-            return true;
-        }
-        return false;
-    }
-
-    /**
-     * Remove tags ativas e atributos perigosos. `<a>` é stripado para matar
-     * phishing-via-badge; `animate*` é stripado porque SMIL pode reescrever
-     * `xlink:href` em tempo de execução, contornando o scrub estático.
-     * `<image>` e `<feImage>` são stripados porque mesmo após zerar
-     * `href`/`xlink:href`, o elemento aceita atributos `style: url(...)` e
-     * sintaxes percent-encoded que reescapam o filtro de URL externa.
-     */
-    private static function cleanNode(\DOMNode $node): void
-    {
-        static $dangerous = [
-            'script', 'foreignobject', 'iframe', 'object', 'embed', 'base', 'link', 'style',
-            'a', 'animate', 'animatetransform', 'animatemotion', 'set',
-            'image', 'feimage',
-        ];
-
-        $children = iterator_to_array($node->childNodes);
-
-        foreach ($children as $child) {
-            if ($child instanceof \DOMElement) {
-                if (in_array(strtolower($child->localName), $dangerous, true)) {
-                    $node->removeChild($child);
-                    continue;
-                }
-                self::cleanNode($child);
-            } elseif ($child instanceof \DOMProcessingInstruction) {
-                $node->removeChild($child);
-            }
-        }
-
-        if (! ($node instanceof \DOMElement)) {
+        $detected = $this->detectServerMime($file);
+        if ($detected === null) {
             return;
         }
 
-        $remove = [];
-        $rewrite = [];
-
-        foreach ($node->attributes as $attr) {
-            $name = strtolower($attr->name);
-            $val  = ltrim($attr->value);
-
-            if (str_starts_with($name, 'on')) {
-                $remove[] = $attr->name;
-                continue;
-            }
-
-            if (preg_match('/^javascript\s*:/i', $val)) {
-                $remove[] = $attr->name;
-                continue;
-            }
-
-            if (in_array($name, ['href', 'xlink:href', 'src', 'action'], true)
-                && preg_match('/^data\s*:/i', $val)) {
-                $remove[] = $attr->name;
-                continue;
-            }
-
-            if (in_array($name, ['href', 'xlink:href'], true)
-                && preg_match('#^(https?:)?//#i', $val)) {
-                $remove[] = $attr->name;
-                continue;
-            }
-
-            if (in_array($name, self::URL_REFERENCING_ATTRS, true)
-                && self::hasExternalUrlRef($val)) {
-                $remove[] = $attr->name;
-                continue;
-            }
-
-            if ($name === 'style' && self::hasExternalUrlRef($val)) {
-                $rewrite[$attr->name] = self::stripExternalUrlRefsFromStyle($val);
-            }
-        }
-
-        foreach ($remove as $attrName) {
-            $node->removeAttribute($attrName);
-        }
-
-        foreach ($rewrite as $attrName => $newValue) {
-            if ($newValue === '') {
-                $node->removeAttribute($attrName);
-            } else {
-                $node->setAttribute($attrName, $newValue);
-            }
+        if (! in_array(strtolower($detected), self::ALLOWED_MIMES, true)) {
+            throw new ValidationException([
+                'badge_svg' => 'Unsupported MIME type for SVG upload.',
+            ]);
         }
     }
 
-    /**
-     * Remove declarações CSS cujo valor contém `url(...)` apontando para fora
-     * (qualquer coisa que não seja `url(#fragment)`). Preserva o resto do
-     * style — fill, transform, etc. seguem válidos.
-     */
-    private static function stripExternalUrlRefsFromStyle(string $style): string
+    private function detectServerMime(UploadedFileInterface $file): ?string
     {
-        $declarations = explode(';', $style);
-        $kept = [];
-        foreach ($declarations as $decl) {
-            if (trim($decl) === '') continue;
-            if (self::hasExternalUrlRef($decl)) continue;
-            $kept[] = $decl;
+        $tmpPath = $file->getStream()->getMetadata('uri');
+        if (! is_string($tmpPath) || ! is_readable($tmpPath)) {
+            return null;
         }
-        return trim(implode(';', $kept), " \t\n\r;");
+
+        if (function_exists('finfo_open')) {
+            $finfo = finfo_open(FILEINFO_MIME_TYPE);
+            if ($finfo) {
+                $detected = finfo_file($finfo, $tmpPath);
+                finfo_close($finfo);
+                return is_string($detected) && $detected !== '' ? $detected : null;
+            }
+        }
+
+        if (function_exists('mime_content_type')) {
+            $detected = mime_content_type($tmpPath);
+            return is_string($detected) && $detected !== '' ? $detected : null;
+        }
+
+        return null;
     }
 }

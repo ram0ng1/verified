@@ -7,7 +7,6 @@ use Flarum\Gdpr\Models\ErasureRequest;
 use Flarum\Http\UrlGenerator;
 use Flarum\Settings\SettingsRepositoryInterface;
 use Flarum\User\User;
-use Illuminate\Contracts\Container\Container;
 use Illuminate\Contracts\Filesystem\Factory;
 use Illuminate\Contracts\Filesystem\Filesystem;
 use Ramon\Verified\Crypto\DocumentCipher;
@@ -23,20 +22,21 @@ use Throwable;
  * `verification_requests` e o estado em `user_verification` deste usuário.
  *
  * GDPR instancia tipos via `new $type(...)` com exatamente 6 args fixos
- * (vendor/flarum/gdpr/src/Exporter.php:56), então não há janela de DI direta
- * para `VerifiedStatus`, `DocumentPathResolver` e `DocumentCipher`. O acesso
- * estático ao container é confinado ao construtor (com `bound()` checks per
- * §44.3) e os serviços resolvidos viram propriedades — os métodos de
- * domínio nunca tocam `Container::getInstance()`. O 7º arg opcional
- * `?DocumentCipher` continua existindo para os testes.
+ * (vendor/flarum/gdpr/src/Exporter.php:56), então não há janela de DI direta.
+ * `DocumentPathResolver` e `VerifiedStatus` não têm dependências de
+ * construtor — são instanciados direto. `DocumentCipher` é resolvido sob
+ * demanda via `resolve()` (mesma estratégia do `Type::staticTranslator()`
+ * do próprio core do gdpr), o que mantém o construtor limpo e contém o
+ * acesso ao container nos métodos que efetivamente precisam dele. O 7º arg
+ * opcional `?DocumentCipher` continua existindo para os testes.
  */
 class VerifiedDocuments extends Type
 {
     protected DocumentPathResolver $pathResolver;
 
-    protected ?VerifiedStatus $verifiedStatus = null;
+    protected VerifiedStatus $verifiedStatus;
 
-    protected ?DocumentCipher $cipher;
+    protected ?DocumentCipher $cipherOverride;
 
     public function __construct(
         User $user,
@@ -49,30 +49,26 @@ class VerifiedDocuments extends Type
     ) {
         parent::__construct($user, $erasureRequest, $factory, $settings, $url, $translator);
 
-        $container = Container::getInstance();
+        $this->pathResolver   = new DocumentPathResolver();
+        $this->verifiedStatus = new VerifiedStatus();
+        $this->cipherOverride = $cipher;
+    }
 
-        $this->pathResolver = $container->bound(DocumentPathResolver::class)
-            ? $container->make(DocumentPathResolver::class)
-            : new DocumentPathResolver();
-
-        if ($container->bound(VerifiedStatus::class)) {
-            try {
-                $this->verifiedStatus = $container->make(VerifiedStatus::class);
-            } catch (Throwable $e) {
-                $this->verifiedStatus = null;
-            }
+    /**
+     * Resolve o `DocumentCipher` apenas no momento em que arquivos cifrados
+     * são encontrados. Sem dependência do container quando não há nada para
+     * decifrar. Testes podem injetar via 7º arg do construtor.
+     */
+    private function cipher(): ?DocumentCipher
+    {
+        if ($this->cipherOverride !== null) {
+            return $this->cipherOverride;
         }
 
-        if ($cipher !== null) {
-            $this->cipher = $cipher;
-        } elseif ($container->bound(DocumentCipher::class)) {
-            try {
-                $this->cipher = $container->make(DocumentCipher::class);
-            } catch (Throwable $e) {
-                $this->cipher = null;
-            }
-        } else {
-            $this->cipher = null;
+        try {
+            return resolve(DocumentCipher::class);
+        } catch (Throwable $e) {
+            return null;
         }
     }
 
@@ -109,11 +105,9 @@ class VerifiedDocuments extends Type
     {
         $exportData = [];
 
-        $status = $this->verifiedStatus;
-
         $exportData[] = ['verified/status.json' => $this->encodeForExport([
-            'is_verified' => $status ? $status->isVerified($this->user) : false,
-            'verified_at' => $status ? optional($status->verifiedAt($this->user))->toRfc3339String() : null,
+            'is_verified' => $this->verifiedStatus->isVerified($this->user),
+            'verified_at' => optional($this->verifiedStatus->verifiedAt($this->user))->toRfc3339String(),
         ])];
 
         $submitted = VerificationRequest::query()
@@ -201,7 +195,7 @@ class VerifiedDocuments extends Type
                 ->where('handled_by', $this->user->id)
                 ->update(['handled_by' => null]);
 
-            $this->verifiedStatus?->clear($this->user);
+            $this->verifiedStatus->clear($this->user);
         });
 
         $this->deleteDocumentFiles();
@@ -223,7 +217,7 @@ class VerifiedDocuments extends Type
             return [];
         }
 
-        $cipher = $this->cipher;
+        $cipher = $this->cipher();
 
         $out = [];
         $skippedEncrypted = 0;
