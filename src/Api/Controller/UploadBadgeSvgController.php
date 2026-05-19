@@ -4,17 +4,21 @@ namespace Ramon\Verified\Api\Controller;
 
 use Flarum\Api\Controller\UploadImageController;
 use Flarum\Foundation\ValidationException;
+use Flarum\Http\RequestUtil;
 use Flarum\Settings\SettingsRepositoryInterface;
 use Intervention\Image\Interfaces\EncodedImageInterface;
 use Laminas\Diactoros\Stream;
+use Psr\Http\Message\ResponseInterface;
+use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Message\StreamInterface;
 use Psr\Http\Message\UploadedFileInterface;
 
 /**
- * Stores the admin's custom verified-badge SVG in the flarum-assets disk
- * (same approach as avocado's logo SVG). The file is sanitised before
- * being written: scripts, foreign objects, event handlers and unsafe URLs
- * are stripped.
+ * Armazena o SVG customizado do badge no disco `flarum-assets`. O arquivo
+ * é sanitizado antes de gravar: script, foreignObject, event handlers e
+ * URLs `javascript:` / `data:` são removidos. Se o SVG sanitizado for
+ * pequeno o suficiente, o conteúdo vai também para a setting
+ * `ramon-verified.badge_svg_content` para inlining sem fetch.
  */
 class UploadBadgeSvgController extends UploadImageController
 {
@@ -27,25 +31,35 @@ class UploadBadgeSvgController extends UploadImageController
     public const MAX_SVG_BYTES = 256 * 1024;
 
     /**
-     * Above this many bytes of SANITISED SVG, `extend.php` strips the
-     * `ramonVerifiedBadgeSvgContent` forum attribute and the frontend
-     * falls back to fetching the file at `ramonVerifiedBadgeSvgPath`
-     * over HTTP (with whatever static-asset caching the host serves it
-     * under). Below the threshold the SVG is inlined into the forum
-     * payload so badge rendering stays synchronous with no fetch race
-     * (typical verified-mark designs sit well under 8 KB; even fancy
-     * multi-path seals rarely cross 4 KB).
-     *
-     * Audit H-SVG (badge content embedded in every forum payload).
+     * Acima deste tamanho de SVG sanitizado o `extend.php` deixa de
+     * inlinear `ramonVerifiedBadgeSvgContent` no payload do forum; o
+     * frontend recai para fetch via `ramonVerifiedBadgeSvgPath`. Selos
+     * razoáveis ficam bem abaixo de 8 KB.
      */
     public const INLINE_SVG_THRESHOLD = 8 * 1024;
+
+    /**
+     * Garante que o multipart traga o campo esperado ANTES do parent
+     * chamar `makeImage()` — sem isso, request sem arquivo virava
+     * TypeError → 500 em vez de 422.
+     */
+    public function handle(ServerRequestInterface $request): ResponseInterface
+    {
+        RequestUtil::getActor($request)->assertAdmin();
+
+        $file = $request->getUploadedFiles()[$this->filenamePrefix] ?? null;
+        if (! $file instanceof UploadedFileInterface) {
+            throw new ValidationException([
+                'badge_svg' => 'Missing SVG file in the "verified-badge" field.',
+            ]);
+        }
+
+        return parent::handle($request);
+    }
 
     #[\Override]
     protected function makeImage(UploadedFileInterface $file): EncodedImageInterface|StreamInterface
     {
-        // Reject early when the reported size is over the cap. `getSize()` may
-        // return null for chunked uploads — in that case we still cap at read
-        // time below so a misreporting client can't OOM the worker.
         $reportedSize = $file->getSize();
         if ($reportedSize !== null && $reportedSize > self::MAX_SVG_BYTES) {
             throw new ValidationException([
@@ -53,8 +67,6 @@ class UploadBadgeSvgController extends UploadImageController
             ]);
         }
 
-        // Read at most MAX_SVG_BYTES + 1 so we can detect a stream that lied
-        // about its length without ever holding more than ~256 KB in memory.
         $stream = $file->getStream();
         $stream->rewind();
         $content = $stream->read(self::MAX_SVG_BYTES + 1);
@@ -66,14 +78,12 @@ class UploadBadgeSvgController extends UploadImageController
 
         $sanitized = self::sanitizeSvg($content);
 
-        // Persist the sanitised SVG content directly as a setting so the
-        // forum frontend can render it inline on every page load — no fetch,
-        // no race condition, no chance of "reverts to default" on reload.
-        // The file on disk is kept too (so the admin's UploadImageButton
-        // shows a preview thumbnail of the uploaded asset).
         $this->settings->set('ramon-verified.badge_svg_content', $sanitized);
 
         $resource = fopen('php://temp', 'r+');
+        if (! is_resource($resource)) {
+            throw new \RuntimeException('Failed to allocate temp stream for badge SVG.');
+        }
         fwrite($resource, $sanitized);
         rewind($resource);
 
@@ -81,30 +91,21 @@ class UploadBadgeSvgController extends UploadImageController
     }
 
     /**
-     * Sanitise an SVG string in place. Public + static so the same
-     * routine can be called from `extend.php` as a `serializeToForum`
-     * cast — defending against the case where unsanitised SVG ends up
-     * in the `ramon-verified.badge_svg_content` setting through any
-     * non-upload path (DB restore, admin tinkering, external migration).
-     *
-     * Returns the sanitised SVG, or the empty string when the input
-     * isn't a parseable SVG. Callers that want hard rejection (e.g. the
-     * upload controller) call `sanitizeSvg($content, throwOnInvalid: true)`.
+     * Sanitiza um SVG. Devolve string vazia em entrada não-parseável;
+     * `throwOnInvalid=true` lança ValidationException em vez disso.
      */
     public static function sanitizeSvg(string $content, bool $throwOnInvalid = true): string
     {
         if ($content === '') return '';
 
-        // Defense in depth against XXE / billion-laughs. PHP 8+ libxml2
-        // already refuses to expand external entities unless `LIBXML_NOENT`
-        // is set, and we never pass it. Reject any SVG that even DECLARES
-        // a DOCTYPE or ENTITY before parsing — matches the frontend
-        // sanitiser, and keeps the door shut even on older libxml2 builds
-        // that may behave differently.
-        if (preg_match('/<!DOCTYPE/i', $content) || preg_match('/<!ENTITY/i', $content)) {
+        $content = preg_replace('/<!DOCTYPE\b[^>\[]*(?:\[[\s\S]*?\])?\s*>/i', '', $content);
+        $content = preg_replace('/<!ENTITY\b[\s\S]*?>/i', '', $content);
+        $content = ltrim((string) $content);
+
+        if ($content === '') {
             if ($throwOnInvalid) {
                 throw new ValidationException([
-                    'badge_svg' => 'SVG must not contain DOCTYPE or ENTITY declarations.',
+                    'badge_svg' => 'Invalid SVG: empty after stripping DOCTYPE/ENTITY.',
                 ]);
             }
             return '';
@@ -112,45 +113,42 @@ class UploadBadgeSvgController extends UploadImageController
 
         $prev = libxml_use_internal_errors(true);
 
-        $dom = new \DOMDocument();
-        // LIBXML_NONET blocks network entity resolution; we deliberately do
-        // NOT pass LIBXML_NOENT (which would expand entities) or
-        // LIBXML_DTDLOAD (which would fetch external DTDs).
-        if (! $dom->loadXML($content, LIBXML_NONET | LIBXML_NOBLANKS)) {
+        try {
+            $dom = new \DOMDocument();
+            if (! $dom->loadXML($content, LIBXML_NONET | LIBXML_NOBLANKS)) {
+                if ($throwOnInvalid) {
+                    throw new ValidationException([
+                        'badge_svg' => 'Invalid SVG: could not parse XML.',
+                    ]);
+                }
+                return '';
+            }
+
+            $root = $dom->documentElement;
+            if (! $root || strtolower($root->localName) !== 'svg') {
+                if ($throwOnInvalid) {
+                    throw new ValidationException([
+                        'badge_svg' => 'The uploaded file must be a valid SVG.',
+                    ]);
+                }
+                return '';
+            }
+
+            self::cleanNode($root);
+            self::replaceFillsWithCurrentColor($root);
+
+            return (string) $dom->saveXML($root);
+        } finally {
+            libxml_clear_errors();
             libxml_use_internal_errors($prev);
-            if ($throwOnInvalid) {
-                throw new ValidationException([
-                    'badge_svg' => 'Invalid SVG: could not parse XML.',
-                ]);
-            }
-            return '';
         }
-
-        libxml_use_internal_errors($prev);
-
-        $root = $dom->documentElement;
-        if (! $root || strtolower($root->localName) !== 'svg') {
-            if ($throwOnInvalid) {
-                throw new ValidationException([
-                    'badge_svg' => 'The uploaded file must be a valid SVG.',
-                ]);
-            }
-            return '';
-        }
-
-        self::cleanNode($root);
-        self::replaceFillsWithCurrentColor($root);
-
-        return (string) $dom->saveXML($root);
     }
 
     /**
-     * Walks the SVG and rewrites every `fill` attribute (other than `none`,
-     * `transparent`, or a whiteish value) to `currentColor`. This means the
-     * tier color (or the forum's primary colour) drives the visible colour
-     * of the uploaded artwork — while preserving any explicit WHITE inner
-     * shapes (typically the inner check on a verified-style seal), so the
-     * "middle white" stays white on dark backgrounds.
+     * Reescreve cada atributo `fill` (exceto `none`, `transparent` ou
+     * branco-ish) para `currentColor`. Resultado: a cor do tier (ou a
+     * `@primary-color` do fórum) pilota a aparência do selo, preservando
+     * shapes brancos internos (típicos do check central).
      */
     private static function replaceFillsWithCurrentColor(\DOMNode $node): void
     {
@@ -166,15 +164,9 @@ class UploadBadgeSvgController extends UploadImageController
                 }
             }
 
-            // Inline `style` rules can also set fill — strip those so they
-            // don't override `currentColor` on the same element.
             if ($node->hasAttribute('style')) {
                 $style = $node->getAttribute('style');
-                $cleanedStyle = preg_replace(
-                    '/\s*fill\s*:\s*[^;]+;?/i',
-                    '',
-                    $style
-                );
+                $cleanedStyle = preg_replace('/\s*fill\s*:\s*[^;]+;?/i', '', $style);
                 $cleanedStyle = trim((string) $cleanedStyle, " \t\n\r;");
                 if ($cleanedStyle === '') {
                     $node->removeAttribute('style');
@@ -189,11 +181,6 @@ class UploadBadgeSvgController extends UploadImageController
         }
     }
 
-    /**
-     * Recognises common ways an SVG can express "white" — preserved so the
-     * inner check of a verified-style seal stays white instead of being
-     * recoloured to currentColor.
-     */
     private static function isWhiteFill(string $value): bool
     {
         $value = strtolower(trim($value));
@@ -206,15 +193,13 @@ class UploadBadgeSvgController extends UploadImageController
         return false;
     }
 
+    /**
+     * Remove tags ativas e atributos perigosos. `<a>` é stripado para matar
+     * phishing-via-badge; `animate*` é stripado porque SMIL pode reescrever
+     * `xlink:href` em tempo de execução, contornando o scrub estático.
+     */
     private static function cleanNode(\DOMNode $node): void
     {
-        // - script/foreignobject/iframe/object/embed/base/link/style: classic
-        //   active-content vectors.
-        // - a: a verified badge has no business carrying a clickable link;
-        //   stripping it kills phishing-via-uploaded-badge.
-        // - animate/set/animateTransform/animateMotion: SMIL animations can
-        //   rewrite attributes (e.g. xlink:href) AFTER our static sanitiser
-        //   runs, smuggling javascript: URIs past the attribute scrub.
         static $dangerous = [
             'script', 'foreignobject', 'iframe', 'object', 'embed', 'base', 'link', 'style',
             'a', 'animate', 'animatetransform', 'animatemotion', 'set',
@@ -260,14 +245,6 @@ class UploadBadgeSvgController extends UploadImageController
                 continue;
             }
 
-            // Reject cross-origin / protocol-relative refs on `href` /
-            // `xlink:href` — these reach `<use>`, `<image>`, and `<a>` in
-            // SVG. `<a>` is already stripped wholesale above, but `<use>`
-            // is allowed (legitimate `#fragment` refs for symbols) and an
-            // external URL there turns every badge render into an outbound
-            // GET to attacker-controlled origin (tracker / SSRF-lite —
-            // CLAUDE.md §9.5 calls out `use[href^="http"]` explicitly).
-            // Mirrored client-side in `getBadgeSvg.ts::sanitizeSvg`.
             if (in_array($name, ['href', 'xlink:href'], true)
                 && preg_match('#^(https?:)?//#i', $val)) {
                 $remove[] = $attr->name;

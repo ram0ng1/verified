@@ -2,8 +2,6 @@
 
 namespace Ramon\Verified\Notification;
 
-use Carbon\Carbon;
-use Carbon\CarbonInterface;
 use Flarum\Database\AbstractModel;
 use Flarum\Locale\TranslatorInterface;
 use Flarum\Notification\AlertableInterface;
@@ -28,9 +26,12 @@ class UserVerifiedBlueprint implements BlueprintInterface, AlertableInterface, M
         return null;
     }
 
-    public function getData(): CarbonInterface
+    /**
+     * Payload mínimo — o timestamp já vive em `notifications.created_at`.
+     */
+    public function getData(): ?array
     {
-        return Carbon::now();
+        return null;
     }
 
     public static function getType(): string

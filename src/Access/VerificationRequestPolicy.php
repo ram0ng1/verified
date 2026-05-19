@@ -19,9 +19,6 @@ class VerificationRequestPolicy extends AbstractPolicy
 
     public function view(User $actor, VerificationRequest $request): ?string
     {
-        // Strict integer compare on BOTH sides (CLAUDE.md §3 — `null == 0`
-        // is true in PHP, and depending on the DB driver `$actor->id` can
-        // come back as a numeric string).
         if ((int) $actor->id === (int) $request->user_id) {
             return $this->allow();
         }
