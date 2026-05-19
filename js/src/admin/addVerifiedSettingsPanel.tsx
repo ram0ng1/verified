@@ -39,5 +39,15 @@ export default function addVerifiedSettingsPanel(): void {
         permission: "verified.verifyUsers",
       },
       "moderate",
+    )
+    .registerPermission(
+      {
+        icon: "fas fa-ban",
+        label: app.translator.trans(
+          "ramon-verified.admin.permissions.self_revoke_label",
+        ),
+        permission: "verified.selfRevoke",
+      },
+      "start",
     );
 }
