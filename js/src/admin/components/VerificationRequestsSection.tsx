@@ -12,6 +12,7 @@ import type VerificationRequest from "../../common/models/VerificationRequest";
 import VerificationRequestsState, {
   RequestAction,
   RequestTab,
+  REQUESTS_PAGE_SIZE,
 } from "../states/VerificationRequestsState";
 import ApprovedUsersState, {
   APPROVED_PAGE_SIZE,
@@ -34,7 +35,7 @@ export default class VerificationRequestsSection extends Component<ComponentAttr
     super.oninit(vnode);
     this.requests = new VerificationRequestsState();
     this.approved = new ApprovedUsersState();
-    this.requests.load();
+    this.requests.loadAll();
     this.approved.load();
   }
 
@@ -82,7 +83,12 @@ export default class VerificationRequestsSection extends Component<ComponentAttr
   }
 
   renderRequestTab(): Mithril.Children {
-    if (this.requests.loading) {
+    const tab = this.tab as "pending" | "rejected";
+
+    if (
+      this.requests.loadingFor(tab) &&
+      this.requests.requestsFor(tab).length === 0
+    ) {
       return (
         <div className="VerifiedRequests-empty">
           <LoadingIndicator />
@@ -90,30 +96,74 @@ export default class VerificationRequestsSection extends Component<ComponentAttr
       );
     }
 
-    const list = this.requests.filteredRequests(this.tab);
+    const list = this.requests.requestsFor(tab);
     if (list.length === 0) {
       return (
         <div className="VerifiedRequests-empty">
           <i className="icon fas fa-inbox" />
-          <span>{trans("empty_" + this.tab)}</span>
+          <span>{trans("empty_" + tab)}</span>
         </div>
       );
     }
 
-    const hidden = this.requests.hiddenCount();
+    const total = this.requests.totalFor(tab);
+    const offset = this.requests.offsetFor(tab);
 
     return (
       <>
-        <ul className="VerifiedRequests-list">
+        <ul
+          className={
+            "VerifiedRequests-list" +
+            (this.requests.loadingFor(tab) ? " is-refreshing" : "")
+          }
+        >
           {list.map((r) => this.renderItem(r))}
         </ul>
-        {hidden > 0 && (
-          <p className="VerifiedRequests-truncated">
-            <i className="icon fas fa-circle-info" aria-hidden="true" />{" "}
-            {trans("truncated", { hidden })}
-          </p>
-        )}
+        {total > REQUESTS_PAGE_SIZE
+          ? this.renderRequestsPagination(tab, offset, total)
+          : null}
       </>
+    );
+  }
+
+  renderRequestsPagination(
+    tab: "pending" | "rejected",
+    offset: number,
+    total: number,
+  ): Mithril.Children {
+    const page = Math.floor(offset / REQUESTS_PAGE_SIZE) + 1;
+    const lastPage = Math.max(1, Math.ceil(total / REQUESTS_PAGE_SIZE));
+    const canPrev = offset > 0;
+    const canNext = offset + REQUESTS_PAGE_SIZE < total;
+
+    return (
+      <div className="VerifiedRequests-pagination">
+        <button
+          type="button"
+          className="Button Button--text VerifiedRequests-pagination-btn"
+          disabled={!canPrev}
+          onclick={() =>
+            this.requests.goToPage(tab, offset - REQUESTS_PAGE_SIZE)
+          }
+        >
+          <i className="icon fas fa-chevron-left" />
+          {trans("pagination_prev")}
+        </button>
+        <span className="VerifiedRequests-pagination-info">
+          {trans("pagination_info", { page, lastPage, total })}
+        </span>
+        <button
+          type="button"
+          className="Button Button--text VerifiedRequests-pagination-btn"
+          disabled={!canNext}
+          onclick={() =>
+            this.requests.goToPage(tab, offset + REQUESTS_PAGE_SIZE)
+          }
+        >
+          {trans("pagination_next")}
+          <i className="icon fas fa-chevron-right" />
+        </button>
+      </div>
     );
   }
 
@@ -412,6 +462,10 @@ export default class VerificationRequestsSection extends Component<ComponentAttr
 
     if (status === "approved" && this.approved.rows.length === 0) {
       this.approved.load();
+    } else if (status === "pending" || status === "rejected") {
+      if (this.requests.requestsFor(status).length === 0) {
+        this.requests.load(status, 0);
+      }
     }
 
     m.redraw();
@@ -437,7 +491,7 @@ export default class VerificationRequestsSection extends Component<ComponentAttr
    */
   async revokeApprovedUser(row: ApprovedUserRow): Promise<void> {
     const ok = await this.approved.revokeUser(row);
-    if (ok) this.requests.load();
+    if (ok) this.requests.loadAll();
   }
 
   formatDocType(type: string | null | undefined): string {
