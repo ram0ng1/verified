@@ -29,6 +29,16 @@ class ForumResourceFields
                 ->get(fn (object $model, Context $context) =>
                     $context->getActor()->hasPermission('verified.verifyUsers')),
 
+            // Sinaliza ao frontend que este ator pode revogar o próprio
+            // badge sem ter `verifyUsers`. Mostrar o botão Revoke no menu
+            // de ações do PRÓPRIO perfil depende disto OU de
+            // canVerifyUsers; cross-user só `canVerifyUsers`. Espelha a
+            // ramificação no VerifyUserController::handle (§3, §4).
+            Schema\Boolean::make('canSelfRevokeVerification')
+                ->get(fn (object $model, Context $context) =>
+                    $context->getActor()->hasPermission('verified.selfRevoke'))
+                ->visible($loggedIn),
+
             Schema\Boolean::make('ramonVerifiedRequestsOpen')
                 ->get(fn () => (bool) $this->settings->get('ramon-verified.requests_open', true))
                 ->visible($loggedIn),

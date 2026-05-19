@@ -67,9 +67,19 @@ class VerificationRequestResource extends AbstractDatabaseResource
             $query->where('user_id', $actor->id);
         }
 
+        // `?byStatus=pending,rejected` (lista CSV ou repetição) — em vez de
+        // `filter[status]`. Dois pontos de cuidado do Flarum 2 / json-api-server:
+        //  1. `AbstractDatabaseResource::filters()` é `final` e lança "use a
+        //     model searcher" sempre que o JSON:API server invoca
+        //     `applyFilters` com qualquer `filter[]` no request.
+        //  2. `JsonApi::validateQueryParameters()` REJEITA qualquer query
+        //     param custom cujo nome seja só `[a-z]` minúsculo
+        //     (`status` falha; `byStatus` passa porque tem letra maiúscula —
+        //     a regex usada é `/[^a-z]/`).
+        // A combinação obriga a usar um nome com char fora de `a-z` para
+        // params custom. PSR-7 entrega o valor intacto aqui no scope.
         $params = $context->request->getQueryParams();
-        $filter = isset($params['filter']) && is_array($params['filter']) ? $params['filter'] : [];
-        $rawStatus = $filter['status'] ?? null;
+        $rawStatus = $params['byStatus'] ?? null;
 
         if ($rawStatus !== null) {
             $statuses = is_array($rawStatus)

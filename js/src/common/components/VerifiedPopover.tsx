@@ -6,7 +6,11 @@ import extractText from "flarum/common/utils/extractText";
 import type Mithril from "mithril";
 import type User from "flarum/common/models/User";
 import getBadgeSvg, { getBadgeSize } from "../utils/getBadgeSvg";
-import { resolveTierForUser, getTierColor, sanitiseDescription } from "../utils/tiers";
+import {
+  resolveTierForUser,
+  getTierColor,
+  sanitiseDescription,
+} from "../utils/tiers";
 
 export interface VerifiedPopoverAttrs extends ComponentAttrs {
   user: User;
