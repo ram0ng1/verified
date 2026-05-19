@@ -59,6 +59,16 @@ class VerificationRequestResource extends AbstractDatabaseResource
         return VerificationRequest::class;
     }
 
+    /**
+     * Restringe a query por ator (não-admins veem só os próprios pedidos) e
+     * aplica o filtro custom `?byStatus=pending,rejected`. Dois pontos de
+     * cuidado do Flarum 2 / json-api-server: (1) `AbstractDatabaseResource::filters()`
+     * é `final` e lança "use a model searcher" sempre que o JSON:API server
+     * invoca `applyFilters` com qualquer `filter[]` no request; (2)
+     * `JsonApi::validateQueryParameters` rejeita query params custom cujo
+     * nome seja só `[a-z]` minúsculo (regex `/[^a-z]/`) — `status` falha;
+     * `byStatus` (camelCase) passa. PSR-7 entrega o valor intacto aqui.
+     */
     public function scope(Builder $query, \Tobyz\JsonApiServer\Context $context): void
     {
         $actor = $context->getActor();
@@ -68,8 +78,7 @@ class VerificationRequestResource extends AbstractDatabaseResource
         }
 
         $params = $context->request->getQueryParams();
-        $filter = isset($params['filter']) && is_array($params['filter']) ? $params['filter'] : [];
-        $rawStatus = $filter['status'] ?? null;
+        $rawStatus = $params['byStatus'] ?? null;
 
         if ($rawStatus !== null) {
             $statuses = is_array($rawStatus)
