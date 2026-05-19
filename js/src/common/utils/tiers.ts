@@ -19,9 +19,13 @@ export interface VerifiedTier {
   description: string;
   learnMoreUrl: string;
   autoGroups: number[];
+  badgeEnabled: boolean;
+  badgeSvg: string;
 }
 
 export const DEFAULT_TIER_ID = "blue";
+
+export const BADGE_SVG_MAX = 8 * 1024;
 
 /**
  * Read the configured tiers in a context-agnostic way:
@@ -123,7 +127,26 @@ function normalise(row: unknown): VerifiedTier | null {
     }
   }
 
-  return { id, label, color, description, learnMoreUrl, autoGroups };
+  let badgeEnabled = Boolean(r.badgeEnabled);
+  let badgeSvg = "";
+  if (badgeEnabled && typeof r.badgeSvg === "string") {
+    const candidate = r.badgeSvg;
+    if (candidate && candidate.length <= BADGE_SVG_MAX) {
+      badgeSvg = candidate;
+    }
+  }
+  if (!badgeSvg) badgeEnabled = false;
+
+  return {
+    id,
+    label,
+    color,
+    description,
+    learnMoreUrl,
+    autoGroups,
+    badgeEnabled,
+    badgeSvg,
+  };
 }
 
 /**

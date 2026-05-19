@@ -2,30 +2,34 @@
 
 namespace Ramon\Verified\Api\Controller;
 
-use Flarum\Foundation\Paths;
 use Flarum\Foundation\ValidationException;
 use Flarum\Http\RequestUtil;
 use Flarum\Locale\TranslatorInterface;
 use Flarum\Settings\SettingsRepositoryInterface;
+use Illuminate\Contracts\Filesystem\Factory;
 use Laminas\Diactoros\Response\JsonResponse;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Message\UploadedFileInterface;
 use Psr\Http\Server\RequestHandlerInterface;
 use Ramon\Verified\Crypto\DocumentCipher;
+use Ramon\Verified\Documents\DocumentPathResolver;
 use Ramon\Verified\Documents\DocumentRetention;
 use Ramon\Verified\Models\VerificationRequest;
+use Ramon\Verified\VerifiedStatus;
 
 /**
- * Receives a verification document upload, stores it OUTSIDE the public webroot,
- * and returns an opaque token the user can attach to a verification request.
+ * Recebe o upload de um documento de verificação, grava no disco privado
+ * `flarum-verified-documents` (fora do webroot público) e devolve um token
+ * opaco que o usuário pode anexar a uma solicitação de verificação.
  *
- * The token format is: verified-documents/{userId}/{filename}. It is only resolved
- * on the server side by the document-download endpoint, never served as static.
+ * O token tem o formato `verified-documents/{userId}/{filename}` e só é
+ * resolvido pelo endpoint de download. O frontend recebe um pseudo-path
+ * `/assets/verified/{userId}/{filename}`.
  */
 class UploadDocumentController implements RequestHandlerInterface
 {
-    public const MAX_BYTES = 8 * 1024 * 1024; // 8 MB
+    public const MAX_BYTES = 8 * 1024 * 1024;
 
     public const ALLOWED_EXTENSIONS = ['png', 'jpg', 'jpeg', 'webp', 'pdf'];
 
@@ -37,11 +41,12 @@ class UploadDocumentController implements RequestHandlerInterface
     ];
 
     public function __construct(
-        protected Paths $paths,
+        protected Factory $filesystem,
         protected SettingsRepositoryInterface $settings,
         protected TranslatorInterface $translator,
         protected DocumentCipher $cipher,
-        protected DocumentRetention $retention
+        protected DocumentRetention $retention,
+        protected VerifiedStatus $verifiedStatus
     ) {
     }
 
@@ -51,15 +56,13 @@ class UploadDocumentController implements RequestHandlerInterface
         $actor->assertRegistered();
         $actor->assertCan('verified.request');
 
-        // Admin kill-switch on the upload path too — refuse to store any
-        // document when intake is globally closed.
         if (! (bool) $this->settings->get('ramon-verified.requests_open', true)) {
             throw new ValidationException([
                 'status' => $this->translator->trans('ramon-verified.api.requests_closed'),
             ]);
         }
 
-        if ((bool) $actor->is_verified) {
+        if ($this->verifiedStatus->isVerified($actor)) {
             throw new ValidationException([
                 'status' => $this->translator->trans('ramon-verified.api.already_verified'),
             ]);
@@ -76,8 +79,47 @@ class UploadDocumentController implements RequestHandlerInterface
             ]);
         }
 
+        $file = $this->extractUploadedFile($request);
+        $extension = $this->validateAndDetectExtension($file);
+        $this->validateMimeTypes($file);
+
+        $userId = (int) $actor->id;
+        $disk = $this->filesystem->disk(DocumentPathResolver::DISK);
+
+        $this->retention->sweepOrphans($userId);
+
+        $filename = bin2hex(random_bytes(16)).'.'.$extension;
+        $relative = $userId.'/'.$filename;
+
+        $stream = $file->getStream();
+        $stream->rewind();
+        $plaintext = $stream->getContents();
+
+        if ($this->cipher->canEncrypt()) {
+            $payload = $this->cipher->encrypt($plaintext);
+            sodium_memzero($plaintext);
+        } else {
+            $payload = $plaintext;
+        }
+
+        if (! $disk->put($relative, $payload)) {
+            throw new ValidationException([
+                'document' => $this->translator->trans('ramon-verified.api.upload_failed'),
+            ]);
+        }
+
+        $token       = 'verified-documents/'.$userId.'/'.$filename;
+        $publicToken = '/assets/verified/'.$userId.'/'.$filename;
+
+        return new JsonResponse([
+            'documentPath' => $publicToken,
+            'token'        => $token,
+        ], 200);
+    }
+
+    private function extractUploadedFile(ServerRequestInterface $request): UploadedFileInterface
+    {
         $files = $request->getUploadedFiles();
-        /** @var UploadedFileInterface|null $file */
         $file = $files['document'] ?? null;
 
         if (! $file instanceof UploadedFileInterface) {
@@ -99,6 +141,11 @@ class UploadDocumentController implements RequestHandlerInterface
             ]);
         }
 
+        return $file;
+    }
+
+    private function validateAndDetectExtension(UploadedFileInterface $file): string
+    {
         $originalName = (string) $file->getClientFilename();
         $extension    = strtolower(pathinfo($originalName, PATHINFO_EXTENSION));
 
@@ -108,102 +155,62 @@ class UploadDocumentController implements RequestHandlerInterface
             ]);
         }
 
+        return $extension;
+    }
+
+    /**
+     * Allowlist em duas camadas: cliente-MIME (defesa rápida contra ferramentas
+     * honestas) + detecção server-side via `finfo`/`mime_content_type` (defesa
+     * real contra polyglot / Content-Type forjado). Audit F5 corrigiu o bypass:
+     * quando o temp file não é legível (NFS lenta, FS read-only, file handle
+     * preso em Windows), a detecção retorna null e o fluxo antigo passava
+     * direto. Agora `null` falha o upload, independentemente do motivo.
+     */
+    private function validateMimeTypes(UploadedFileInterface $file): void
+    {
         $clientMime = strtolower((string) $file->getClientMediaType());
-        if ($clientMime && ! in_array($clientMime, self::ALLOWED_MIMES, true)) {
+        if ($clientMime === '' || ! in_array($clientMime, self::ALLOWED_MIMES, true)) {
             throw new ValidationException([
                 'document' => $this->translator->trans('ramon-verified.api.bad_mime'),
             ]);
         }
 
-        $tmpPath = $file->getStream()->getMetadata('uri');
-        $detectedMime = null;
+        $detectedMime = $this->detectServerMime($file);
 
-        if (is_string($tmpPath) && is_readable($tmpPath)) {
-            if (function_exists('finfo_open')) {
-                $finfo = finfo_open(FILEINFO_MIME_TYPE);
-                if ($finfo) {
-                    $detectedMime = finfo_file($finfo, $tmpPath) ?: null;
-                    finfo_close($finfo);
-                }
-            } elseif (function_exists('mime_content_type')) {
-                // Fallback for hardened builds where ext-fileinfo is missing.
-                $detectedMime = mime_content_type($tmpPath) ?: null;
-            }
-        }
-
-        // If we have NO server-side detection at all (extension lacks both
-        // finfo and mime_content_type) the only signals are the client MIME
-        // and the extension. Those alone aren't enough to keep the upload
-        // path honest, so refuse the upload rather than trust the client.
-        if ($detectedMime === null && ! function_exists('finfo_open') && ! function_exists('mime_content_type')) {
+        if ($detectedMime === null) {
             throw new ValidationException([
                 'document' => $this->translator->trans('ramon-verified.api.upload_failed'),
             ]);
         }
 
-        if ($detectedMime && ! in_array(strtolower($detectedMime), self::ALLOWED_MIMES, true)) {
+        if (! in_array(strtolower($detectedMime), self::ALLOWED_MIMES, true)) {
             throw new ValidationException([
                 'document' => $this->translator->trans('ramon-verified.api.bad_mime'),
             ]);
         }
+    }
 
-        $userId = (int) $actor->id;
-        $dir = rtrim($this->paths->storage, '/\\').DIRECTORY_SEPARATOR.'verified-documents'.DIRECTORY_SEPARATOR.$userId;
+    private function detectServerMime(UploadedFileInterface $file): ?string
+    {
+        $tmpPath = $file->getStream()->getMetadata('uri');
+        if (! is_string($tmpPath) || ! is_readable($tmpPath)) {
+            return null;
+        }
 
-        if (! is_dir($dir)) {
-            if (! mkdir($dir, 0750, true) && ! is_dir($dir)) {
-                throw new ValidationException([
-                    'document' => $this->translator->trans('ramon-verified.api.upload_failed'),
-                ]);
+        if (function_exists('finfo_open')) {
+            $finfo = finfo_open(FILEINFO_MIME_TYPE);
+            if ($finfo) {
+                $detected = finfo_file($finfo, $tmpPath);
+                finfo_close($finfo);
+                return is_string($detected) && $detected !== '' ? $detected : null;
             }
         }
 
-        // Sweep any of this user's old documents that aren't referenced by
-        // a live (pending or approved) request row before storing the new
-        // one. This shuts down the disk-fill loop where an attacker could
-        // upload-submit-delete repeatedly to leak storage.
-        $this->retention->sweepOrphans($userId);
-
-        $filename = bin2hex(random_bytes(16)).'.'.$extension;
-        $dest = $dir.DIRECTORY_SEPARATOR.$filename;
-
-        if ($this->cipher->canEncrypt()) {
-            // Read the upload into memory once, encrypt, write the
-            // sealed-box payload to disk. The 8 MB MAX_BYTES cap above
-            // means worst case is ~8 MB resident; well within reason.
-            $stream = $file->getStream();
-            $stream->rewind();
-            $plaintext = $stream->getContents();
-
-            $encrypted = $this->cipher->encrypt($plaintext);
-
-            // Best-effort scrub — sodium doesn't do anything special with
-            // PHP strings, but explicit zeroing reduces the window during
-            // which the plaintext is in memory.
-            sodium_memzero($plaintext);
-
-            if (file_put_contents($dest, $encrypted, LOCK_EX) === false) {
-                throw new ValidationException([
-                    'document' => $this->translator->trans('ramon-verified.api.upload_failed'),
-                ]);
-            }
-        } else {
-            $file->moveTo($dest);
+        if (function_exists('mime_content_type')) {
+            $detected = mime_content_type($tmpPath);
+            return is_string($detected) && $detected !== '' ? $detected : null;
         }
 
-        @chmod($dest, 0640);
-
-        // Token is a relative-path opaque identifier. It is never resolved client-side.
-        $token = 'verified-documents/'.$userId.'/'.$filename;
-
-        // Front-end uses /assets/verified/{userId}/{filename} as a virtual path that
-        // the resource validates against the actor's id. The actual disk location is
-        // hidden behind a server-side download endpoint.
-        $publicToken = '/assets/verified/'.$userId.'/'.$filename;
-
-        return new JsonResponse([
-            'documentPath' => $publicToken,
-            'token'        => $token,
-        ], 200);
+        return null;
     }
 }

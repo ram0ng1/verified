@@ -75,7 +75,7 @@ export default class VerifiedPopover extends Component<VerifiedPopoverAttrs> {
           aria-label={ariaLabel}
           tabIndex={0}
         >
-          {m.trust(getBadgeSvg())}
+          {m.trust(getBadgeSvg(tier))}
         </span>
 
         <span className="VerifiedPopover" role="tooltip">
@@ -83,7 +83,7 @@ export default class VerifiedPopover extends Component<VerifiedPopoverAttrs> {
 
           <span className="VerifiedPopover-header">
             <span className="VerifiedPopover-headerIcon">
-              {m.trust(getBadgeSvg())}
+              {m.trust(getBadgeSvg(tier))}
             </span>
             <span className="VerifiedPopover-headerText">
               {headline}
