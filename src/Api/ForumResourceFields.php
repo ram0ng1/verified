@@ -7,11 +7,16 @@ use Flarum\Api\Schema;
 use Flarum\Settings\SettingsRepositoryInterface;
 
 /**
- * Fields para o `ForumResource` que SÓ devem chegar a usuários autenticados
- * Em vez de `serializeToForum` (que ship pra todo guest),
- * estes campos têm `->visible(actor not guest)` e ficam fora do payload
- * anônimo. Reduz peso por page-load e evita exposição de toggles
- * operacionais a quem nunca abrirá o modal.
+ * Fields para o `ForumResource` que SÓ devem chegar a usuários autenticados.
+ * Em vez de `serializeToForum` (que ship pra todo guest), estes campos têm
+ * `->visible(actor not guest)` e ficam fora do payload anônimo. Reduz peso
+ * por page-load e evita exposição de toggles operacionais a quem nunca
+ * abrirá o modal.
+ *
+ * `canVerifyUsers` e `canSelfRevokeVerification` espelham o gate do
+ * `VerifyUserController::assertCanActOn` (§3, §4) — o primeiro vale para
+ * cross-user e self; o segundo libera o botão Revoke no próprio perfil
+ * quando o ator não é admin.
  */
 class ForumResourceFields
 {
@@ -29,11 +34,6 @@ class ForumResourceFields
                 ->get(fn (object $model, Context $context) =>
                     $context->getActor()->hasPermission('verified.verifyUsers')),
 
-            // Sinaliza ao frontend que este ator pode revogar o próprio
-            // badge sem ter `verifyUsers`. Mostrar o botão Revoke no menu
-            // de ações do PRÓPRIO perfil depende disto OU de
-            // canVerifyUsers; cross-user só `canVerifyUsers`. Espelha a
-            // ramificação no VerifyUserController::handle (§3, §4).
             Schema\Boolean::make('canSelfRevokeVerification')
                 ->get(fn (object $model, Context $context) =>
                     $context->getActor()->hasPermission('verified.selfRevoke'))

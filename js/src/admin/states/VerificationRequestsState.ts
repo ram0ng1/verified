@@ -129,7 +129,7 @@ export default class VerificationRequestsState {
           params.toString(),
       });
 
-      app.store.pushPayload(payload as any);
+      app.store.pushPayload(payload);
 
       const total = payload?.meta?.page?.total;
       state.total = typeof total === "number" ? total : 0;
@@ -203,7 +203,7 @@ export default class VerificationRequestsState {
     const body: Record<string, unknown> = { meta: { adminNote: note || "" } };
     if (tierId) (body.meta as Record<string, unknown>).tier = tierId;
 
-    const res = await apiCall<{ data?: unknown }>(
+    const res = await apiCall<JsonApiListPayload | { data?: JsonApiResource }>(
       {
         method: "POST",
         url:
@@ -220,7 +220,7 @@ export default class VerificationRequestsState {
     delete this.busy[reqId];
 
     if (res !== null) {
-      if (res.data) app.store.pushPayload(res as any);
+      if (res.data) app.store.pushPayload(res as JsonApiListPayload);
       await this.loadAll();
       app.alerts.show({ type: "success" }, trans(action + "_success"));
       m.redraw();
