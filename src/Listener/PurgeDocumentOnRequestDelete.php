@@ -8,18 +8,11 @@ use Ramon\Verified\Models\VerificationRequest;
 use Throwable;
 
 /**
- * Unlink a verification request's document file when the row itself is
- * being deleted. Without this hook, a user (with `verified.request`
- * permission) could:
- *
- *   1. Upload an 8 MB document (POST /verified/documents)
- *   2. Submit a pending request that points at it
- *   3. DELETE their own pending request (allowed by VerificationRequestPolicy)
- *   4. Repeat — each loop leaves the file orphaned in storage.
- *
- * Listening on the model's `eloquent.deleting: VerificationRequest` event
- * guarantees cleanup regardless of who triggered the delete (user dropping
- * their pending request, admin hard-deleting via tinker, GDPR fallback).
+ * Apaga o arquivo de documento quando a linha de `verification_requests` é
+ * deletada. Sem este hook, um usuário com `verified.request` poderia repetir
+ * upload → submit → DELETE em loop, deixando arquivos órfãos em disco.
+ * Falhas de I/O são logadas mas não bloqueiam a remoção da linha — o sweep
+ * agendado limpa órfãos posteriormente.
  */
 class PurgeDocumentOnRequestDelete
 {
@@ -31,10 +24,6 @@ class PurgeDocumentOnRequestDelete
 
     public function handle(VerificationRequest $model): void
     {
-        // A filesystem failure here must not block the row delete. The
-        // file may end up orphaned, but the scheduled `sweepOrphans`
-        // pass will pick it up — losing the row instead would leave a
-        // pointer to a vanished file behind, which is worse.
         try {
             $this->retention->purgeFileForRequest($model);
         } catch (Throwable $e) {

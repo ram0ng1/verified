@@ -29,9 +29,6 @@ class DeleteBadgeSvgController extends AbstractDeleteController
 
         $path = $this->settings->get($this->filePathSettingKey);
         $this->settings->delete($this->filePathSettingKey);
-
-        // Clear the inlined SVG content too so the frontend reverts to
-        // the default badge.
         $this->settings->delete('ramon-verified.badge_svg_content');
 
         if ($path && $this->uploadDir->exists($path)) {
