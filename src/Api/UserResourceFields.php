@@ -8,15 +8,17 @@ use Flarum\Settings\SettingsRepositoryInterface;
 use Flarum\User\User;
 use Ramon\Verified\Models\VerificationRequest;
 use Ramon\Verified\TierResolver;
+use Ramon\Verified\VerifiedStatus;
 
 class UserResourceFields
 {
-    /** @var array<int,bool>|null Per-request cache of users with a pending request. */
-    protected ?array $pendingUserIds = null;
+    /** @var array<int, bool> Cache por requisição com resultado do EXISTS. */
+    protected array $pendingCache = [];
 
     public function __construct(
         protected SettingsRepositoryInterface $settings,
-        protected TierResolver $tiers
+        protected TierResolver $tiers,
+        protected VerifiedStatus $verifiedStatus
     ) {
     }
 
@@ -27,7 +29,7 @@ class UserResourceFields
                 ->get(fn (User $user) => $this->tiers->isVerified($user)),
 
             Schema\DateTime::make('verifiedAt')
-                ->property('verified_at')
+                ->get(fn (User $user) => $this->verifiedStatus->verifiedAt($user))
                 ->nullable(),
 
             Schema\Str::make('verifiedTier')
@@ -50,7 +52,6 @@ class UserResourceFields
                         return false;
                     }
 
-                    // Admin can close intake of new requests entirely.
                     if (! (bool) $this->settings->get('ramon-verified.requests_open', true)) {
                         return false;
                     }
@@ -85,32 +86,27 @@ class UserResourceFields
                         return false;
                     }
 
-                    return (bool) $user->is_verified;
+                    return $this->tiers->isVerified($user);
                 }),
         ];
     }
 
     /**
-     * Per-request membership check for "user has any pending verification
-     * request". On the first call we preload the WHOLE set of pending user
-     * ids in one query — pending is a transient state, so the row count is
-     * bounded even on busy forums. Subsequent lookups are O(1) hash hits.
-     *
-     * Without this cache the field getters fired one EXISTS query per row
-     * during admin user listings (audit F-N+1), turning a 50-row page into
-     * 50 round-trips against `verification_requests`.
+     * EXISTS por usuário com cache local da instância. Apenas usuários que
+     * passam pelos gates de permissão acima chegam aqui — admin listing
+     * dispara no máximo 1 query por linha contra `verification_requests`,
+     * cacheada para evitar duplicatas. Sem materialização de todo o
+     * conjunto pending na memória.
      */
     protected function userHasPending(int $userId): bool
     {
-        if ($this->pendingUserIds === null) {
-            $this->pendingUserIds = VerificationRequest::query()
-                ->where('status', VerificationRequest::STATUS_PENDING)
-                ->pluck('user_id')
-                ->map(fn ($id) => (int) $id)
-                ->flip()
-                ->all();
+        if (array_key_exists($userId, $this->pendingCache)) {
+            return $this->pendingCache[$userId];
         }
 
-        return isset($this->pendingUserIds[$userId]);
+        return $this->pendingCache[$userId] = VerificationRequest::query()
+            ->where('user_id', $userId)
+            ->where('status', VerificationRequest::STATUS_PENDING)
+            ->exists();
     }
 }

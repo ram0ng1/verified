@@ -21,23 +21,36 @@ const trans = (key: string, params?: Record<string, unknown>) =>
  * component that holds both — see VerificationRequestsSection.
  */
 export default class VerificationRequestsState {
+  static readonly PAGE_LIMIT = 100;
+
   loading: boolean = false;
   requests: VerificationRequest[] = [];
   busy: Record<string, boolean> = {};
+  /** Total reportado pelo JSON:API; -1 indica desconhecido. */
+  totalReported: number = -1;
 
   async load(): Promise<void> {
     this.loading = true;
     this.requests = [];
+    this.totalReported = -1;
 
     try {
       const res = await app.store.find<VerificationRequest[]>(
         "verification-requests",
         {
           sort: "-createdAt",
-          page: { limit: 100 },
+          page: { limit: VerificationRequestsState.PAGE_LIMIT },
           include: "user,handler",
         },
       );
+
+      const meta = (
+        res as { payload?: { meta?: { page?: { total?: number } } } }
+      ).payload?.meta?.page;
+      if (meta && typeof meta.total === "number") {
+        this.totalReported = meta.total;
+      }
+
       const list: VerificationRequest[] = Array.isArray(res) ? res.slice() : [];
       list.sort((a, b) => {
         const av = a.createdAt() ? (a.createdAt() as Date).getTime() : 0;
@@ -51,6 +64,16 @@ export default class VerificationRequestsState {
       this.loading = false;
       m.redraw();
     }
+  }
+
+  /**
+   * Quando o backend devolveu mais resultados do que cabem no `PAGE_LIMIT`,
+   * informa quantos ficaram fora da página atual para o usuário decidir
+   * refinar a busca.
+   */
+  hiddenCount(): number {
+    if (this.totalReported < 0) return 0;
+    return Math.max(0, this.totalReported - this.requests.length);
   }
 
   /**

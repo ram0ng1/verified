@@ -7,32 +7,20 @@ use Flarum\Settings\SettingsRepositoryInterface;
 use RuntimeException;
 
 /**
- * Asymmetric encryption for verification documents.
+ * Criptografia assimétrica para documentos de verificação usando "sealed
+ * boxes" do libsodium (X25519 + XSalsa20-Poly1305). A chave pública vive em
+ * setting `ramon-verified.encryption_public_key`; a chave privada é colada à
+ * mão em `config.php` na entrada `verified-private-key`. Assim o processo
+ * web não pode ser coagido a vazar uma chave que nunca recebeu.
  *
- * Uses libsodium "sealed boxes" (X25519 + XSalsa20-Poly1305): the public key
- * is enough to encrypt; only the matching private key can decrypt. This
- * matches the trust model the user asked for — the admin generates the
- * keypair once and pastes the private key into config.php BY HAND, so the
- * web process can't be coerced into leaking a key it has never been told.
+ * Layout em disco:  [MAGIC (6 bytes)] [sealed-box ciphertext].
  *
- * Key location:
- *   - Public key  → setting `ramon-verified.encryption_public_key` (base64)
- *   - Private key → config.php under `verified-private-key` (base64)
- *
- * On-disk file layout for an encrypted document:
- *   [MAGIC (6 bytes)] [sealed-box ciphertext]
- *
- * The MAGIC prefix lets us tell encrypted files apart from legacy
- * unencrypted ones — important for the GDPR pipeline and for forums that
- * enable encryption mid-life-cycle.
- *
- * libsodium is bundled with PHP 8.1+ (Flarum 2's minimum), so we don't
- * fall back to OpenSSL. Calling code can rely on `isAvailable()` to short
- * circuit gracefully if a hardened build dropped sodium.
+ * O prefixo MAGIC distingue blobs cifrados de arquivos legados em texto
+ * claro — essencial no pipeline GDPR e em forums que ativam encryption no
+ * meio do ciclo de vida.
  */
 class DocumentCipher
 {
-    /** Header bytes — version-tagged so we can roll the format later. */
     public const MAGIC = "VENC1\n";
 
     public const SETTING_PUBLIC_KEY = 'ramon-verified.encryption_public_key';
@@ -61,13 +49,9 @@ class DocumentCipher
     }
 
     /**
-     * Both keys are present AND the public key derived from the private
-     * key actually matches the stored public key. A mismatch means the
-     * admin pasted a private key from a *different* keypair into
-     * config.php — encryption looks healthy but every decrypt would fail.
-     *
-     * Returns null when either key is missing (the question doesn't
-     * apply yet); true / false when both are present.
+     * `true` quando a pública derivada da privada bate com a pública
+     * persistida; `false` se há mismatch (chave privada de outro par);
+     * `null` quando faltam ambas — pergunta ainda não aplicável.
      */
     public function keysMatch(): ?bool
     {
@@ -83,19 +67,14 @@ class DocumentCipher
         return $match;
     }
 
-    /**
-     * The system can encrypt new uploads. Requires a public key configured
-     * in settings — the private key isn't needed to encrypt.
-     */
     public function canEncrypt(): bool
     {
         return $this->isAvailable() && $this->hasPublicKey();
     }
 
     /**
-     * The system can decrypt existing files. Requires both halves of the
-     * keypair AND the two halves to actually belong to the same pair —
-     * a mismatched private key is no better than a missing one.
+     * Decifrar exige par completo E que ambas as metades pertençam ao
+     * mesmo par. Privada de outro par é tão útil quanto privada ausente.
      */
     public function canDecrypt(): bool
     {
@@ -106,8 +85,8 @@ class DocumentCipher
     }
 
     /**
-     * Encrypt a buffer. Caller is expected to have already validated
-     * that encryption is available — we throw if not.
+     * Cifra um buffer. Caller é responsável por já ter verificado que
+     * encryption está disponível — caso contrário, lança.
      */
     public function encrypt(string $plaintext): string
     {
@@ -116,17 +95,13 @@ class DocumentCipher
             throw new RuntimeException('No public key configured.');
         }
 
-        // Defensive: in modern PHP, sodium_crypto_box_seal throws SodiumException
-        // on invalid input, but older builds and patched runtimes have been
-        // observed to return false instead. Either way, we must not silently
-        // persist a corrupted "encrypted" blob.
         try {
             $sealed = sodium_crypto_box_seal($plaintext, $public);
         } catch (\Throwable $e) {
             throw new RuntimeException('Document encryption failed.', 0, $e);
         }
 
-        if (!is_string($sealed) || $sealed === '') {
+        if (! is_string($sealed) || $sealed === '') {
             throw new RuntimeException('Document encryption failed (empty ciphertext).');
         }
 
@@ -134,11 +109,10 @@ class DocumentCipher
     }
 
     /**
-     * Decrypt a buffer if and only if it carries our MAGIC header. Legacy
-     * unencrypted buffers (uploaded before encryption was enabled) are
-     * returned untouched so downloads keep working through the same
-     * pipeline. Callers that need a strict "must have been encrypted"
-     * contract should branch on `isEncryptedBlob(...)` before calling.
+     * Decifra apenas se o buffer carrega o MAGIC. Blobs legados (não
+     * cifrados) atravessam intactos — assim o pipeline de download
+     * funciona uniformemente. Quem precisa do contrato estrito "tem que
+     * ser cifrado" testa `isEncryptedBlob()` antes.
      */
     public function decryptIfEncrypted(string $blob): string
     {
@@ -167,23 +141,10 @@ class DocumentCipher
     }
 
     /**
-     * Backwards-compatible alias. Prefer `decryptIfEncrypted(...)` in new
-     * call sites — the original `decrypt(...)` name is misleading because
-     * legacy unencrypted blobs flow through verbatim (audit F15).
+     * Gera um par X25519 novo. Pública é persistida; privada volta ao caller
+     * para exibição única e colagem manual em `config.php`.
      *
-     * @deprecated 2.0.18 use {@see decryptIfEncrypted()}.
-     */
-    public function decrypt(string $blob): string
-    {
-        return $this->decryptIfEncrypted($blob);
-    }
-
-    /**
-     * Generate a fresh X25519 keypair. Public is persisted as a setting
-     * here; private is returned to the caller so it can be displayed once
-     * and instructed for manual config.php placement.
-     *
-     * @return array{public: string, private: string} both base64-encoded
+     * @return array{public: string, private: string} ambos em base64
      */
     public function generateKeypair(): array
     {
@@ -210,10 +171,9 @@ class DocumentCipher
     }
 
     /**
-     * Forget the public key. Used when the admin acknowledges that the
-     * private key was lost — no point keeping a public key around when no
-     * existing files can be decrypted, and any new uploads should be
-     * encrypted to the *new* keypair.
+     * Esquece a chave pública. Usado quando o admin reconhece perda da
+     * privada — sem privada, manter pública só atrapalha (novos uploads
+     * cifrariam para um par cujos arquivos cifrados são ilegíveis).
      */
     public function forgetPublicKey(): void
     {
@@ -223,24 +183,6 @@ class DocumentCipher
     public static function isEncryptedBlob(string $blob): bool
     {
         return str_starts_with($blob, self::MAGIC);
-    }
-
-    /**
-     * Cheap header probe — reads only the first bytes of a file, no full
-     * load. Used by the GDPR export and the download streamer to decide
-     * whether a file needs decryption.
-     */
-    public static function isEncryptedFile(string $absolutePath): bool
-    {
-        if (! is_file($absolutePath)) return false;
-
-        $fh = @fopen($absolutePath, 'rb');
-        if ($fh === false) return false;
-
-        $head = fread($fh, strlen(self::MAGIC));
-        fclose($fh);
-
-        return $head === self::MAGIC;
     }
 
     public function status(): array
@@ -253,21 +195,13 @@ class DocumentCipher
         $healthy = $available && $hasPublic && $hasPrivate && $match === true;
 
         return [
-            'available'           => $available,
-            'has_public_key'      => $hasPublic,
-            'private_key_present' => $hasPrivate,
-            'keys_match'          => $match, // null when either key missing, otherwise bool
-            'healthy'             => $healthy,
-            // requires_regeneration covers BOTH "private key missing" and
-            // "private key present but from the wrong keypair" — in either
-            // case existing encrypted documents are unreadable and the
-            // admin needs to either restore the right private key or
-            // rotate (which wipes the encrypted documents).
+            'available'             => $available,
+            'has_public_key'        => $hasPublic,
+            'private_key_present'   => $hasPrivate,
+            'keys_match'            => $match,
+            'healthy'               => $healthy,
             'requires_regeneration' => $available && $hasPublic && (! $hasPrivate || $match === false),
-            // Public key is non-secret — exposing it lets the admin verify
-            // the value matches what they expect (and copy it for backups
-            // or external tooling that needs to encrypt to the same pair).
-            'public_key'          => $hasPublic ? (string) $this->settings->get(self::SETTING_PUBLIC_KEY, '') : null,
+            'public_key'            => $hasPublic ? (string) $this->settings->get(self::SETTING_PUBLIC_KEY, '') : null,
         ];
     }
 

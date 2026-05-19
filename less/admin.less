@@ -431,6 +431,18 @@
       font-size: 16px;
       margin: 0;
     }
+
+    svg {
+      width: 22px;
+      height: 22px;
+      display: block;
+    }
+
+    &--custom {
+      background: transparent;
+      box-shadow: none;
+      color: var(--tier-color, var(--primary-color));
+    }
   }
 
   &-titleBlock {
@@ -1705,4 +1717,207 @@
   gap: 8px;
   margin: 12px 0;
   font-size: 14px;
+}
+
+// Tier badge upload section — redesigned with switch + dropzone.
+.VerifiedTier-section--badge {
+  .VerifiedTier-sectionHeader {
+    display: flex;
+    align-items: flex-start;
+    gap: 16px;
+    justify-content: space-between;
+  }
+
+  .VerifiedTier-sectionDesc {
+    margin: 4px 0 0;
+    color: var(--muted-color);
+    font-size: 13px;
+    line-height: 1.4;
+    max-width: 460px;
+  }
+}
+
+.VerifiedTier-switch {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+  user-select: none;
+  flex-shrink: 0;
+
+  // Input cobre TODA a label e fica clicável (opacity:0 só esconde o
+  // chrome nativo). Sem `pointer-events:none` — esse modificador em
+  // alguns navegadores deixa o label-toggle inconsistente.
+  input[type="checkbox"] {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    margin: 0;
+    opacity: 0;
+    cursor: pointer;
+
+    &:focus-visible + .VerifiedTier-switchTrack {
+      outline: 2px solid var(--tier-color, var(--primary-color));
+      outline-offset: 2px;
+    }
+  }
+}
+
+.VerifiedTier-switchTrack {
+  position: relative;
+  width: 38px;
+  height: 22px;
+  background: var(--control-bg);
+  border-radius: 999px;
+  transition: background 0.18s ease;
+  flex-shrink: 0;
+}
+
+.VerifiedTier-switchThumb {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 18px;
+  height: 18px;
+  background: #fff;
+  border-radius: 50%;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15);
+  transition: transform 0.18s ease;
+}
+
+.VerifiedTier-switch--on .VerifiedTier-switchTrack {
+  background: var(--tier-color, var(--primary-color));
+}
+
+.VerifiedTier-switch--on .VerifiedTier-switchThumb {
+  transform: translateX(16px);
+}
+
+.VerifiedTier-switchLabel {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-color);
+}
+
+.VerifiedTier-badgePicker {
+  margin-top: 16px;
+}
+
+.VerifiedTier-dropzone {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 16px 18px;
+  background: var(--body-bg);
+  border: 1.5px dashed var(--control-bg);
+  border-radius: 10px;
+  cursor: pointer;
+  transition: border-color 0.15s ease, background 0.15s ease;
+
+  &:hover {
+    border-color: var(--tier-color, var(--primary-color));
+    background: fade(#000, 1.5%);
+  }
+}
+
+.VerifiedTier-dropzoneIcon {
+  flex-shrink: 0;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--control-bg);
+  color: var(--tier-color, var(--primary-color));
+
+  .icon {
+    font-size: 16px;
+    margin: 0;
+  }
+}
+
+.VerifiedTier-dropzoneText {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+
+  strong {
+    font-size: 14px;
+    color: var(--heading-color);
+  }
+
+  span {
+    font-size: 12px;
+    color: var(--muted-color);
+  }
+}
+
+.VerifiedTier-badgeSlot {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 16px;
+  background: var(--body-bg);
+  border: 1px solid var(--control-bg);
+  border-radius: 10px;
+}
+
+.VerifiedTier-badgeSlotPreview {
+  flex-shrink: 0;
+  width: 46px;
+  height: 46px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: fade(#000, 2%);
+  color: var(--tier-color, var(--primary-color));
+
+  svg {
+    width: 28px;
+    height: 28px;
+    display: block;
+  }
+}
+
+.VerifiedTier-badgeSlotInfo {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+
+  strong {
+    font-size: 14px;
+    color: var(--heading-color);
+  }
+}
+
+.VerifiedTier-badgeSlotMeta {
+  font-size: 12px;
+  color: var(--muted-color);
+}
+
+.VerifiedTier-badgeSlotActions {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.VerifiedTier-badgeSlotBtn {
+  font-size: 12px;
+  padding: 6px 10px;
+
+  .icon {
+    font-size: 11px;
+    margin-right: 4px;
+  }
+
+  &--danger {
+    color: var(--alert-error-color, #c0392b);
+  }
 }

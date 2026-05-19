@@ -1,34 +1,28 @@
 <?php
 
-use Illuminate\Database\Schema\Blueprint;
-use Illuminate\Database\Schema\Builder;
+use Flarum\Database\Migration;
+use Illuminate\Database\ConnectionInterface;
 
 /**
- * Multi-tier badge support: a user can hold one of N tiers (blue / gold /
- * partner / …) defined by the admin in settings. Existing verified users get
- * mapped to the default `blue` tier so they keep their badge unchanged.
+ * Multi-tier badge: usuário pode ter um de N tiers configurados pelo admin.
+ * Verificados pré-existentes recebem o tier default (`blue`) — backfill
+ * roda após `addColumns` para que a nova coluna exista no momento do UPDATE.
  */
-return [
-    'up' => function (Builder $schema) {
-        $schema->table('users', function (Blueprint $table) use ($schema) {
-            if (! $schema->hasColumn('users', 'verified_tier')) {
-                $table->string('verified_tier', 40)->nullable()->after('verified_by');
-            }
-        });
 
-        // Backfill: every previously verified user gets the default tier so
-        // the badge keeps rendering through the new tier-aware code path.
-        $schema->getConnection()
-            ->table('users')
+$base = Migration::addColumns('users', [
+    'verified_tier' => ['string', 'length' => 40, 'nullable' => true, 'after' => 'verified_by'],
+]);
+
+return [
+    'up' => function ($schema) use ($base) {
+        $base['up']($schema);
+
+        /** @var ConnectionInterface $db */
+        $db = $schema->getConnection();
+        $db->table('users')
             ->where('is_verified', true)
             ->whereNull('verified_tier')
             ->update(['verified_tier' => 'blue']);
     },
-    'down' => function (Builder $schema) {
-        $schema->table('users', function (Blueprint $table) use ($schema) {
-            if ($schema->hasColumn('users', 'verified_tier')) {
-                $table->dropColumn('verified_tier');
-            }
-        });
-    },
+    'down' => $base['down'],
 ];
