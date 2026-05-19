@@ -4,7 +4,6 @@ namespace Ramon\Verified\Api;
 
 use Flarum\Group\Group;
 use Flarum\User\User;
-use Illuminate\Database\ConnectionResolverInterface;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Collection;
 use Ramon\Verified\TierConfig;
@@ -30,19 +29,26 @@ class ApprovedUserQuery
     public const TIER_FILTER_TOTAL_CAP = 5000;
 
     public function __construct(
-        protected TierResolver $tierResolver,
-        protected ConnectionResolverInterface $connection
+        protected TierResolver $tierResolver
     ) {
     }
 
-    /** @return string[] */
+    /**
+     * Colunas pesquisáveis da tabela `users`. `nickname` (extensão
+     * `flarum/nicknames`) e `display_name` (Flarum 2 core) só entram quando
+     * realmente existem. Resolvemos o schema pelo próprio model em vez de
+     * injetar `ConnectionResolverInterface`: o resource layer não precisa
+     * conhecer essa abstração só para um lookup estrutural.
+     *
+     * @return string[]
+     */
     public function searchableColumns(): array
     {
         static $cached = null;
         if ($cached !== null) return $cached;
 
         $columns = ['username', 'email'];
-        $schema  = $this->connection->connection()->getSchemaBuilder();
+        $schema = User::query()->getConnection()->getSchemaBuilder();
         foreach (['nickname', 'display_name'] as $optional) {
             if ($schema->hasColumn('users', $optional)) {
                 $columns[] = $optional;
