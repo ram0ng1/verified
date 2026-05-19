@@ -4,36 +4,70 @@ namespace Ramon\Verified;
 
 use Flarum\Group\Group;
 use Flarum\Settings\SettingsRepositoryInterface;
+use Ramon\Verified\Api\Controller\UploadBadgeSvgController;
 
 /**
- * Multi-tier badge config.
+ * Configuração multi-tier do badge. A lista vive como JSON em
+ * `ramon-verified.tiers`; esta classe é a fonte única de parsing e
+ * validação tanto server-side quanto no `serializeToForum`.
  *
- * Tiers live as JSON in the `ramon-verified.tiers` setting. This class is the
- * single source of truth for parsing / validating that JSON, both server-side
- * (used by `UserResourceFields`, `VerifyUserController`, etc.) and when
- * serialising to the forum payload for the frontend.
- *
- * Each tier shape:
- *   - id            : slug, [a-z0-9_-], 1..32 chars
- *   - label         : display name, 1..64 chars
- *   - color         : hex (#rgb / #rrggbb / #rrggbbaa) — falls back to forum primary on the front
- *   - description   : popover body text, up to 280 chars
- *   - learnMoreUrl  : optional link shown as "Saiba mais"; only http/https allowed
- *   - autoGroups    : list of int group IDs whose members get this tier automatically
+ * Shape de cada tier:
+ * - id              slug [a-z0-9_-], 1..32 chars
+ * - label           nome exibido, 1..64
+ * - color           hex (#rgb / #rrggbb / #rrggbbaa); vazio cai no primary do forum
+ * - description     texto do popover, até 280 chars; aceita `<strong>` e `<em>`
+ * - learnMoreUrl    link opcional "Saiba mais"; apenas http/https
+ * - autoGroups      IDs de grupos cujos membros recebem o tier automaticamente
+ * - badgeEnabled    opt-in para usar um SVG customizado APENAS para este tier
+ * - badgeSvg        SVG sanitizado, até `BADGE_SVG_MAX` bytes; ignorado se `badgeEnabled=false`
  */
 class TierConfig
 {
-    /** Default tier ID assigned to legacy verified users (set by migration). */
     public const DEFAULT_TIER_ID = 'blue';
 
     /**
-     * Parse a raw setting value (JSON string or already-decoded array) into a
-     * normalised list of tiers. Drops malformed entries silently so a single
-     * bad row in the admin's JSON can never crash the forum.
+     * Cap por tier para o SVG customizado. Cada tier extra é embarcado no
+     * payload do forum (toda página), então um cap apertado evita bloat —
+     * 8 tiers × 8 KB já são 64 KB serializados em cada carga, suficiente.
+     */
+    public const BADGE_SVG_MAX = 8 * 1024;
+
+    /**
+     * Cache por hash do input em escopo de processo. `parse` é chamada a cada
+     * `serializeToForum` (toda montagem do payload) — sem cache, o sanitizer
+     * SVG roda DOMDocument por tier, em cada page-load.
      *
-     * @return array<int, array{id:string,label:string,color:string,description:string,learnMoreUrl:string,autoGroups:int[]}>
+     * @var array<string, array<int, array>>
+     */
+    private static array $parseCache = [];
+
+    /**
+     * Parse de um valor cru (JSON string ou array já decodificado) para uma
+     * lista normalizada. Entradas malformadas são descartadas silenciosamente
+     * para que uma linha ruim no JSON do admin nunca derrube o forum.
+     *
+     * @return array<int, array{id:string,label:string,color:string,description:string,learnMoreUrl:string,autoGroups:int[],badgeEnabled:bool,badgeSvg:string}>
      */
     public static function parse($raw): array
+    {
+        $cacheKey = is_string($raw)
+            ? 's:'.crc32($raw)
+            : (is_array($raw) ? 'a:'.crc32(serialize($raw)) : null);
+
+        if ($cacheKey !== null && isset(self::$parseCache[$cacheKey])) {
+            return self::$parseCache[$cacheKey];
+        }
+
+        $result = self::doParse($raw);
+
+        if ($cacheKey !== null) {
+            self::$parseCache[$cacheKey] = $result;
+        }
+
+        return $result;
+    }
+
+    private static function doParse($raw): array
     {
         $list = is_string($raw) ? json_decode($raw, true) : (is_array($raw) ? $raw : null);
         if (! is_array($list)) return [];
@@ -45,7 +79,6 @@ class TierConfig
             if (! is_array($row)) continue;
 
             $id = isset($row['id']) ? strtolower(trim((string) $row['id'])) : '';
-            // slug-style; stops a malicious admin from smuggling weird ids.
             if ($id === '' || ! preg_match('/^[a-z0-9_-]{1,32}$/', $id)) continue;
             if (isset($seen[$id])) continue;
             $seen[$id] = true;
@@ -82,6 +115,21 @@ class TierConfig
                 $autoGroups = array_values(array_unique($autoGroups));
             }
 
+            $badgeEnabled = ! empty($row['badgeEnabled']);
+            $badgeSvg = '';
+            if ($badgeEnabled && isset($row['badgeSvg']) && is_string($row['badgeSvg'])) {
+                $candidate = $row['badgeSvg'];
+                if ($candidate !== '' && strlen($candidate) <= self::BADGE_SVG_MAX) {
+                    $sanitised = UploadBadgeSvgController::sanitizeSvg($candidate, false);
+                    if ($sanitised !== '' && strlen($sanitised) <= self::BADGE_SVG_MAX) {
+                        $badgeSvg = $sanitised;
+                    }
+                }
+            }
+            if ($badgeSvg === '') {
+                $badgeEnabled = false;
+            }
+
             $clean[] = [
                 'id'           => mb_substr($id, 0, 32),
                 'label'        => mb_substr($label, 0, 64),
@@ -89,43 +137,33 @@ class TierConfig
                 'description'  => $description,
                 'learnMoreUrl' => $learnMoreUrl,
                 'autoGroups'   => $autoGroups,
+                'badgeEnabled' => $badgeEnabled,
+                'badgeSvg'     => $badgeSvg,
             ];
         }
 
         return $clean;
     }
 
-    /**
-     * Used by `serializeToForum` — exposes the parsed tier list under the
-     * `ramonVerifiedTiers` forum attribute.
-     */
     public static function parseForFrontend($raw): array
     {
         return self::parse($raw);
     }
 
-    /**
-     * Read tiers straight from the settings repository (server-side hot path).
-     */
     public static function fromSettings(SettingsRepositoryInterface $settings): array
     {
         return self::parse($settings->get('ramon-verified.tiers'));
     }
 
     /**
-     * Allow only `<strong>` and `<em>` tags inside the description so admins
-     * can highlight key words with the same colored-bold treatment the
-     * pre-tiers headline had ("Esta conta tem a <strong>identidade
-     * verificada</strong>."). Everything else is escaped — the description
-     * goes through `m.trust()` on the frontend, so anything not stripped here
-     * could become an XSS vector.
+     * Permite apenas `<strong>` e `<em>` no description — o restante é
+     * escapado para neutralizar XSS no `m.trust()` do frontend.
      */
     protected static function sanitiseDescription(string $raw): string
     {
         $text = trim($raw);
         if ($text === '') return '';
 
-        // Escape every special char first, then unescape the whitelisted tags.
         $escaped = htmlspecialchars($text, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
 
         return preg_replace(
@@ -135,9 +173,6 @@ class TierConfig
         );
     }
 
-    /**
-     * Look up a tier by id. Returns null when the id is not configured.
-     */
     public static function findById(array $tiers, ?string $id): ?array
     {
         if ($id === null || $id === '') return null;
@@ -149,16 +184,14 @@ class TierConfig
     }
 
     /**
-     * For a list of group IDs the user belongs to, find the first tier whose
-     * `autoGroups` intersects. Order in the configured list is the priority —
-     * admins control precedence by reordering tiers.
+     * Encontra o primeiro tier cujo `autoGroups` intersecta os grupos do
+     * usuário. A ordem da lista é a precedência — admin controla via
+     * reordenação.
      *
-     * Administrators are exempt from auto-grant via implicit membership: a tier
-     * targeting "Members" (or any other group an admin happens to also belong
-     * to) does NOT verify the admin. Admins only auto-verify when a tier
-     * explicitly lists the Admin group (id 1) in its `autoGroups`. Without
-     * this guard the badge would silently leak to every staff account through
-     * any "Members"-style tier.
+     * Administradores são imunes a auto-grant por membership implícita: um
+     * tier mirando "Members" (ou qualquer grupo que o admin também pertença)
+     * não verifica o admin. Admin só recebe auto-grant quando o tier lista
+     * explicitamente o grupo Admin (id 1).
      *
      * @param int[] $userGroupIds
      */
