@@ -7,11 +7,10 @@ use Ramon\Verified\Documents\DocumentRetention;
 use Symfony\Component\Console\Command\Command;
 
 /**
- * Purges verification documents older than the configured retention window.
- * No-op unless the retention mode is `delete_after_days`.
- *
- * Registered as a daily scheduled task via extend.php — admins can also
- * run it on demand: `php flarum verified:purge-documents`.
+ * Apaga documentos de verificação fora da janela de retenção configurada.
+ * No-op fora do modo `delete_after_days`. Agendado diariamente via
+ * `extend.php`; admins também podem rodar manualmente via
+ * `php flarum verified:purge-documents`.
  */
 class PurgeDocumentsCommand extends AbstractCommand
 {

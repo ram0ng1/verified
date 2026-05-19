@@ -8,6 +8,11 @@ use Ramon\Verified\Event\UserVerified;
 use Ramon\Verified\Notification\UserVerifiedBlueprint;
 use Throwable;
 
+/**
+ * Verify já está commitado quando este listener roda. Falha no pipeline
+ * de notification (mailer caído, queue worker offline, erro no blueprint)
+ * não pode propagar e desfazer o verify — log e segue.
+ */
 class SendNotificationWhenUserIsVerified
 {
     public function __construct(
@@ -18,10 +23,6 @@ class SendNotificationWhenUserIsVerified
 
     public function handle(UserVerified $event): void
     {
-        // The verification itself is already committed by the time this
-        // listener fires. A notification-pipeline failure (mailer down,
-        // queue worker offline, blueprint error) must not leak back to
-        // the original request and undo the verify.
         try {
             $this->notifications->sync(
                 new UserVerifiedBlueprint($event->user),
