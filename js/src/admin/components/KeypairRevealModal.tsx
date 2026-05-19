@@ -22,10 +22,8 @@ export interface IKeypairRevealAttrs extends IInternalModalAttrs {
  * backdrop / Close button) the panel underneath is already accurate.
  *
  * SECURITY: the private key only exists in `this.attrs` for the lifetime
- * of the modal. On hide() we scrub `attrs.privateKey` and best-effort
- * defeat BFCache restoration so navigating back doesn't re-expose the
- * key (audit F8). The user-visible snippet relies on `this.attrs.privateKey`
- * directly — once scrubbed, the modal renders an empty value.
+ * of the modal. On hide() we scrub `attrs.privateKey` and defeat BFCache
+ * restoration so navigating back doesn't re-expose the key.
  */
 export default class KeypairRevealModal extends Modal<IKeypairRevealAttrs> {
   protected copied = false;
