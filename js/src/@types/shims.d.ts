@@ -1,10 +1,16 @@
-// Module + global augmentations for the Verified extension.
-//
-// We extend Flarum core's User model with the new attributes we register via
-// `Extend.Model(User).attribute(...)` in `common/extend.ts`. This is purely
-// a type-level merge — runtime behaviour is owned by the extender.
+/**
+ * Module + global augmentations for the Verified extension.
+ *
+ * Estende o User model do Flarum core com os atributos registrados via
+ * `Extend.Model(User).attribute(...)` em `common/extend.ts`. Merge puramente
+ * de tipos — runtime é controlado pelo extender.
+ *
+ * `Store.pushPayload` é aumentada para aceitar o shape JSON:API que
+ * `VerificationRequestsState.load` envia, em vez de `as any`.
+ */
 
 import "flarum/common/models/User";
+import "flarum/common/Store";
 
 declare module "flarum/common/models/User" {
   export default interface User {
@@ -17,10 +23,26 @@ declare module "flarum/common/models/User" {
   }
 }
 
-// `flarum.reg` is provided by the runtime registry but isn't surfaced in
-// core's typings. Avocado integration paths depend on it.
+declare module "flarum/common/Store" {
+  interface JsonApiResource {
+    type: string;
+    id: string | number;
+  }
+  interface JsonApiPayload {
+    data: JsonApiResource | JsonApiResource[];
+    included?: JsonApiResource[];
+    meta?: { page?: { total?: number } } & Record<string, unknown>;
+  }
+  export default interface Store {
+    pushPayload(payload: JsonApiPayload): unknown;
+  }
+}
+
+/**
+ * `flarum.reg` é fornecido pelo runtime registry mas não exposto nas
+ * typings do core. Paths de integração com o Avocado dependem dele.
+ */
 declare global {
-  // eslint-disable-next-line @typescript-eslint/no-namespace
   namespace flarum {
     const reg: {
       get(namespace: string, id: string): unknown;
@@ -32,6 +54,18 @@ declare global {
       addChunk?: unknown;
     };
   }
+
+  /**
+   * Webpack injeta `process.env.NODE_ENV` em build via DefinePlugin
+   * (`'production'` / `'development'`). Sem `@types/node` instalado,
+   * declaramos só o subset que usamos para o gate dev-warn (§40.2).
+   */
+  const process: {
+    env: {
+      NODE_ENV?: string;
+      [key: string]: string | undefined;
+    };
+  };
 }
 
 export {};
