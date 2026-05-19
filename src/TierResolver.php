@@ -66,6 +66,30 @@ class TierResolver
     }
 
     /**
+     * Resolve o tier requisitado em um body de aprovação contra a lista
+     * configurada. Input ausente ou inválido cai no default (`blue`) ou no
+     * primeiro tier configurado — aprovação nunca trava por causa do tier.
+     * Devolve `null` quando o admin não configurou nenhum tier.
+     */
+    public function resolveRequestedTierId(?string $requested): ?string
+    {
+        $tiers = $this->tiers();
+        if (empty($tiers)) {
+            return null;
+        }
+
+        $requested = $requested !== null ? trim($requested) : null;
+
+        if ($requested !== null && $requested !== '') {
+            $found = TierConfig::findById($tiers, $requested);
+            if ($found) return $found['id'];
+        }
+
+        $fallback = TierConfig::findById($tiers, TierConfig::DEFAULT_TIER_ID) ?? $tiers[0];
+        return $fallback['id'];
+    }
+
+    /**
      * Tier que o usuário receberia exclusivamente por auto-grant de grupo,
      * independentemente de `is_verified`. Usado no fluxo de self-revoke
      * para informar o caller que o badge sobrevive via grupo.
