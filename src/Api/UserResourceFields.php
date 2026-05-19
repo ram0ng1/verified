@@ -12,8 +12,14 @@ use Ramon\Verified\VerifiedStatus;
 
 class UserResourceFields
 {
-    /** @var array<int, bool> Cache por requisição com resultado do EXISTS. */
-    protected array $pendingCache = [];
+    /**
+     * Set de user_ids com request pendente, carregado em batch na primeira
+     * leitura (§38.1). `null` enquanto não inicializado; um `array<int, true>`
+     * depois — `isset($map[$id])` é O(1).
+     *
+     * @var array<int, true>|null
+     */
+    protected ?array $pendingUserIds = null;
 
     public function __construct(
         protected SettingsRepositoryInterface $settings,
@@ -92,21 +98,26 @@ class UserResourceFields
     }
 
     /**
-     * EXISTS por usuário com cache local da instância. Apenas usuários que
-     * passam pelos gates de permissão acima chegam aqui — admin listing
-     * dispara no máximo 1 query por linha contra `verification_requests`,
-     * cacheada para evitar duplicatas. Sem materialização de todo o
-     * conjunto pending na memória.
+     * Lookup O(1) contra o set pré-carregado. A primeira chamada dispara UMA
+     * query `SELECT DISTINCT user_id FROM verification_requests WHERE
+     * status='pending'` — o índice composto `(user_id, status)` cobre por
+     * inteiro, e o resultado é bounded (pending tipicamente <100 mesmo em
+     * fóruns grandes). Substitui o EXISTS-por-linha que tornava o §38.1
+     * N+1 visível em listagens de admin com page[limit]=50.
      */
     protected function userHasPending(int $userId): bool
     {
-        if (array_key_exists($userId, $this->pendingCache)) {
-            return $this->pendingCache[$userId];
+        if ($this->pendingUserIds === null) {
+            $this->pendingUserIds = [];
+            VerificationRequest::query()
+                ->where('status', VerificationRequest::STATUS_PENDING)
+                ->distinct()
+                ->pluck('user_id')
+                ->each(function ($id) {
+                    $this->pendingUserIds[(int) $id] = true;
+                });
         }
 
-        return $this->pendingCache[$userId] = VerificationRequest::query()
-            ->where('user_id', $userId)
-            ->where('status', VerificationRequest::STATUS_PENDING)
-            ->exists();
+        return isset($this->pendingUserIds[$userId]);
     }
 }

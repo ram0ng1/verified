@@ -12,6 +12,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * @property \Carbon\Carbon|null $verified_at
  * @property int|null $verified_by
  * @property string|null $verified_tier
+ * @property \Carbon\Carbon|null $auto_revoked_at
  * @property-read User|null $user
  */
 class UserVerification extends AbstractModel
@@ -28,6 +29,7 @@ class UserVerification extends AbstractModel
         'is_verified' => 'bool',
         'verified_at' => 'datetime',
         'verified_tier' => 'string',
+        'auto_revoked_at' => 'datetime',
     ];
 
     public function user(): BelongsTo
