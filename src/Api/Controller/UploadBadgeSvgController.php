@@ -202,6 +202,37 @@ class UploadBadgeSvgController extends UploadImageController
         }
     }
 
+    /**
+     * Atributos SVG/CSS que aceitam `url(...)` como referência a paint server,
+     * máscara, filtro, marker ou cursor. Sem scrub aqui, um valor como
+     * `filter="url(https://evil.example/leak.svg#x)"` faz o navegador buscar
+     * recursos externos toda vez que o selo é renderizado.
+     */
+    private const URL_REFERENCING_ATTRS = [
+        'fill', 'stroke', 'filter', 'mask', 'clip-path',
+        'marker', 'marker-start', 'marker-mid', 'marker-end',
+        'cursor',
+    ];
+
+    /**
+     * `true` quando o atributo (ou trecho de style) tem qualquer `url(...)`
+     * que não seja referência interna do tipo `url(#fragment)`. Casa `url(`,
+     * `URL(`, aspas opcionais e espaço; rejeita protocolos absolutos, URLs
+     * relativas e protocolo-relativas (`//host/...`).
+     */
+    private static function hasExternalUrlRef(string $value): bool
+    {
+        if (! preg_match_all('/url\s*\(\s*([\'"]?)([^\'")]*)\1\s*\)/i', $value, $matches)) {
+            return false;
+        }
+        foreach ($matches[2] as $target) {
+            $target = trim($target);
+            if ($target === '') continue;
+            if ($target[0] !== '#') return true;
+        }
+        return false;
+    }
+
     private static function isWhiteFill(string $value): bool
     {
         $value = strtolower(trim($value));
@@ -245,6 +276,7 @@ class UploadBadgeSvgController extends UploadImageController
         }
 
         $remove = [];
+        $rewrite = [];
 
         foreach ($node->attributes as $attr) {
             $name = strtolower($attr->name);
@@ -269,11 +301,47 @@ class UploadBadgeSvgController extends UploadImageController
             if (in_array($name, ['href', 'xlink:href'], true)
                 && preg_match('#^(https?:)?//#i', $val)) {
                 $remove[] = $attr->name;
+                continue;
+            }
+
+            if (in_array($name, self::URL_REFERENCING_ATTRS, true)
+                && self::hasExternalUrlRef($val)) {
+                $remove[] = $attr->name;
+                continue;
+            }
+
+            if ($name === 'style' && self::hasExternalUrlRef($val)) {
+                $rewrite[$attr->name] = self::stripExternalUrlRefsFromStyle($val);
             }
         }
 
         foreach ($remove as $attrName) {
             $node->removeAttribute($attrName);
         }
+
+        foreach ($rewrite as $attrName => $newValue) {
+            if ($newValue === '') {
+                $node->removeAttribute($attrName);
+            } else {
+                $node->setAttribute($attrName, $newValue);
+            }
+        }
+    }
+
+    /**
+     * Remove declarações CSS cujo valor contém `url(...)` apontando para fora
+     * (qualquer coisa que não seja `url(#fragment)`). Preserva o resto do
+     * style — fill, transform, etc. seguem válidos.
+     */
+    private static function stripExternalUrlRefsFromStyle(string $style): string
+    {
+        $declarations = explode(';', $style);
+        $kept = [];
+        foreach ($declarations as $decl) {
+            if (trim($decl) === '') continue;
+            if (self::hasExternalUrlRef($decl)) continue;
+            $kept[] = $decl;
+        }
+        return trim(implode(';', $kept), " \t\n\r;");
     }
 }

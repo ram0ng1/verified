@@ -46,13 +46,18 @@ class TierConfig
      * lista normalizada. Entradas malformadas são descartadas silenciosamente
      * para que uma linha ruim no JSON do admin nunca derrube o forum.
      *
+     * `xxh128` (128 bits) é usado em vez de `crc32` (32 bits) — colisão
+     * acidental em CRC-32 vira realista por volta de 65k entradas e devolveria
+     * a configuração de OUTRO admin sob o mesmo cache key. xxh128 é nativo
+     * desde PHP 8.1 e tem o mesmo custo de hash por byte que crc32.
+     *
      * @return array<int, array{id:string,label:string,color:string,description:string,learnMoreUrl:string,autoGroups:int[],badgeEnabled:bool,badgeSvg:string}>
      */
     public static function parse($raw): array
     {
         $cacheKey = is_string($raw)
-            ? 's:'.crc32($raw)
-            : (is_array($raw) ? 'a:'.crc32(serialize($raw)) : null);
+            ? 's:'.hash('xxh128', $raw)
+            : (is_array($raw) ? 'a:'.hash('xxh128', serialize($raw)) : null);
 
         if ($cacheKey !== null && isset(self::$parseCache[$cacheKey])) {
             return self::$parseCache[$cacheKey];
