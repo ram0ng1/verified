@@ -11,35 +11,81 @@ export type RequestTab = "pending" | "approved" | "rejected";
 const trans = (key: string, params?: Record<string, unknown>) =>
   app.translator.trans(`ramon-verified.admin.requests.${key}`, params ?? {});
 
+interface TabState {
+  loading: boolean;
+  loaded: boolean;
+  requests: VerificationRequest[];
+  total: number;
+  offset: number;
+}
+
+export const REQUESTS_PAGE_SIZE = 25;
+
 /**
- * Owns the list of pending and rejected verification requests, plus the
- * "approve / reject / revoke" actions on individual requests.
+ * Owns the pending and rejected verification request tabs. Each tab is loaded
+ * independently from the server with `filter[status]=<tab>` so pagination
+ * stays correct above 100 rows — the previous "load 100 once, filter
+ * client-side" shape silently hid every record past the cap.
  *
- * The approved tab uses its own state ({@link ApprovedUsersState}) because
- * it has a separate paginated/searchable endpoint. Coordination between the
- * two states (refresh both on approve/revoke) is the responsibility of the
- * component that holds both — see VerificationRequestsSection.
+ * The approved tab is handled by {@link ApprovedUsersState}; coordination
+ * between this state and that one (refresh both on approve/revoke) is the
+ * responsibility of `VerificationRequestsSection`.
  */
 export default class VerificationRequestsState {
-  static readonly PAGE_LIMIT = 100;
-
-  loading: boolean = false;
-  requests: VerificationRequest[] = [];
   busy: Record<string, boolean> = {};
-  /** Total reportado pelo JSON:API; -1 indica desconhecido. */
-  totalReported: number = -1;
 
-  async load(): Promise<void> {
-    this.loading = true;
-    this.requests = [];
-    this.totalReported = -1;
+  private tabs: Record<"pending" | "rejected", TabState> = {
+    pending: { loading: false, loaded: false, requests: [], total: 0, offset: 0 },
+    rejected: { loading: false, loaded: false, requests: [], total: 0, offset: 0 },
+  };
+
+  loadingFor(tab: "pending" | "rejected"): boolean {
+    return this.tabs[tab].loading;
+  }
+
+  requestsFor(tab: "pending" | "rejected"): VerificationRequest[] {
+    return this.tabs[tab].requests;
+  }
+
+  totalFor(tab: "pending" | "rejected"): number {
+    return this.tabs[tab].total;
+  }
+
+  offsetFor(tab: "pending" | "rejected"): number {
+    return this.tabs[tab].offset;
+  }
+
+  pendingCount(): number {
+    return this.tabs.pending.total;
+  }
+
+  rejectedCount(): number {
+    return this.tabs.rejected.total;
+  }
+
+  hiddenFor(tab: "pending" | "rejected"): number {
+    const state = this.tabs[tab];
+    return Math.max(0, state.total - state.requests.length - state.offset);
+  }
+
+  /**
+   * Carrega a página atual de uma aba. `offset` é o índice 0-based dentro
+   * do conjunto filtrado pelo status; `total` vem do `meta.page.total` do
+   * JSON:API e dirige paginação no UI.
+   */
+  async load(tab: "pending" | "rejected", offset: number = 0): Promise<void> {
+    const state = this.tabs[tab];
+    state.loading = true;
+    state.offset = Math.max(0, offset);
+    m.redraw();
 
     try {
       const res = await app.store.find<VerificationRequest[]>(
         "verification-requests",
         {
           sort: "-createdAt",
-          page: { limit: VerificationRequestsState.PAGE_LIMIT },
+          filter: { status: tab },
+          page: { limit: REQUESTS_PAGE_SIZE, offset: state.offset },
           include: "user,handler",
         },
       );
@@ -47,9 +93,7 @@ export default class VerificationRequestsState {
       const meta = (
         res as { payload?: { meta?: { page?: { total?: number } } } }
       ).payload?.meta?.page;
-      if (meta && typeof meta.total === "number") {
-        this.totalReported = meta.total;
-      }
+      state.total = meta && typeof meta.total === "number" ? meta.total : 0;
 
       const list: VerificationRequest[] = Array.isArray(res) ? res.slice() : [];
       list.sort((a, b) => {
@@ -57,23 +101,26 @@ export default class VerificationRequestsState {
         const bv = b.createdAt() ? (b.createdAt() as Date).getTime() : 0;
         return bv - av;
       });
-      this.requests = list;
+      state.requests = list;
+      state.loaded = true;
     } catch (err) {
       app.alerts.show({ type: "error" }, extractText(trans("load_failed")));
     } finally {
-      this.loading = false;
+      state.loading = false;
       m.redraw();
     }
   }
 
   /**
-   * Quando o backend devolveu mais resultados do que cabem no `PAGE_LIMIT`,
-   * informa quantos ficaram fora da página atual para o usuário decidir
-   * refinar a busca.
+   * Carrega ambas as abas — útil no boot para já ter os contadores prontos.
+   * Roda em paralelo; falha em uma aba não impede a outra.
    */
-  hiddenCount(): number {
-    if (this.totalReported < 0) return 0;
-    return Math.max(0, this.totalReported - this.requests.length);
+  async loadAll(): Promise<void> {
+    await Promise.all([this.load("pending", 0), this.load("rejected", 0)]);
+  }
+
+  goToPage(tab: "pending" | "rejected", offset: number): void {
+    this.load(tab, offset);
   }
 
   /**
@@ -89,7 +136,6 @@ export default class VerificationRequestsState {
       note = window.prompt(extractText(trans(action + "_prompt")));
       if (note === null) return false;
     } else if (action === "approve") {
-      // Pick tier first — no point asking for a note then bailing on tier.
       const tier = promptTier();
       if (!tier) return false;
       tierId = tier.id;
@@ -126,7 +172,7 @@ export default class VerificationRequestsState {
 
     if (res !== null) {
       if (res.data) app.store.pushPayload(res as any);
-      this.load();
+      await this.loadAll();
       app.alerts.show({ type: "success" }, trans(action + "_success"));
       m.redraw();
       return true;
@@ -134,70 +180,5 @@ export default class VerificationRequestsState {
 
     m.redraw();
     return false;
-  }
-
-  pendingCount(): number {
-    return this.requests.filter((r) => r.status() === "pending").length;
-  }
-
-  rejectedCount(): number {
-    let count = 0;
-    for (const r of this.latestRequestPerUser().values()) {
-      const u = r.user();
-      const isVerified = u && u.isVerified && u.isVerified();
-      if (r.status() === "rejected" && !isVerified) count++;
-    }
-    return count;
-  }
-
-  filteredRequests(tab: RequestTab): VerificationRequest[] {
-    if (tab === "pending") {
-      return this.requests.filter((r) => r.status() === "pending");
-    }
-
-    if (tab === "rejected") {
-      const latestPerUser = this.latestRequestPerUser();
-      return Array.from(latestPerUser.values()).filter((r) => {
-        if (r.status() !== "rejected") return false;
-        const user = r.user();
-        return !user || !user.isVerified || !user.isVerified();
-      });
-    }
-
-    return [];
-  }
-
-  /**
-   * For each user that appears in the loaded requests, return only the most
-   * recent request. Used to decide whether the user belongs in the rejected
-   * tab — a user with a later approved or pending request shouldn't show up
-   * as "rejected".
-   */
-  latestRequestPerUser(): Map<string, VerificationRequest> {
-    const map = new Map<string, VerificationRequest>();
-    for (const req of this.requests) {
-      const user = req.user();
-      if (!user) continue;
-      const userId = String(user.id() ?? "");
-      if (!userId) continue;
-      const existing = map.get(userId);
-      if (!existing) {
-        map.set(userId, req);
-        continue;
-      }
-      const a = req.createdAt() ? (req.createdAt() as Date).getTime() : 0;
-      const b = existing.createdAt()
-        ? (existing.createdAt() as Date).getTime()
-        : 0;
-      if (
-        a > b ||
-        (a === b &&
-          parseInt(String(req.id() ?? "0"), 10) >
-            parseInt(String(existing.id() ?? "0"), 10))
-      ) {
-        map.set(userId, req);
-      }
-    }
-    return map;
   }
 }
