@@ -159,43 +159,52 @@ class VerifiedDocuments extends Type
      * Remove a PII das linhas, preservando o trilho de auditoria (status,
      * datas). O `is_verified` permanece intencionalmente — o histórico
      * espera o flag verdadeiro mesmo após a anonimização.
+     *
+     * Mutações DB envoltas em transaction (§61.3.14): se qualquer dos
+     * UPDATEs falhar, o usuário não fica num estado intermediário com
+     * algumas linhas zeradas e outras com PII residual. `deleteDocumentFiles`
+     * fica FORA do bloco — operação de disco não tem rollback útil.
      */
     public function anonymize(): void
     {
-        VerificationRequest::query()
-            ->where('user_id', $this->user->id)
-            ->update([
-                'reason'        => null,
-                'admin_note'    => null,
-                'document_path' => null,
-            ]);
+        VerificationRequest::query()->getConnection()->transaction(function () {
+            VerificationRequest::query()
+                ->where('user_id', $this->user->id)
+                ->update([
+                    'reason'        => null,
+                    'admin_note'    => null,
+                    'document_path' => null,
+                ]);
 
-        VerificationRequest::query()
-            ->where('handled_by', $this->user->id)
-            ->update(['handled_by' => null]);
+            VerificationRequest::query()
+                ->where('handled_by', $this->user->id)
+                ->update(['handled_by' => null]);
+
+            $row = UserVerification::query()->where('user_id', $this->user->id)->first();
+            if ($row instanceof UserVerification) {
+                $row->verified_by = null;
+                $row->save();
+            }
+        });
 
         $this->deleteDocumentFiles();
-
-        $row = UserVerification::query()->where('user_id', $this->user->id)->first();
-        if ($row instanceof UserVerification) {
-            $row->verified_by = null;
-            $row->save();
-        }
     }
 
     public function delete(): void
     {
-        VerificationRequest::query()
-            ->where('user_id', $this->user->id)
-            ->delete();
+        VerificationRequest::query()->getConnection()->transaction(function () {
+            VerificationRequest::query()
+                ->where('user_id', $this->user->id)
+                ->delete();
 
-        VerificationRequest::query()
-            ->where('handled_by', $this->user->id)
-            ->update(['handled_by' => null]);
+            VerificationRequest::query()
+                ->where('handled_by', $this->user->id)
+                ->update(['handled_by' => null]);
+
+            $this->verifiedStatus?->clear($this->user);
+        });
 
         $this->deleteDocumentFiles();
-
-        $this->verifiedStatus?->clear($this->user);
     }
 
     /**

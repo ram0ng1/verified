@@ -64,21 +64,7 @@ class VerifyUserController implements RequestHandlerInterface
         $isSelf = (int) $actor->id === $userId;
         $method = strtoupper($request->getMethod());
 
-        // Gate explícito por rota (§3, §4): cross-user sempre exige
-        // `verifyUsers`; self-revoke é uma capabilidade separada
-        // (`selfRevoke`, default MEMBER_ID) que admins podem desabilitar sem
-        // afetar a permissão de moderação. Sem o gate, qualquer membro
-        // verificado dropa o próprio badge bypassando o painel admin.
-        if (! $isSelf) {
-            $actor->assertCan('verified.verifyUsers');
-        } elseif ($method === 'DELETE') {
-            if (! $actor->hasPermission('verified.selfRevoke')
-                && ! $actor->hasPermission('verified.verifyUsers')) {
-                $actor->assertCan('verified.selfRevoke');
-            }
-        } else {
-            $actor->assertCan('verified.verifyUsers');
-        }
+        $this->assertCanActOn($actor, $isSelf, $method);
 
         /** @var User|null $target */
         $target = User::query()->find($userId);
@@ -105,6 +91,31 @@ class VerifyUserController implements RequestHandlerInterface
         }
 
         return $this->verify($target, $actor, $note, $tierId, $now);
+    }
+
+    /**
+     * Gate explícito por rota (§3, §4): cross-user sempre exige
+     * `verifyUsers`; self-revoke é uma capabilidade separada (`selfRevoke`,
+     * default MEMBER_ID) que admins podem desabilitar sem afetar a
+     * permissão de moderação. Sem o gate, qualquer membro verificado
+     * dropa o próprio badge bypassando o painel admin.
+     */
+    private function assertCanActOn(User $actor, bool $isSelf, string $method): void
+    {
+        if (! $isSelf) {
+            $actor->assertCan('verified.verifyUsers');
+            return;
+        }
+
+        if ($method === 'DELETE') {
+            if (! $actor->hasPermission('verified.selfRevoke')
+                && ! $actor->hasPermission('verified.verifyUsers')) {
+                $actor->assertCan('verified.selfRevoke');
+            }
+            return;
+        }
+
+        $actor->assertCan('verified.verifyUsers');
     }
 
     /**
@@ -213,10 +224,13 @@ class VerifyUserController implements RequestHandlerInterface
         });
 
         $target->load('groups');
-        // Após `markAutoRevoked` o TierResolver respeita o tombstone e devolve
-        // `null`, então `autoTierPersists` só aparece quando havia uma
-        // verificação manual sobreposta sobre um grupo auto-tier-eligible —
-        // semântica original preservada.
+
+        /*
+         * Após `markAutoRevoked` o TierResolver respeita o tombstone e
+         * devolve `null`, então `autoTierPersists` só aparece quando havia
+         * uma verificação manual sobreposta sobre um grupo auto-tier-eligible
+         * — semântica original preservada.
+         */
         $autoTier = $this->tiers->resolveAutoTier($target);
         $autoTierStillEffective = $autoTier !== null && $this->tiers->resolveTierId($target) !== null;
 

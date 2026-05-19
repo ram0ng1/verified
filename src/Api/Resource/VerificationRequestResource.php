@@ -59,6 +59,16 @@ class VerificationRequestResource extends AbstractDatabaseResource
         return VerificationRequest::class;
     }
 
+    /**
+     * Restringe a query por ator (não-admins veem só os próprios pedidos) e
+     * aplica o filtro custom `?byStatus=pending,rejected`. Dois pontos de
+     * cuidado do Flarum 2 / json-api-server: (1) `AbstractDatabaseResource::filters()`
+     * é `final` e lança "use a model searcher" sempre que o JSON:API server
+     * invoca `applyFilters` com qualquer `filter[]` no request; (2)
+     * `JsonApi::validateQueryParameters` rejeita query params custom cujo
+     * nome seja só `[a-z]` minúsculo (regex `/[^a-z]/`) — `status` falha;
+     * `byStatus` (camelCase) passa. PSR-7 entrega o valor intacto aqui.
+     */
     public function scope(Builder $query, \Tobyz\JsonApiServer\Context $context): void
     {
         $actor = $context->getActor();
@@ -67,17 +77,6 @@ class VerificationRequestResource extends AbstractDatabaseResource
             $query->where('user_id', $actor->id);
         }
 
-        // `?byStatus=pending,rejected` (lista CSV ou repetição) — em vez de
-        // `filter[status]`. Dois pontos de cuidado do Flarum 2 / json-api-server:
-        //  1. `AbstractDatabaseResource::filters()` é `final` e lança "use a
-        //     model searcher" sempre que o JSON:API server invoca
-        //     `applyFilters` com qualquer `filter[]` no request.
-        //  2. `JsonApi::validateQueryParameters()` REJEITA qualquer query
-        //     param custom cujo nome seja só `[a-z]` minúsculo
-        //     (`status` falha; `byStatus` passa porque tem letra maiúscula —
-        //     a regex usada é `/[^a-z]/`).
-        // A combinação obriga a usar um nome com char fora de `a-z` para
-        // params custom. PSR-7 entrega o valor intacto aqui no scope.
         $params = $context->request->getQueryParams();
         $rawStatus = $params['byStatus'] ?? null;
 
