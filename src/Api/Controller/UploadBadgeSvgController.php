@@ -12,6 +12,7 @@ use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Message\StreamInterface;
 use Psr\Http\Message\UploadedFileInterface;
 use Ramon\Verified\Support\SvgSanitizer;
+use Ramon\Verified\Support\UploadedFileMime;
 
 /**
  * Armazena o SVG customizado do badge no disco `flarum-assets`. O arquivo
@@ -140,7 +141,7 @@ class UploadBadgeSvgController extends UploadImageController
             ]);
         }
 
-        $detected = $this->detectServerMime($file);
+        $detected = UploadedFileMime::detect($file);
         if ($detected === null) {
             throw new ValidationException([
                 'badge_svg' => $this->translator->trans('ramon-verified.api.badge_svg.upload_failed'),
@@ -154,27 +155,4 @@ class UploadBadgeSvgController extends UploadImageController
         }
     }
 
-    private function detectServerMime(UploadedFileInterface $file): ?string
-    {
-        $tmpPath = $file->getStream()->getMetadata('uri');
-        if (! is_string($tmpPath) || ! is_readable($tmpPath)) {
-            return null;
-        }
-
-        if (function_exists('finfo_open')) {
-            $finfo = finfo_open(FILEINFO_MIME_TYPE);
-            if ($finfo) {
-                $detected = finfo_file($finfo, $tmpPath);
-                finfo_close($finfo);
-                return is_string($detected) && $detected !== '' ? $detected : null;
-            }
-        }
-
-        if (function_exists('mime_content_type')) {
-            $detected = mime_content_type($tmpPath);
-            return is_string($detected) && $detected !== '' ? $detected : null;
-        }
-
-        return null;
-    }
 }
