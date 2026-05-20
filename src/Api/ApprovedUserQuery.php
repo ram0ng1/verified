@@ -4,7 +4,6 @@ namespace Ramon\Verified\Api;
 
 use Flarum\Group\Group;
 use Flarum\User\User;
-use Illuminate\Database\ConnectionInterface;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Collection;
 use Ramon\Verified\TierConfig;
@@ -44,16 +43,15 @@ class ApprovedUserQuery
     private ?array $searchableColumnsCache = null;
 
     public function __construct(
-        protected TierResolver $tierResolver,
-        protected ConnectionInterface $connection
+        protected TierResolver $tierResolver
     ) {
     }
 
     /**
      * Colunas pesquisáveis da tabela `users`. `nickname` (extensão
      * `flarum/nicknames`) e `display_name` (Flarum 2 core) só entram quando
-     * realmente existem. O schema builder vem da conexão injetada — um
-     * lookup estrutural não precisa passar por um model.
+     * realmente existem. O schema builder vem da conexão do model `User`,
+     * evitando injetar `ConnectionInterface` só para um lookup estrutural.
      *
      * @return string[]
      */
@@ -64,7 +62,7 @@ class ApprovedUserQuery
         }
 
         $columns = ['username', 'email'];
-        $schema = $this->connection->getSchemaBuilder();
+        $schema = User::query()->getConnection()->getSchemaBuilder();
         foreach (['nickname', 'display_name'] as $optional) {
             if ($schema->hasColumn('users', $optional)) {
                 $columns[] = $optional;

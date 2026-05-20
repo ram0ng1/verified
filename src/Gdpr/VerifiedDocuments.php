@@ -7,9 +7,9 @@ use Flarum\Gdpr\Models\ErasureRequest;
 use Flarum\Http\UrlGenerator;
 use Flarum\Settings\SettingsRepositoryInterface;
 use Flarum\User\User;
-use Illuminate\Contracts\Container\Container;
 use Illuminate\Contracts\Filesystem\Factory;
 use Illuminate\Contracts\Filesystem\Filesystem;
+use Psr\Log\LoggerInterface;
 use Ramon\Verified\Crypto\DocumentCipher;
 use Ramon\Verified\Documents\DocumentPathResolver;
 use Ramon\Verified\Models\UserVerification;
@@ -17,6 +17,7 @@ use Ramon\Verified\Models\VerificationRequest;
 use Ramon\Verified\VerifiedStatus;
 use Symfony\Contracts\Translation\TranslatorInterface;
 use Throwable;
+use Closure;
 
 /**
  * DataType do flarum/gdpr. Exporta/anonimiza/deleta as linhas de
@@ -25,20 +26,28 @@ use Throwable;
  * GDPR instancia tipos via `new $type(...)` com exatamente 6 args fixos
  * (vendor/flarum/gdpr/src/Exporter.php:56), então a janela usual de DI por
  * construtor está fechada. `DocumentPathResolver` e `VerifiedStatus` não
- * têm dependências de construtor — instanciamos direto. `DocumentCipher`
- * vem do container que `VerifiedDocumentsServiceProvider` grava no
- * `static::$containerInstance` durante o boot; o data type usa
- * `$container->make(...)` apenas quando há arquivo cifrado para tratar.
- * Testes injetam o cipher diretamente via 7º arg opcional.
+ * têm dependências de construtor — instanciamos direto. O `DocumentCipher`
+ * e o logger chegam por resolvers estáticos que o
+ * `VerifiedDocumentsServiceProvider` grava no boot — closures restritos ao
+ * que o data type usa, nunca o container inteiro. Testes injetam o cipher
+ * direto via 7º arg opcional do construtor.
  */
 class VerifiedDocuments extends Type
 {
     /**
-     * Container gravado pelo `VerifiedDocumentsServiceProvider::boot()`.
-     * Estático porque o GDPR Exporter instancia via `new $type(...)` com
-     * argumentos fixos e não temos como passar dependências adicionais.
+     * Resolver lazy do `DocumentCipher`, gravado pelo
+     * `VerifiedDocumentsServiceProvider::boot()`. Estático porque o GDPR
+     * Exporter instancia o data type com argumentos fixos e não há janela
+     * de DI por construtor; um closure mantém a autoridade restrita ao
+     * cipher em vez de carregar o container inteiro.
      */
-    protected static ?Container $containerInstance = null;
+    protected static ?Closure $cipherResolver = null;
+
+    /**
+     * Logger gravado pelo mesmo service provider. Ausente em testes que
+     * não bootam a app — os call sites usam `?->`.
+     */
+    protected static ?LoggerInterface $logger = null;
 
     protected DocumentPathResolver $pathResolver;
 
@@ -62,14 +71,19 @@ class VerifiedDocuments extends Type
         $this->cipherOverride = $cipher;
     }
 
-    public static function setContainer(Container $container): void
+    public static function setCipherResolver(Closure $resolver): void
     {
-        static::$containerInstance = $container;
+        static::$cipherResolver = $resolver;
+    }
+
+    public static function setLogger(LoggerInterface $logger): void
+    {
+        static::$logger = $logger;
     }
 
     /**
      * Resolve o `DocumentCipher` apenas no momento em que arquivos cifrados
-     * são encontrados. Quando o container ainda não foi gravado (cenário de
+     * são encontrados. Quando o resolver ainda não foi gravado (cenário de
      * teste sem boot completo) o cipher injetado no construtor cobre o caso.
      */
     private function cipher(): ?DocumentCipher
@@ -78,16 +92,18 @@ class VerifiedDocuments extends Type
             return $this->cipherOverride;
         }
 
-        $container = static::$containerInstance;
-        if ($container === null) {
+        $resolver = static::$cipherResolver;
+        if ($resolver === null) {
             return null;
         }
 
         try {
-            return $container->make(DocumentCipher::class);
+            $cipher = $resolver();
         } catch (Throwable $e) {
             return null;
         }
+
+        return $cipher instanceof DocumentCipher ? $cipher : null;
     }
 
     public static function dataType(): string
@@ -288,6 +304,10 @@ class VerifiedDocuments extends Type
         try {
             $disk->deleteDirectory($userDir);
         } catch (Throwable $e) {
+            static::$logger?->warning('verified: GDPR failed to delete user document directory', [
+                'user_id'   => (int) $this->user->id,
+                'exception' => $e->getMessage(),
+            ]);
         }
     }
 

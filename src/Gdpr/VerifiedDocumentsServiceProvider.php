@@ -3,19 +3,23 @@
 namespace Ramon\Verified\Gdpr;
 
 use Flarum\Foundation\AbstractServiceProvider;
+use Psr\Log\LoggerInterface;
+use Ramon\Verified\Crypto\DocumentCipher;
 
 /**
- * Injeta o container no `VerifiedDocuments` no boot da app. O `Exporter` do
- * `flarum/gdpr` instancia data types via `new $type(...)` com 6 args fixos
- * (vendor/flarum/gdpr/src/Exporter.php:56), o que fecha a janela usual de
- * DI por construtor. Em vez de cair em `resolve()` inline, gravamos o
- * container uma única vez aqui e o data type usa `make()` quando
- * efetivamente precisa do `DocumentCipher`.
+ * Liga o `VerifiedDocuments` às dependências que o pipeline GDPR não
+ * consegue injetar: o `Exporter` instancia data types via `new $type(...)`
+ * com 6 args fixos (vendor/flarum/gdpr/src/Exporter.php:56). Em vez de
+ * gravar o container inteiro, passamos um resolver lazy do `DocumentCipher`
+ * e o logger — autoridade restrita ao que o data type realmente usa.
  */
 class VerifiedDocumentsServiceProvider extends AbstractServiceProvider
 {
     public function boot(): void
     {
-        VerifiedDocuments::setContainer($this->container);
+        $container = $this->container;
+
+        VerifiedDocuments::setCipherResolver(fn () => $container->make(DocumentCipher::class));
+        VerifiedDocuments::setLogger($container->make(LoggerInterface::class));
     }
 }
