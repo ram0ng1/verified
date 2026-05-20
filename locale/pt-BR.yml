@@ -9,10 +9,10 @@ ramon-verified:
       verified_no_date: "Conta verificada automaticamente."
       learn_more: "Saiba mais"
     tier_prompt:
-      intro: "Selecione o tier de verificação:"
-      hint: "Digite o número ou o ID do tier (ex.: 1 ou blue)."
       no_tiers: "Nenhum tier configurado. Adicione tiers em Admin → Verified antes de verificar usuários."
-      invalid: "Tier inválido. Verificação cancelada."
+    verification_prompt:
+      tier_label: "Tier de verificação"
+      note_placeholder: "Opcional - registrado no log de auditoria"
     errors:
       generic: "Algo deu errado. Tente novamente."
       network: "Erro de rede. Verifique sua conexão e tente novamente."
@@ -297,7 +297,6 @@ ramon-verified:
     file_too_large: "O documento é maior que o permitido (8 MB)."
     bad_extension: "Extensão de arquivo não suportada."
     bad_mime: "Tipo de arquivo não suportado."
-    not_found: "Solicitação de verificação não encontrada."
     user_missing: "O usuário relacionado não existe mais."
     avatar_locked: "Seu avatar está bloqueado porque sua conta é verificada. Envie uma nova solicitação de verificação para alterá-lo."
     revoked_default_note: "Verificação revogada pelo administrador."

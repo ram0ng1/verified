@@ -372,16 +372,15 @@ class VerificationRequestResource extends AbstractDatabaseResource
         return $request;
     }
 
+    /**
+     * Resolve o `VerificationRequest` do contexto ou lança
+     * `ModelNotFoundException`, que o Flarum mapeia para HTTP 404. Um modelo
+     * ausente é recurso inexistente, não erro de validação (422).
+     */
     private function findOrFail(Context $context): VerificationRequest
     {
-        /** @var VerificationRequest|null $request */
-        $request = VerificationRequest::query()->find($context->modelId);
-
-        if (! $request) {
-            throw new ValidationException([
-                'id' => $this->translator->trans('ramon-verified.api.not_found'),
-            ]);
-        }
+        /** @var VerificationRequest $request */
+        $request = VerificationRequest::query()->findOrFail($context->modelId);
 
         return $request;
     }
