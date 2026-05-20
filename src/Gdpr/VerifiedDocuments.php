@@ -7,6 +7,7 @@ use Flarum\Gdpr\Models\ErasureRequest;
 use Flarum\Http\UrlGenerator;
 use Flarum\Settings\SettingsRepositoryInterface;
 use Flarum\User\User;
+use Illuminate\Contracts\Container\Container;
 use Illuminate\Contracts\Filesystem\Factory;
 use Illuminate\Contracts\Filesystem\Filesystem;
 use Ramon\Verified\Crypto\DocumentCipher;
@@ -22,16 +23,23 @@ use Throwable;
  * `verification_requests` e o estado em `user_verification` deste usuário.
  *
  * GDPR instancia tipos via `new $type(...)` com exatamente 6 args fixos
- * (vendor/flarum/gdpr/src/Exporter.php:56), então não há janela de DI direta.
- * `DocumentPathResolver` e `VerifiedStatus` não têm dependências de
- * construtor — são instanciados direto. `DocumentCipher` é resolvido sob
- * demanda via `resolve()` (mesma estratégia do `Type::staticTranslator()`
- * do próprio core do gdpr), o que mantém o construtor limpo e contém o
- * acesso ao container nos métodos que efetivamente precisam dele. O 7º arg
- * opcional `?DocumentCipher` continua existindo para os testes.
+ * (vendor/flarum/gdpr/src/Exporter.php:56), então a janela usual de DI por
+ * construtor está fechada. `DocumentPathResolver` e `VerifiedStatus` não
+ * têm dependências de construtor — instanciamos direto. `DocumentCipher`
+ * vem do container que `VerifiedDocumentsServiceProvider` grava no
+ * `static::$containerInstance` durante o boot; o data type usa
+ * `$container->make(...)` apenas quando há arquivo cifrado para tratar.
+ * Testes injetam o cipher diretamente via 7º arg opcional.
  */
 class VerifiedDocuments extends Type
 {
+    /**
+     * Container gravado pelo `VerifiedDocumentsServiceProvider::boot()`.
+     * Estático porque o GDPR Exporter instancia via `new $type(...)` com
+     * argumentos fixos e não temos como passar dependências adicionais.
+     */
+    protected static ?Container $containerInstance = null;
+
     protected DocumentPathResolver $pathResolver;
 
     protected VerifiedStatus $verifiedStatus;
@@ -54,10 +62,15 @@ class VerifiedDocuments extends Type
         $this->cipherOverride = $cipher;
     }
 
+    public static function setContainer(Container $container): void
+    {
+        static::$containerInstance = $container;
+    }
+
     /**
      * Resolve o `DocumentCipher` apenas no momento em que arquivos cifrados
-     * são encontrados. Sem dependência do container quando não há nada para
-     * decifrar. Testes podem injetar via 7º arg do construtor.
+     * são encontrados. Quando o container ainda não foi gravado (cenário de
+     * teste sem boot completo) o cipher injetado no construtor cobre o caso.
      */
     private function cipher(): ?DocumentCipher
     {
@@ -65,8 +78,13 @@ class VerifiedDocuments extends Type
             return $this->cipherOverride;
         }
 
+        $container = static::$containerInstance;
+        if ($container === null) {
+            return null;
+        }
+
         try {
-            return resolve(DocumentCipher::class);
+            return $container->make(DocumentCipher::class);
         } catch (Throwable $e) {
             return null;
         }
@@ -161,7 +179,7 @@ class VerifiedDocuments extends Type
      */
     public function anonymize(): void
     {
-        VerificationRequest::query()->getConnection()->transaction(function () {
+        VerificationRequest::runInTransaction(function () {
             VerificationRequest::query()
                 ->where('user_id', $this->user->id)
                 ->update([
@@ -186,7 +204,7 @@ class VerifiedDocuments extends Type
 
     public function delete(): void
     {
-        VerificationRequest::query()->getConnection()->transaction(function () {
+        VerificationRequest::runInTransaction(function () {
             VerificationRequest::query()
                 ->where('user_id', $this->user->id)
                 ->delete();
