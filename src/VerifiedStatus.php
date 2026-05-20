@@ -44,7 +44,7 @@ class VerifiedStatus
 
     public function mark(User $user, ?int $adminId, ?string $tier, Carbon $when): void
     {
-        $row = $this->loadOrNew($user);
+        $row = $this->read($user);
         $row->user_id = (int) $user->id;
         $row->is_verified = true;
         $row->verified_at = $when;
@@ -77,7 +77,7 @@ class VerifiedStatus
      */
     public function markAutoRevoked(User $user, Carbon $when): void
     {
-        $row = $this->loadOrNew($user);
+        $row = $this->read($user);
         $row->user_id = (int) $user->id;
         $row->is_verified = false;
         $row->verified_at = null;
@@ -126,9 +126,4 @@ class VerifiedStatus
         return $empty;
     }
 
-    private function loadOrNew(User $user): UserVerification
-    {
-        $existing = UserVerification::query()->where('user_id', $user->id)->first();
-        return $existing instanceof UserVerification ? $existing : new UserVerification();
-    }
 }
