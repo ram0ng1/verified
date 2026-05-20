@@ -198,13 +198,14 @@ class ApprovedUserQuery
             ->get();
 
         $indexed = $fetched->keyBy('id');
-        $users = $fetched->newCollection();
+        $ordered = [];
         foreach ($pageIds as $id) {
             $row = $indexed->get($id);
             if ($row !== null) {
-                $users->push($row);
+                $ordered[] = $row;
             }
         }
+        $users = $fetched->make($ordered);
 
         return [
             'users'     => $users,
