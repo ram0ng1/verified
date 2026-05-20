@@ -187,13 +187,19 @@ class DocumentRetention
         $cutoff = Carbon::now()->subDays($days);
         $purged = 0;
 
+        /*
+         * `chunkById`, não `chunk`: `purgeRequest()` zera `document_path`, a
+         * própria coluna do `whereNotNull('document_path')`. Com `chunk`
+         * (paginação por OFFSET), cada lote processado encolhe o result set
+         * e o `OFFSET` do lote seguinte pula linhas ainda não tratadas.
+         * `chunkById` pagina por `id > último`, imune ao encolhimento.
+         */
         VerificationRequest::query()
             ->whereIn('status', [VerificationRequest::STATUS_APPROVED, VerificationRequest::STATUS_REJECTED])
             ->whereNotNull('document_path')
             ->whereNotNull('handled_at')
             ->where('handled_at', '<', $cutoff)
-            ->orderBy('id')
-            ->chunk(200, function ($rows) use (&$purged) {
+            ->chunkById(200, function ($rows) use (&$purged) {
                 foreach ($rows as $row) {
                     try {
                         $this->purgeRequest($row);

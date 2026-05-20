@@ -2,6 +2,7 @@
 
 namespace Ramon\Verified\Api;
 
+use Flarum\Extension\ExtensionManager;
 use Flarum\Group\Group;
 use Flarum\User\User;
 use Illuminate\Database\Eloquent\Builder;
@@ -45,16 +46,18 @@ class ApprovedUserQuery
     private ?array $searchableColumnsCache = null;
 
     public function __construct(
-        protected TierResolver $tierResolver
+        protected TierResolver $tierResolver,
+        protected ExtensionManager $extensions
     ) {
     }
 
     /**
-     * Colunas pesquisáveis da tabela `users`. `nickname` (extensão
-     * `flarum/nicknames`) e `display_name` (Flarum 2 core) só entram quando
-     * realmente existem. O schema builder vem da conexão do próprio model
-     * `User` — sem injetar um `ConnectionResolverInterface` de baixo nível
-     * só para introspecção de schema (§39.3: Eloquent primeiro).
+     * Colunas pesquisáveis da tabela `users`. `username` e `email` são core;
+     * `nickname` só entra quando a extensão `flarum/nicknames` está ativa,
+     * detectada pelo `ExtensionManager` em vez de introspecção de schema
+     * (`getSchemaBuilder()->hasColumn()` dispara um SELECT em INFORMATION_SCHEMA
+     * a cada cache frio). `display_name` não é coluna no Flarum 2 — é um driver
+     * de nome computado — então nunca foi candidata a LIKE.
      *
      * @return string[]
      */
@@ -65,11 +68,8 @@ class ApprovedUserQuery
         }
 
         $columns = ['username', 'email'];
-        $schema = User::query()->getConnection()->getSchemaBuilder();
-        foreach (['nickname', 'display_name'] as $optional) {
-            if ($schema->hasColumn('users', $optional)) {
-                $columns[] = $optional;
-            }
+        if ($this->extensions->isEnabled('flarum-nicknames')) {
+            $columns[] = 'nickname';
         }
 
         return $this->searchableColumnsCache = $columns;
