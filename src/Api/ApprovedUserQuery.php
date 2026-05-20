@@ -303,6 +303,13 @@ class ApprovedUserQuery
     }
 
     /**
+     * Conjunto "aprovado" sem filtro de tier: manuais (`is_verified=1`) unidos
+     * aos auto-verificados por grupo. O ramo auto exclui usuários com tombstone
+     * de opt-out (`user_verification.auto_revoked_at` set) — eles continuam no
+     * `autoGroup` mas pediram para sair, e `TierResolver::resolveTierId` já os
+     * trata como não-verificados; sem este filtro a listagem do admin os
+     * mostraria como aprovados.
+     *
      * @param int[] $autoVerifiedGroupIds
      */
     private function baseApprovedQuery(array $autoVerifiedGroupIds, bool $adminAllowed): Builder
@@ -323,6 +330,12 @@ class ApprovedUserQuery
                     $sub->from('group_user')
                         ->whereColumn('group_user.user_id', 'users.id')
                         ->whereIn('group_user.group_id', $autoVerifiedGroupIds);
+                });
+
+                $auto->whereNotExists(function ($sub) {
+                    $sub->from('user_verification')
+                        ->whereColumn('user_verification.user_id', 'users.id')
+                        ->whereNotNull('user_verification.auto_revoked_at');
                 });
 
                 if (! $adminAllowed) {

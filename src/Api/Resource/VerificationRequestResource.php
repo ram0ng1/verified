@@ -181,6 +181,12 @@ class VerificationRequestResource extends AbstractDatabaseResource
         ];
     }
 
+    /**
+     * Cria um pedido pendente. A checagem "já tem pendente?" e o insert rodam
+     * dentro de uma transação com `lockForUpdate` sobre o índice composto
+     * `(user_id, status)` — sem a trava, dois requests concorrentes do mesmo
+     * ator passariam ambos pela checagem e gravariam pedidos duplicados.
+     */
     private function createRequest(Context $context): VerificationRequest
     {
         $actor = $context->getActor();
@@ -196,17 +202,6 @@ class VerificationRequestResource extends AbstractDatabaseResource
         if ($this->verifiedStatus->isVerified($actor)) {
             throw new ValidationException([
                 'status' => $this->translator->trans('ramon-verified.api.already_verified'),
-            ]);
-        }
-
-        $existing = VerificationRequest::query()
-            ->where('user_id', $actor->id)
-            ->where('status', VerificationRequest::STATUS_PENDING)
-            ->first();
-
-        if ($existing) {
-            throw new ValidationException([
-                'status' => $this->translator->trans('ramon-verified.api.already_pending'),
             ]);
         }
 
@@ -243,17 +238,33 @@ class VerificationRequestResource extends AbstractDatabaseResource
             $documentPath = null;
         }
 
-        $request = new VerificationRequest();
-        $request->user_id       = (int) $actor->id;
-        $request->status        = VerificationRequest::STATUS_PENDING;
-        $request->reason        = $reason ?: null;
-        $request->document_type = $documentType ?: null;
-        $request->document_path = $documentPath ?: null;
-        $request->created_at    = Carbon::now();
-        $request->updated_at    = Carbon::now();
-        $request->save();
+        return VerificationRequest::runInTransaction(function () use ($actor, $reason, $documentType, $documentPath) {
+            $existing = VerificationRequest::query()
+                ->where('user_id', $actor->id)
+                ->where('status', VerificationRequest::STATUS_PENDING)
+                ->lockForUpdate()
+                ->first();
 
-        return $request;
+            if ($existing) {
+                throw new ValidationException([
+                    'status' => $this->translator->trans('ramon-verified.api.already_pending'),
+                ]);
+            }
+
+            $now = Carbon::now();
+
+            $request = new VerificationRequest();
+            $request->user_id       = (int) $actor->id;
+            $request->status        = VerificationRequest::STATUS_PENDING;
+            $request->reason        = $reason ?: null;
+            $request->document_type = $documentType ?: null;
+            $request->document_path = $documentPath ?: null;
+            $request->created_at    = $now;
+            $request->updated_at    = $now;
+            $request->save();
+
+            return $request;
+        });
     }
 
     /**
