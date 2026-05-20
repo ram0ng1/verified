@@ -57,12 +57,18 @@ class PurgeOrphanedDocumentsJob implements ShouldQueue
                     }
 
                     try {
-                        $blob = $disk->get($relative);
+                        $stream = $disk->readStream($relative);
                     } catch (Throwable $e) {
                         $failed++;
                         continue;
                     }
-                    if (! is_string($blob) || ! DocumentCipher::isEncryptedBlob($blob)) {
+                    if (! is_resource($stream)) {
+                        $failed++;
+                        continue;
+                    }
+                    $magic = fread($stream, strlen(DocumentCipher::MAGIC));
+                    fclose($stream);
+                    if (! is_string($magic) || ! DocumentCipher::isEncryptedBlob($magic)) {
                         continue;
                     }
 
