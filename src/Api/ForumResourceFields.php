@@ -32,7 +32,8 @@ class ForumResourceFields
         return [
             Schema\Boolean::make('canVerifyUsers')
                 ->get(fn (object $model, Context $context) =>
-                    $context->getActor()->hasPermission('verified.verifyUsers')),
+                    $context->getActor()->hasPermission('verified.verifyUsers'))
+                ->visible($loggedIn),
 
             Schema\Boolean::make('canSelfRevokeVerification')
                 ->get(fn (object $model, Context $context) =>
