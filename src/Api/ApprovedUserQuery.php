@@ -31,9 +31,9 @@ class ApprovedUserQuery
     /**
      * Cache de instância. Em processos longos (Octane, queue workers) um
      * `static` no método persistiria entre requests/jobs e poderia ficar
-     * obsoleto após uma migração rodada in-process (§44.2). O resolver é
-     * resolvido sob demanda por request, então o cache morre junto com a
-     * instância — exatamente o escopo desejado.
+     * obsoleto após uma migração rodada in-process. O resolver é instanciado
+     * sob demanda por request, então o cache morre junto com a instância —
+     * exatamente o escopo desejado.
      *
      * @var string[]|null
      */

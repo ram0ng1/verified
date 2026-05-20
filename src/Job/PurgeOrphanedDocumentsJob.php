@@ -15,18 +15,14 @@ use Throwable;
 
 /**
  * Apaga arquivos cifrados pela chave antiga após uma rotação de par.
- * Rodava inline em `GenerateKeypairController::handle()` — varredura
- * full-corpus em request web de admin, com risco de estourar
- * `request_terminate_timeout` em fóruns grandes (§50).
- *
  * Despachado depois que a chave pública já foi esquecida, então uploads
  * concorrentes durante a janela do job caem no path plaintext. A nova
  * chave pública é gerada ANTES do dispatch para que novos uploads sejam
  * cifrados imediatamente.
  *
  * Em queue driver `sync` (default do Flarum) roda inline; sob `redis` /
- * `database` roda em worker. Em ambos os casos a regra "estruture como
- * job" é cumprida por §50.
+ * `database` roda em worker, sem amarrar o request de admin numa
+ * varredura full-corpus que pode estourar `request_terminate_timeout`.
  */
 class PurgeOrphanedDocumentsJob implements ShouldQueue
 {

@@ -109,7 +109,9 @@ class VerifyUserController implements RequestHandlerInterface
 
     /**
      * Aprovação direta envolvida em transação. O dispatch do `UserVerified`
-     * fica FORA do bloco para publicar apenas após commit.
+     * fica FORA do bloco para publicar apenas após commit. O pós-processamento
+     * de retenção mira a lista de IDs capturada antes do UPDATE — filtro por
+     * `handled_at` colidiria com verificações gravadas no mesmo segundo.
      */
     private function verify(User $target, User $actor, ?string $note, ?string $tierId, Carbon $now): JsonResponse
     {
@@ -121,10 +123,6 @@ class VerifyUserController implements RequestHandlerInterface
         $adminNote      = $note ?: $this->translator->trans('ramon-verified.api.verified_by_admin_note');
 
         VerificationRequest::runInTransaction(function () use ($target, $actor, $now, $resolvedTierId, $adminNote) {
-            // Captura os IDs ANTES do UPDATE para que o pós-processamento de
-            // retenção mire exatamente as linhas que esta transação tocou —
-            // filtrar por `handled_at = $now` colidiria com outras verificações
-            // gravadas no mesmo segundo (admin batch, cron, etc.).
             $flippedIds = VerificationRequest::query()
                 ->where('user_id', $target->id)
                 ->where('status', VerificationRequest::STATUS_PENDING)
