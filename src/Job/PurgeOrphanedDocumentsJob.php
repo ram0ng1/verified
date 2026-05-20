@@ -43,10 +43,14 @@ class PurgeOrphanedDocumentsJob implements ShouldQueue
         $purged = 0;
         $failed = 0;
 
+        /*
+         * `chunkById`: o callback zera `document_path`, a coluna do
+         * `whereNotNull('document_path')`. `chunk` (OFFSET) pularia linhas
+         * conforme o result set encolhe; `chunkById` pagina por `id`.
+         */
         VerificationRequest::query()
             ->whereNotNull('document_path')
-            ->orderBy('id')
-            ->chunk(200, function ($rows) use ($disk, $resolver, $logger, &$purged, &$failed) {
+            ->chunkById(200, function ($rows) use ($disk, $resolver, $logger, &$purged, &$failed) {
                 foreach ($rows as $row) {
                     $relative = $resolver->resolveRelative(
                         (string) $row->document_path,
