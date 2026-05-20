@@ -41,8 +41,7 @@ class EnforceAvatarLock
             return;
         }
 
-        $isSelf = (int) $actor->id === (int) $user->id;
-        if (! $isSelf && $actor->can('editCredentials', $user)) {
+        if ($actor->can('editCredentials', $user)) {
             return;
         }
 
