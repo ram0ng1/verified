@@ -136,5 +136,7 @@ return [
     ...(class_exists(\Flarum\Gdpr\Extend\UserData::class) ? [
         (new \Flarum\Gdpr\Extend\UserData())
             ->addType(\Ramon\Verified\Gdpr\VerifiedDocuments::class),
+        (new Extend\ServiceProvider())
+            ->register(\Ramon\Verified\Gdpr\VerifiedDocumentsServiceProvider::class),
     ] : []),
 ];

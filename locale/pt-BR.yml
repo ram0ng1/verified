@@ -214,7 +214,7 @@ ramon-verified:
         confirm_saved: "Salvei no config.php e confirmei que o arquivo é legível pelo PHP."
         confirm_hint: "Confirme acima que você salvou a chave antes de fechar."
         close: "Fechar"
-        orphaned: "{count} documento(s) cifrado(s) anteriormente foram apagados porque os arquivos não eram mais legíveis."
+        orphaned: "{count} documento(s) cifrado(s) anteriormente estão sendo apagados em segundo plano."
       regenerate_modal:
         title: "Gerar um novo par de chaves?"
         warning: "Isso irá apagar permanentemente todos os documentos cifrados que estão em disco. O conteúdo em texto puro não pode ser recuperado sem a chave privada original. As linhas de verificação afetadas mantêm o histórico, mas seus arquivos serão apagados."
@@ -308,3 +308,9 @@ ramon-verified:
       libsodium_missing: "libsodium não está disponível nesta instalação do PHP."
       acknowledge_loss_required: "Você precisa confirmar que todos os documentos cifrados existentes serão apagados antes de gerar um novo par de chaves."
       private_key_missing: "Este documento está cifrado, mas a chave privada não está configurada em config.php neste servidor. Adicione-a sob a chave 'verified-private-key', ou gere um novo par de chaves (o que apagará todos os documentos cifrados)."
+    badge_svg:
+      missing: "Nenhum arquivo SVG foi enviado no campo \"verified-badge\"."
+      upload_failed: "Falha ao enviar o SVG. Tente novamente."
+      bad_extension: "O arquivo enviado precisa ter a extensão .svg."
+      bad_mime: "Tipo MIME não suportado para upload de SVG."
+      too_large: "Arquivo SVG é maior que o permitido (máximo 256 KB)."

@@ -62,13 +62,13 @@ class UploadBadgeSvgController extends UploadImageController
         $file = $request->getUploadedFiles()[$this->filenamePrefix] ?? null;
         if (! $file instanceof UploadedFileInterface) {
             throw new ValidationException([
-                'badge_svg' => 'Missing SVG file in the "verified-badge" field.',
+                'badge_svg' => $this->translator->trans('ramon-verified.api.badge_svg.missing'),
             ]);
         }
 
         if ($file->getError() !== UPLOAD_ERR_OK) {
             throw new ValidationException([
-                'badge_svg' => 'Upload failed.',
+                'badge_svg' => $this->translator->trans('ramon-verified.api.badge_svg.upload_failed'),
             ]);
         }
 
@@ -84,7 +84,7 @@ class UploadBadgeSvgController extends UploadImageController
         $reportedSize = $file->getSize();
         if ($reportedSize !== null && $reportedSize > self::MAX_SVG_BYTES) {
             throw new ValidationException([
-                'badge_svg' => 'SVG file is too large (max 256 KB).',
+                'badge_svg' => $this->translator->trans('ramon-verified.api.badge_svg.too_large'),
             ]);
         }
 
@@ -93,7 +93,7 @@ class UploadBadgeSvgController extends UploadImageController
         $content = $stream->read(self::MAX_SVG_BYTES + 1);
         if (strlen($content) > self::MAX_SVG_BYTES) {
             throw new ValidationException([
-                'badge_svg' => 'SVG file is too large (max 256 KB).',
+                'badge_svg' => $this->translator->trans('ramon-verified.api.badge_svg.too_large'),
             ]);
         }
 
@@ -117,7 +117,7 @@ class UploadBadgeSvgController extends UploadImageController
 
         if (! in_array($extension, self::ALLOWED_EXTENSIONS, true)) {
             throw new ValidationException([
-                'badge_svg' => 'The uploaded file must have an .svg extension.',
+                'badge_svg' => $this->translator->trans('ramon-verified.api.badge_svg.bad_extension'),
             ]);
         }
     }
@@ -133,7 +133,7 @@ class UploadBadgeSvgController extends UploadImageController
         $clientMime = strtolower((string) $file->getClientMediaType());
         if ($clientMime !== '' && ! in_array($clientMime, self::ALLOWED_MIMES, true)) {
             throw new ValidationException([
-                'badge_svg' => 'Unsupported MIME type for SVG upload.',
+                'badge_svg' => $this->translator->trans('ramon-verified.api.badge_svg.bad_mime'),
             ]);
         }
 
@@ -144,7 +144,7 @@ class UploadBadgeSvgController extends UploadImageController
 
         if (! in_array(strtolower($detected), self::ALLOWED_MIMES, true)) {
             throw new ValidationException([
-                'badge_svg' => 'Unsupported MIME type for SVG upload.',
+                'badge_svg' => $this->translator->trans('ramon-verified.api.badge_svg.bad_mime'),
             ]);
         }
     }
