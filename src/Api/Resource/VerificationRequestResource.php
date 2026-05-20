@@ -32,8 +32,9 @@ class VerificationRequestResource extends AbstractDatabaseResource
     }
 
     /**
-     * Restringe a query por ator (não-admins veem só os próprios pedidos) e
-     * aplica o filtro custom `?byStatus=pending,rejected`. Dois pontos de
+     * Restringe a query por ator (quem não detém `verified.verifyUsers` vê
+     * só os próprios pedidos) e aplica o filtro custom
+     * `?byStatus=pending,rejected`. Dois pontos de
      * cuidado do Flarum 2 / json-api-server: (1) `AbstractDatabaseResource::filters()`
      * é `final` e lança "use a model searcher" sempre que o JSON:API server
      * invoca `applyFilters` com qualquer `filter[]` no request; (2)
@@ -45,7 +46,7 @@ class VerificationRequestResource extends AbstractDatabaseResource
     {
         $actor = $context->getActor();
 
-        if (! $actor->isAdmin()) {
+        if (! $actor->hasPermission('verified.verifyUsers')) {
             $query->where('user_id', $actor->id);
         }
 
@@ -93,17 +94,20 @@ class VerificationRequestResource extends AbstractDatabaseResource
 
             Endpoint\Endpoint::make('verified.approve')
                 ->route('POST', '/{id}/approve')
-                ->admin()
+                ->authenticated()
+                ->can('verified.verifyUsers')
                 ->action(fn (Context $context) => $this->service->approve($context)),
 
             Endpoint\Endpoint::make('verified.reject')
                 ->route('POST', '/{id}/reject')
-                ->admin()
+                ->authenticated()
+                ->can('verified.verifyUsers')
                 ->action(fn (Context $context) => $this->service->reject($context)),
 
             Endpoint\Endpoint::make('verified.revoke')
                 ->route('POST', '/{id}/revoke')
-                ->admin()
+                ->authenticated()
+                ->can('verified.verifyUsers')
                 ->action(fn (Context $context) => $this->service->revoke($context)),
         ];
     }

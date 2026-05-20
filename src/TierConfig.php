@@ -99,73 +99,139 @@ class TierConfig
         $seen  = [];
 
         foreach ($list as $row) {
-            if (! is_array($row)) continue;
-
-            $id = isset($row['id']) ? strtolower(trim((string) $row['id'])) : '';
-            if ($id === '' || ! preg_match('/^[a-z0-9_-]{1,32}$/', $id)) continue;
-            if (isset($seen[$id])) continue;
-            $seen[$id] = true;
-
-            $label = isset($row['label']) ? trim((string) $row['label']) : '';
-            if ($label === '') continue;
-
-            $color = '';
-            if (isset($row['color']) && is_string($row['color'])) {
-                $c = trim($row['color']);
-                if (preg_match('/^#[0-9a-fA-F]{3,8}$/', $c)) {
-                    $color = $c;
-                }
+            $parsed = self::parseTierRow($row, $seen);
+            if ($parsed !== null) {
+                $clean[] = $parsed;
             }
-
-            $description = isset($row['description']) && is_string($row['description'])
-                ? mb_substr(self::sanitiseDescription($row['description']), 0, 320)
-                : '';
-
-            $learnMoreUrl = '';
-            if (isset($row['learnMoreUrl']) && is_string($row['learnMoreUrl'])) {
-                $u = trim($row['learnMoreUrl']);
-                if ($u !== '' && preg_match('#^https?://#i', $u)) {
-                    $learnMoreUrl = mb_substr($u, 0, 500);
-                }
-            }
-
-            $autoGroups = [];
-            if (isset($row['autoGroups']) && is_array($row['autoGroups'])) {
-                foreach ($row['autoGroups'] as $gid) {
-                    $g = (int) $gid;
-                    if ($g > 0) $autoGroups[] = $g;
-                }
-                $autoGroups = array_values(array_unique($autoGroups));
-            }
-
-            $badgeEnabled = ! empty($row['badgeEnabled']);
-            $badgeSvg = '';
-            if ($badgeEnabled && isset($row['badgeSvg']) && is_string($row['badgeSvg'])) {
-                $candidate = $row['badgeSvg'];
-                if ($candidate !== '' && strlen($candidate) <= self::BADGE_SVG_MAX) {
-                    $sanitised = SvgSanitizer::sanitize($candidate, false);
-                    if ($sanitised !== '' && strlen($sanitised) <= self::BADGE_SVG_MAX) {
-                        $badgeSvg = $sanitised;
-                    }
-                }
-            }
-            if ($badgeSvg === '') {
-                $badgeEnabled = false;
-            }
-
-            $clean[] = [
-                'id'           => mb_substr($id, 0, 32),
-                'label'        => mb_substr($label, 0, 64),
-                'color'        => $color,
-                'description'  => $description,
-                'learnMoreUrl' => $learnMoreUrl,
-                'autoGroups'   => $autoGroups,
-                'badgeEnabled' => $badgeEnabled,
-                'badgeSvg'     => $badgeSvg,
-            ];
         }
 
         return $clean;
+    }
+
+    /**
+     * Normaliza uma linha crua de tier. Devolve `null` quando a linha é
+     * malformada — não-array, `id` ausente/inválido, `id` duplicado ou
+     * `label` vazio — para o caller descartar. `$seen` acumula os ids já
+     * aceitos para deduplicação dentro da mesma lista.
+     *
+     * @param array<string, true> $seen
+     * @return array{id:string,label:string,color:string,description:string,learnMoreUrl:string,autoGroups:int[],badgeEnabled:bool,badgeSvg:string}|null
+     */
+    private static function parseTierRow($row, array &$seen): ?array
+    {
+        if (! is_array($row)) return null;
+
+        $id = isset($row['id']) ? strtolower(trim((string) $row['id'])) : '';
+        if ($id === '' || ! preg_match('/^[a-z0-9_-]{1,32}$/', $id)) return null;
+        if (isset($seen[$id])) return null;
+        $seen[$id] = true;
+
+        $label = isset($row['label']) ? trim((string) $row['label']) : '';
+        if ($label === '') return null;
+
+        [$badgeEnabled, $badgeSvg] = self::parseBadge($row);
+
+        return [
+            'id'           => mb_substr($id, 0, 32),
+            'label'        => mb_substr($label, 0, 64),
+            'color'        => self::parseColor($row),
+            'description'  => self::parseDescription($row),
+            'learnMoreUrl' => self::parseLearnMoreUrl($row),
+            'autoGroups'   => self::parseAutoGroups($row),
+            'badgeEnabled' => $badgeEnabled,
+            'badgeSvg'     => $badgeSvg,
+        ];
+    }
+
+    /**
+     * Cor hex (`#rgb` a `#rrggbbaa`); string vazia quando ausente ou
+     * malformada — o frontend cai no `@primary-color` do fórum.
+     */
+    private static function parseColor($row): string
+    {
+        if (isset($row['color']) && is_string($row['color'])) {
+            $c = trim($row['color']);
+            if (preg_match('/^#[0-9a-fA-F]{3,8}$/', $c)) {
+                return $c;
+            }
+        }
+
+        return '';
+    }
+
+    /**
+     * Texto do popover, escapado com allowlist `<strong>`/`<em>` e limitado
+     * a 320 chars.
+     */
+    private static function parseDescription($row): string
+    {
+        return isset($row['description']) && is_string($row['description'])
+            ? mb_substr(self::sanitiseDescription($row['description']), 0, 320)
+            : '';
+    }
+
+    /**
+     * Link "Saiba mais"; aceita apenas `http`/`https`, limitado a 500 chars.
+     */
+    private static function parseLearnMoreUrl($row): string
+    {
+        if (isset($row['learnMoreUrl']) && is_string($row['learnMoreUrl'])) {
+            $u = trim($row['learnMoreUrl']);
+            if ($u !== '' && preg_match('#^https?://#i', $u)) {
+                return mb_substr($u, 0, 500);
+            }
+        }
+
+        return '';
+    }
+
+    /**
+     * IDs de grupos auto-verificadores: positivos, inteiros, deduplicados.
+     *
+     * @return int[]
+     */
+    private static function parseAutoGroups($row): array
+    {
+        if (! isset($row['autoGroups']) || ! is_array($row['autoGroups'])) {
+            return [];
+        }
+
+        $autoGroups = [];
+        foreach ($row['autoGroups'] as $gid) {
+            $g = (int) $gid;
+            if ($g > 0) $autoGroups[] = $g;
+        }
+
+        return array_values(array_unique($autoGroups));
+    }
+
+    /**
+     * SVG customizado do tier. Roda o `SvgSanitizer` e impõe `BADGE_SVG_MAX`
+     * antes e depois da sanitização; qualquer falha zera o par — `badgeSvg`
+     * vazio força `badgeEnabled=false`.
+     *
+     * @return array{0: bool, 1: string} `[badgeEnabled, badgeSvg]`
+     */
+    private static function parseBadge($row): array
+    {
+        $badgeEnabled = ! empty($row['badgeEnabled']);
+        $badgeSvg = '';
+
+        if ($badgeEnabled && isset($row['badgeSvg']) && is_string($row['badgeSvg'])) {
+            $candidate = $row['badgeSvg'];
+            if ($candidate !== '' && strlen($candidate) <= self::BADGE_SVG_MAX) {
+                $sanitised = SvgSanitizer::sanitize($candidate, false);
+                if ($sanitised !== '' && strlen($sanitised) <= self::BADGE_SVG_MAX) {
+                    $badgeSvg = $sanitised;
+                }
+            }
+        }
+
+        if ($badgeSvg === '') {
+            $badgeEnabled = false;
+        }
+
+        return [$badgeEnabled, $badgeSvg];
     }
 
     public static function parseForFrontend($raw): array
