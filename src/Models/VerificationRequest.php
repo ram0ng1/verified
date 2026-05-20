@@ -47,4 +47,15 @@ class VerificationRequest extends AbstractModel
     {
         return $this->status === self::STATUS_PENDING;
     }
+
+    /**
+     * Roda o callback dentro de uma transação do connection deste model.
+     * Centraliza o pattern `query()->getConnection()->transaction()` para
+     * evitar duplicação entre controller, resource e listener — e mantém
+     * a resolução de connection junto do model que define a tabela.
+     */
+    public static function runInTransaction(callable $cb): mixed
+    {
+        return self::query()->getConnection()->transaction($cb);
+    }
 }

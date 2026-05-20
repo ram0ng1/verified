@@ -39,17 +39,6 @@ class VerifyUserController implements RequestHandlerInterface
     ) {
     }
 
-    /**
-     * Executa o callback dentro de uma transação do connection do Flarum.
-     * Pega o connection pelo próprio model em vez de injetar
-     * `ConnectionInterface` — assim o controller declara só dependências de
-     * domínio, e a transação herda o resolver de connection do core.
-     */
-    private function transaction(callable $cb): mixed
-    {
-        return VerificationRequest::query()->getConnection()->transaction($cb);
-    }
-
     public function handle(ServerRequestInterface $request): ResponseInterface
     {
         $actor = RequestUtil::getActor($request);
@@ -131,7 +120,7 @@ class VerifyUserController implements RequestHandlerInterface
         $resolvedTierId = $this->tiers->resolveRequestedTierId($tierId);
         $adminNote      = $note ?: $this->translator->trans('ramon-verified.api.verified_by_admin_note');
 
-        $this->transaction(function () use ($target, $actor, $now, $resolvedTierId, $adminNote) {
+        VerificationRequest::runInTransaction(function () use ($target, $actor, $now, $resolvedTierId, $adminNote) {
             $flippedRows = VerificationRequest::query()
                 ->where('user_id', $target->id)
                 ->where('status', VerificationRequest::STATUS_PENDING)
@@ -204,7 +193,7 @@ class VerifyUserController implements RequestHandlerInterface
 
         $defaultNote = $this->translator->trans('ramon-verified.api.revoked_default_note');
 
-        $this->transaction(function () use ($target, $actor, $note, $now, $defaultNote, $hasManualVerification) {
+        VerificationRequest::runInTransaction(function () use ($target, $actor, $note, $now, $defaultNote, $hasManualVerification) {
             VerificationRequest::query()->insert([
                 'user_id'    => (int) $target->id,
                 'status'     => VerificationRequest::STATUS_REJECTED,
