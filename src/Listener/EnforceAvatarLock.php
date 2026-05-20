@@ -15,10 +15,9 @@ use Ramon\Verified\TierResolver;
  * cobrir auto-tiers por grupo.
  *
  * Override moderativo: qualquer ator com `editCredentials` no alvo passa
- * — inclui admins (sempre têm), e moderadores em fóruns que concederam
+ * — inclui admins (sempre têm) e moderadores em fóruns que concederam
  * essa permissão ao grupo de moderação. Sem esse override o lock travava
- * mesmo intervenção legítima de equipe (audit: lacuna sutil na gestão de
- * avatar — moderadores não-admin silenciosamente bloqueados).
+ * intervenção legítima de equipe.
  */
 class EnforceAvatarLock
 {
@@ -42,8 +41,7 @@ class EnforceAvatarLock
             return;
         }
 
-        $isSelf = (int) $actor->id === (int) $user->id;
-        if (! $isSelf && $actor->can('editCredentials', $user)) {
+        if ($actor->can('editCredentials', $user)) {
             return;
         }
 

@@ -129,7 +129,7 @@ class UploadBadgeSvgController extends UploadImageController
      * forjado). Quando o cliente OMITE o Content-Type E a detecção
      * server-side também falha (temp file ilegível, finfo ausente),
      * o upload é recusado — falhar fechado em vez de aceitar cego,
-     * mesmo padrão do `UploadDocumentController::validateMimeTypes` (audit F5).
+     * mesmo padrão do `UploadDocumentController::validateMimeTypes`.
      */
     private function validateMime(UploadedFileInterface $file): void
     {
