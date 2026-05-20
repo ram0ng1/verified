@@ -121,19 +121,29 @@ class VerifyUserController implements RequestHandlerInterface
         $adminNote      = $note ?: $this->translator->trans('ramon-verified.api.verified_by_admin_note');
 
         VerificationRequest::runInTransaction(function () use ($target, $actor, $now, $resolvedTierId, $adminNote) {
-            $flippedRows = VerificationRequest::query()
+            // Captura os IDs ANTES do UPDATE para que o pós-processamento de
+            // retenção mire exatamente as linhas que esta transação tocou —
+            // filtrar por `handled_at = $now` colidiria com outras verificações
+            // gravadas no mesmo segundo (admin batch, cron, etc.).
+            $flippedIds = VerificationRequest::query()
                 ->where('user_id', $target->id)
                 ->where('status', VerificationRequest::STATUS_PENDING)
-                ->update([
-                    'status'     => VerificationRequest::STATUS_APPROVED,
-                    'handled_by' => (int) $actor->id,
-                    'handled_at' => $now,
-                    'updated_at' => $now,
-                    'admin_note' => $adminNote,
-                ]);
+                ->pluck('id')
+                ->map(fn ($id) => (int) $id)
+                ->all();
 
-            if ($flippedRows === 0) {
-                VerificationRequest::query()->insert([
+            if (! empty($flippedIds)) {
+                VerificationRequest::query()
+                    ->whereIn('id', $flippedIds)
+                    ->update([
+                        'status'     => VerificationRequest::STATUS_APPROVED,
+                        'handled_by' => (int) $actor->id,
+                        'handled_at' => $now,
+                        'updated_at' => $now,
+                        'admin_note' => $adminNote,
+                    ]);
+            } else {
+                $insertedId = (int) VerificationRequest::query()->insertGetId([
                     'user_id'    => (int) $target->id,
                     'status'     => VerificationRequest::STATUS_APPROVED,
                     'reason'     => null,
@@ -143,13 +153,13 @@ class VerifyUserController implements RequestHandlerInterface
                     'created_at' => $now,
                     'updated_at' => $now,
                 ]);
+                $flippedIds = [$insertedId];
             }
 
             $this->verifiedStatus->mark($target, (int) $actor->id, $resolvedTierId, $now);
 
             VerificationRequest::query()
-                ->where('user_id', $target->id)
-                ->where('handled_at', $now)
+                ->whereIn('id', $flippedIds)
                 ->get()
                 ->each(fn (VerificationRequest $req) => $this->retention->onRequestHandled($req));
         });

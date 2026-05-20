@@ -28,6 +28,17 @@ class ApprovedUserQuery
     public const TIER_FILTER_CHUNK     = 200;
     public const TIER_FILTER_TOTAL_CAP = 5000;
 
+    /**
+     * Cache de instância. Em processos longos (Octane, queue workers) um
+     * `static` no método persistiria entre requests/jobs e poderia ficar
+     * obsoleto após uma migração rodada in-process (§44.2). O resolver é
+     * resolvido sob demanda por request, então o cache morre junto com a
+     * instância — exatamente o escopo desejado.
+     *
+     * @var string[]|null
+     */
+    private ?array $searchableColumnsCache = null;
+
     public function __construct(
         protected TierResolver $tierResolver
     ) {
@@ -44,8 +55,9 @@ class ApprovedUserQuery
      */
     public function searchableColumns(): array
     {
-        static $cached = null;
-        if ($cached !== null) return $cached;
+        if ($this->searchableColumnsCache !== null) {
+            return $this->searchableColumnsCache;
+        }
 
         $columns = ['username', 'email'];
         $schema = User::query()->getConnection()->getSchemaBuilder();
@@ -55,7 +67,7 @@ class ApprovedUserQuery
             }
         }
 
-        return $cached = $columns;
+        return $this->searchableColumnsCache = $columns;
     }
 
     /**
