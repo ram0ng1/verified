@@ -41,10 +41,19 @@ export interface TierMeta {
   color: string;
 }
 
+/** One JSON:API resource object as returned by `/verified/approved-users`. */
+interface ApprovedUserResource {
+  type: string;
+  id: string;
+  attributes: Omit<ApprovedUserRow, "id">;
+}
+
 /**
  * Owns the paginated, searchable, tier-filterable list of approved /
- * auto-verified users. Talks to the bespoke `/verified/approved-users`
- * endpoint (not a JSON:API resource — there is no model for these rows).
+ * auto-verified users. Talks to the `/verified/approved-users` endpoint.
+ * These rows are a virtual aggregate with no model of their own, so the
+ * endpoint is a classic controller — but its payload follows the JSON:API
+ * envelope (`data` is `{type, id, attributes}[]`, `meta` carries the rest).
  */
 export default class ApprovedUsersState {
   loading: boolean = false;
@@ -71,7 +80,7 @@ export default class ApprovedUsersState {
     if (this.tierFilter) params.tier = this.tierFilter;
 
     const res = await apiCall<{
-      data?: ApprovedUserRow[];
+      data?: ApprovedUserResource[];
       meta?: { total?: number; tiers?: TierMeta[] };
     }>(
       {
@@ -84,7 +93,10 @@ export default class ApprovedUsersState {
 
     this.loading = false;
     if (res) {
-      this.rows = res.data || [];
+      this.rows = (res.data || []).map((resource) => ({
+        id: resource.id,
+        ...resource.attributes,
+      }));
       this.total = (res.meta && res.meta.total) || 0;
       if (res.meta && res.meta.tiers) this.tiers = res.meta.tiers;
     }
