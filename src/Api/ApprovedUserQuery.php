@@ -4,6 +4,7 @@ namespace Ramon\Verified\Api;
 
 use Flarum\Group\Group;
 use Flarum\User\User;
+use Illuminate\Database\ConnectionInterface;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Collection;
 use Ramon\Verified\TierConfig;
@@ -14,14 +15,17 @@ use Ramon\Verified\TierResolver;
  * Une o conjunto manual (`is_verified=1`) com o conjunto auto-verificado
  * (membros de `autoGroups` de algum tier configurado).
  *
- * O caso difícil é o filtro por tier:
- *   - Manual fast path: SQL puro (LIMIT/OFFSET no DB).
- *   - Auto fast path: o tier efetivo depende da ordem de prioridade dos
- *     `autoGroups`, então a resolução final precisa rodar em PHP. Para
- *     evitar materializar todos os IDs do conjunto auto-verificado em
- *     um array (audit T1), `chunkById` para no momento em que já houver
- *     IDs suficientes para satisfazer `offset + limit + 1`; o total é
- *     aproximado por `TIER_FILTER_TOTAL_CAP`.
+ * O caso difícil é o filtro por tier. Os dois ramos são limitados por
+ * `TIER_FILTER_TOTAL_CAP` para nunca materializar mais que esse número de
+ * IDs em memória:
+ *   - Manual: o tier mora numa coluna (`verified_tier`), então o filtro é
+ *     SQL puro — basta um `LIMIT` no cap para o pluck não crescer com a
+ *     quantidade de verificados manuais de um tier.
+ *   - Auto: o tier efetivo depende da ordem de prioridade dos `autoGroups`,
+ *     então a resolução final roda em PHP; `chunkById` para no momento em
+ *     que já houver IDs suficientes para o cap restante.
+ * Quando qualquer ramo atinge o cap, `truncated=true` sinaliza ao admin que
+ * a busca precisa ser refinada.
  */
 class ApprovedUserQuery
 {
@@ -40,16 +44,16 @@ class ApprovedUserQuery
     private ?array $searchableColumnsCache = null;
 
     public function __construct(
-        protected TierResolver $tierResolver
+        protected TierResolver $tierResolver,
+        protected ConnectionInterface $connection
     ) {
     }
 
     /**
      * Colunas pesquisáveis da tabela `users`. `nickname` (extensão
      * `flarum/nicknames`) e `display_name` (Flarum 2 core) só entram quando
-     * realmente existem. Resolvemos o schema pelo próprio model em vez de
-     * injetar `ConnectionResolverInterface`: o resource layer não precisa
-     * conhecer essa abstração só para um lookup estrutural.
+     * realmente existem. O schema builder vem da conexão injetada — um
+     * lookup estrutural não precisa passar por um model.
      *
      * @return string[]
      */
@@ -60,7 +64,7 @@ class ApprovedUserQuery
         }
 
         $columns = ['username', 'email'];
-        $schema = User::query()->getConnection()->getSchemaBuilder();
+        $schema = $this->connection->getSchemaBuilder();
         foreach (['nickname', 'display_name'] as $optional) {
             if ($schema->hasColumn('users', $optional)) {
                 $columns[] = $optional;
@@ -161,14 +165,15 @@ class ApprovedUserQuery
         $isDefaultTier   = $needle === TierConfig::DEFAULT_TIER_ID;
         $blueIsConfigured = TierConfig::findById($tiers, TierConfig::DEFAULT_TIER_ID) !== null;
 
-        $manualIds = $this->collectManualTierIds($criteria, $needle, $isDefaultTier, $blueIsConfigured);
-
         $cap = self::TIER_FILTER_TOTAL_CAP;
-        $truncated = false;
-        $autoIds = [];
+
+        $manualIds = $this->collectManualTierIds($criteria, $needle, $isDefaultTier, $blueIsConfigured, $cap);
         $manualCount = count($manualIds);
 
-        if (! empty($autoVerifiedGroupIds) && $manualCount < $cap) {
+        $truncated = $manualCount >= $cap;
+        $autoIds = [];
+
+        if (! $truncated && ! empty($autoVerifiedGroupIds)) {
             $remainingCap = $cap - $manualCount;
             $autoIds = $this->collectAutoTierIds(
                 $criteria,
@@ -215,13 +220,20 @@ class ApprovedUserQuery
     }
 
     /**
+     * Caminho manual com cap. O filtro é SQL puro (`verified_tier` é coluna),
+     * então só precisamos limitar o pluck a `$cap` linhas — sem o `LIMIT`,
+     * um tier com dezenas de milhares de verificados manuais materializaria
+     * todos os IDs em memória. O caller marca `truncated` quando a contagem
+     * devolvida atinge o cap.
+     *
      * @return int[]
      */
     private function collectManualTierIds(
         ApprovedUserCriteria $criteria,
         string $needle,
         bool $isDefaultTier,
-        bool $blueIsConfigured
+        bool $blueIsConfigured,
+        int $cap
     ): array {
         $manualQuery = User::query()
             ->join('user_verification', 'user_verification.user_id', '=', 'users.id')
@@ -238,6 +250,7 @@ class ApprovedUserQuery
             ->orderBy('user_verification.verified_at', 'desc')
             ->orderBy('users.username', 'asc')
             ->orderBy('users.id', 'asc')
+            ->limit($cap)
             ->pluck('users.id')
             ->map(fn ($id) => (int) $id)
             ->all();
