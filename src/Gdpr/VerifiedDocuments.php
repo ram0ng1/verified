@@ -172,10 +172,10 @@ class VerifiedDocuments extends Type
      * datas). O `is_verified` permanece intencionalmente — o histórico
      * espera o flag verdadeiro mesmo após a anonimização.
      *
-     * Mutações DB envoltas em transaction (§61.3.14): se qualquer dos
-     * UPDATEs falhar, o usuário não fica num estado intermediário com
-     * algumas linhas zeradas e outras com PII residual. `deleteDocumentFiles`
-     * fica FORA do bloco — operação de disco não tem rollback útil.
+     * Mutações DB envoltas em transação: se qualquer dos UPDATEs falhar,
+     * o usuário não fica num estado intermediário com algumas linhas
+     * zeradas e outras com PII residual. `deleteDocumentFiles` fica FORA
+     * do bloco — operação de disco não tem rollback útil.
      */
     public function anonymize(): void
     {

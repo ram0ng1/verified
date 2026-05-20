@@ -30,10 +30,11 @@ use Ramon\Verified\Models\VerificationRequest;
  * - Estado quebrado (público sem privado) → mesmo shape; documentos
  *   cifrados também são enfileirados porque já não eram legíveis.
  *
- * A purga é despachada como job (§50) — em queue driver `sync` (default)
- * roda inline, mas a request retorna assim que `forget+generate+dispatch`
- * completa. Sob driver real (`redis`, `database`) a purga full-corpus
- * acontece em worker sem amarrar o request do admin.
+ * A purga é despachada como job — em queue driver `sync` (default) roda
+ * inline; sob driver real (`redis`, `database`) acontece em worker sem
+ * amarrar o request do admin. Em ambos os casos, a contagem retornada é
+ * de candidatos enfileirados, capturada antes do `forget` para não
+ * contabilizar uploads concorrentes que virão plaintext.
  */
 class GenerateKeypairController implements RequestHandlerInterface
 {
@@ -74,8 +75,6 @@ class GenerateKeypairController implements RequestHandlerInterface
                 ]);
             }
 
-            // Conta antes do `forget` para que uploads concorrentes (que
-            // virão plaintext após o forget) não sejam contabilizados.
             $orphanedCandidates = (int) VerificationRequest::query()
                 ->whereNotNull('document_path')
                 ->count();
