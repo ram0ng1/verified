@@ -7,6 +7,7 @@ use Flarum\Foundation\ValidationException;
 use Flarum\Http\RequestUtil;
 use Flarum\Locale\TranslatorInterface;
 use Flarum\Settings\SettingsRepositoryInterface;
+use Flarum\User\Exception\PermissionDeniedException;
 use Flarum\User\User;
 use Illuminate\Contracts\Events\Dispatcher;
 use Laminas\Diactoros\Response\JsonResponse;
@@ -99,7 +100,7 @@ class VerifyUserController implements RequestHandlerInterface
         if ($method === 'DELETE') {
             if (! $actor->hasPermission('verified.selfRevoke')
                 && ! $actor->hasPermission('verified.verifyUsers')) {
-                $actor->assertCan('verified.selfRevoke');
+                throw new PermissionDeniedException();
             }
             return;
         }

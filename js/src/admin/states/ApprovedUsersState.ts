@@ -1,7 +1,7 @@
 import app from "flarum/admin/app";
-import extractText from "flarum/common/utils/extractText";
 
 import apiCall from "../../common/utils/apiCall";
+import verificationPrompt from "../../common/utils/verificationPrompt";
 
 export const APPROVED_PAGE_SIZE = 15;
 const SEARCH_DEBOUNCE_MS = 250;
@@ -128,8 +128,13 @@ export default class ApprovedUsersState {
    * matching request row's status flips alongside.
    */
   async revokeUser(row: ApprovedUserRow): Promise<boolean> {
-    const note = window.prompt(extractText(trans("revoke_prompt")));
-    if (note === null) return false;
+    const result = await verificationPrompt({
+      title: trans("revoke_button"),
+      noteLabel: trans("revoke_prompt"),
+      confirmLabel: trans("revoke_button"),
+      withTier: false,
+    });
+    if (!result) return false;
 
     const key = "user-" + row.id;
     this.busy[key] = true;
@@ -143,7 +148,7 @@ export default class ApprovedUsersState {
           "/verified/users/" +
           row.id +
           "/verify",
-        body: { adminNote: note || "" },
+        body: { adminNote: result.note },
       },
       { errorKey: "ramon-verified.admin.requests.revoke_user_failed" },
     );
