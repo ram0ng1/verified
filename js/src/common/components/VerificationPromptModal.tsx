@@ -126,7 +126,9 @@ export default class VerificationPromptModal extends Modal<IVerificationPromptMo
    * Todo caminho de dismissal (X, Esc, clique no backdrop) remove o vnode e
    * cai aqui — quando o modal não foi confirmado, o caller recebe `null`.
    */
-  onremove(_vnode: Mithril.VnodeDOM<IVerificationPromptModalAttrs, this>): void {
+  onremove(
+    _vnode: Mithril.VnodeDOM<IVerificationPromptModalAttrs, this>,
+  ): void {
     this.settle(null);
   }
 
