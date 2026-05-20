@@ -39,16 +39,6 @@ class VerificationRequestResource extends AbstractDatabaseResource
     ) {
     }
 
-    /**
-     * Roda o callback dentro de uma transação do connection do Flarum,
-     * resolvido pelo próprio model — evita injetar `ConnectionInterface`
-     * direto no resource só para acessar `->transaction()`.
-     */
-    private function transaction(callable $cb): mixed
-    {
-        return VerificationRequest::query()->getConnection()->transaction($cb);
-    }
-
     public function type(): string
     {
         return 'verification-requests';
@@ -296,7 +286,7 @@ class VerificationRequestResource extends AbstractDatabaseResource
         $note = $this->extractNote($context);
         $tier = $this->tiers->resolveRequestedTierId($this->readRequestedTier($context));
 
-        $this->transaction(function () use ($request, $user, $actor, $now, $note, $tier) {
+        VerificationRequest::runInTransaction(function () use ($request, $user, $actor, $now, $note, $tier) {
             $request->status     = VerificationRequest::STATUS_APPROVED;
             $request->handled_by = (int) $actor->id;
             $request->handled_at = $now;
@@ -324,7 +314,7 @@ class VerificationRequestResource extends AbstractDatabaseResource
         $now = Carbon::now();
         $note = $this->extractNote($context);
 
-        $this->transaction(function () use ($request, $actor, $now, $note) {
+        VerificationRequest::runInTransaction(function () use ($request, $actor, $now, $note) {
             $request->status     = VerificationRequest::STATUS_REJECTED;
             $request->handled_by = (int) $actor->id;
             $request->handled_at = $now;
@@ -353,7 +343,7 @@ class VerificationRequestResource extends AbstractDatabaseResource
             $this->translator->trans('ramon-verified.api.revoked_default_note')
         );
 
-        $this->transaction(function () use ($request, $user, $actor, $now, $note) {
+        VerificationRequest::runInTransaction(function () use ($request, $user, $actor, $now, $note) {
             $request->status     = VerificationRequest::STATUS_REJECTED;
             $request->handled_by = (int) $actor->id;
             $request->handled_at = $now;
