@@ -3,7 +3,8 @@ import extractText from "flarum/common/utils/extractText";
 
 import VerificationRequest from "../../common/models/VerificationRequest";
 import apiCall from "../../common/utils/apiCall";
-import promptTier from "../../common/utils/promptTier";
+import verificationPrompt from "../../common/utils/verificationPrompt";
+import { getConfiguredTiers } from "../../common/utils/tiers";
 
 interface JsonApiResource {
   type: string;
@@ -178,21 +179,25 @@ export default class VerificationRequestsState {
    * `approve` or `revoke`.
    */
   async act(req: VerificationRequest, action: RequestAction): Promise<boolean> {
-    let note: string | null = null;
-    let tierId: string | null = null;
+    const withTier = action === "approve";
 
-    if (action === "reject" || action === "revoke") {
-      note = window.prompt(extractText(trans(action + "_prompt")));
-      if (note === null) return false;
-    } else if (action === "approve") {
-      const tier = promptTier();
-      if (!tier) return false;
-      tierId = tier.id;
-
-      const ans = window.prompt(extractText(trans("approve_prompt")));
-      if (ans === null) return false;
-      note = ans;
+    // Preserve the previous "no tiers configured" guard — approval needs a
+    // tier, and picking from an empty list would be a dead end.
+    if (withTier && getConfiguredTiers().length === 0) {
+      app.alerts.show(
+        { type: "error" },
+        app.translator.trans("ramon-verified.lib.tier_prompt.no_tiers"),
+      );
+      return false;
     }
+
+    const result = await verificationPrompt({
+      title: trans(action + "_button"),
+      noteLabel: trans(action + "_prompt"),
+      confirmLabel: trans(action + "_button"),
+      withTier,
+    });
+    if (!result) return false;
 
     const reqId = String(req.id() ?? "");
     if (!reqId) return false;
@@ -200,8 +205,10 @@ export default class VerificationRequestsState {
     this.busy[reqId] = true;
     m.redraw();
 
-    const body: Record<string, unknown> = { meta: { adminNote: note || "" } };
-    if (tierId) (body.meta as Record<string, unknown>).tier = tierId;
+    const body: Record<string, unknown> = {
+      meta: { adminNote: result.note },
+    };
+    if (result.tier) (body.meta as Record<string, unknown>).tier = result.tier;
 
     const res = await apiCall<JsonApiListPayload | { data?: JsonApiResource }>(
       {
