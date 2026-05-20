@@ -4,7 +4,6 @@ namespace Ramon\Verified\Api;
 
 use Flarum\Group\Group;
 use Flarum\User\User;
-use Illuminate\Database\ConnectionResolverInterface;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Collection;
 use Ramon\Verified\TierConfig;
@@ -22,8 +21,10 @@ use Ramon\Verified\TierResolver;
  *     SQL puro — basta um `LIMIT` no cap para o pluck não crescer com a
  *     quantidade de verificados manuais de um tier.
  *   - Auto: o tier efetivo depende da ordem de prioridade dos `autoGroups`,
- *     então a resolução final roda em PHP; `chunkById` para no momento em
- *     que já houver IDs suficientes para o cap restante.
+ *     então a confirmação final roda em PHP — mas a query SQL já restringe
+ *     os candidatos aos membros dos `autoGroups` do tier filtrado, então o
+ *     `chunkById` percorre só quem PODE ter o tier, não todo o conjunto
+ *     auto-verificado; para no momento em que houver IDs para o cap restante.
  * Quando qualquer ramo atinge o cap, `truncated=true` sinaliza ao admin que
  * a busca precisa ser refinada.
  */
@@ -44,16 +45,16 @@ class ApprovedUserQuery
     private ?array $searchableColumnsCache = null;
 
     public function __construct(
-        protected TierResolver $tierResolver,
-        protected ConnectionResolverInterface $connections
+        protected TierResolver $tierResolver
     ) {
     }
 
     /**
      * Colunas pesquisáveis da tabela `users`. `nickname` (extensão
      * `flarum/nicknames`) e `display_name` (Flarum 2 core) só entram quando
-     * realmente existem. O schema builder vem do `ConnectionResolverInterface`
-     * injetado — sem alcançar a conexão por dentro do model `User`.
+     * realmente existem. O schema builder vem da conexão do próprio model
+     * `User` — sem injetar um `ConnectionResolverInterface` de baixo nível
+     * só para introspecção de schema (§39.3: Eloquent primeiro).
      *
      * @return string[]
      */
@@ -64,7 +65,7 @@ class ApprovedUserQuery
         }
 
         $columns = ['username', 'email'];
-        $schema = $this->connections->connection()->getSchemaBuilder();
+        $schema = User::query()->getConnection()->getSchemaBuilder();
         foreach (['nickname', 'display_name'] as $optional) {
             if ($schema->hasColumn('users', $optional)) {
                 $columns[] = $optional;
@@ -83,7 +84,7 @@ class ApprovedUserQuery
         $adminAllowed = in_array(Group::ADMINISTRATOR_ID, $autoVerifiedGroupIds, true);
 
         if ($criteria->tierFilter !== '') {
-            return $this->pageWithTierFilter($criteria, $autoVerifiedGroupIds, $adminAllowed);
+            return $this->pageWithTierFilter($criteria, $adminAllowed);
         }
 
         return $this->pageWithoutTierFilter($criteria, $autoVerifiedGroupIds, $adminAllowed);
@@ -152,18 +153,19 @@ class ApprovedUserQuery
     }
 
     /**
-     * @param int[] $autoVerifiedGroupIds
      * @return array{users: Collection<int, User>, total: int, truncated: bool}
      */
     private function pageWithTierFilter(
         ApprovedUserCriteria $criteria,
-        array $autoVerifiedGroupIds,
         bool $adminAllowed
     ): array {
         $tiers = $this->tierResolver->tiers();
         $needle = strtolower($criteria->tierFilter);
         $isDefaultTier   = $needle === TierConfig::DEFAULT_TIER_ID;
         $blueIsConfigured = TierConfig::findById($tiers, TierConfig::DEFAULT_TIER_ID) !== null;
+
+        $targetTier = TierConfig::findById($tiers, $needle);
+        $targetTierGroupIds = $targetTier !== null ? $targetTier['autoGroups'] : [];
 
         $cap = self::TIER_FILTER_TOTAL_CAP;
 
@@ -173,11 +175,11 @@ class ApprovedUserQuery
         $truncated = $manualCount >= $cap;
         $autoIds = [];
 
-        if (! $truncated && ! empty($autoVerifiedGroupIds)) {
+        if (! $truncated && ! empty($targetTierGroupIds)) {
             $remainingCap = $cap - $manualCount;
             $autoIds = $this->collectAutoTierIds(
                 $criteria,
-                $autoVerifiedGroupIds,
+                $targetTierGroupIds,
                 $adminAllowed,
                 $needle,
                 $remainingCap,
@@ -257,30 +259,39 @@ class ApprovedUserQuery
     }
 
     /**
-     * Caminho auto-only com cap. Para assim que a contagem coletada chega
-     * ao limite — quando truncated=true, o admin precisa refinar a busca.
+     * Caminho auto-only com cap. O `whereExists` restringe os candidatos aos
+     * membros dos `autoGroups` do tier filtrado — só quem está num desses
+     * grupos PODE resolver para o tier-alvo, então o scan PHP percorre um
+     * conjunto bem menor que "todos os auto-verificados". A confirmação final
+     * (`resolveTierId`) ainda roda em PHP porque a precedência entre tiers e
+     * a imunidade de admin não cabem num único predicado SQL. Para assim que
+     * a contagem coletada chega ao limite — truncated=true sinaliza ao admin.
      *
-     * @param int[] $autoVerifiedGroupIds
+     * @param int[] $targetTierGroupIds
      * @return int[]
      */
     private function collectAutoTierIds(
         ApprovedUserCriteria $criteria,
-        array $autoVerifiedGroupIds,
+        array $targetTierGroupIds,
         bool $adminAllowed,
         string $needle,
         int $remainingCap,
         bool &$truncated
     ): array {
+        if (empty($targetTierGroupIds)) {
+            return [];
+        }
+
         $autoQuery = User::query()
             ->whereNotExists(function ($sub) {
                 $sub->from('user_verification')
                     ->whereColumn('user_verification.user_id', 'users.id')
                     ->where('user_verification.is_verified', true);
             })
-            ->whereExists(function ($sub) use ($autoVerifiedGroupIds) {
+            ->whereExists(function ($sub) use ($targetTierGroupIds) {
                 $sub->from('group_user')
                     ->whereColumn('group_user.user_id', 'users.id')
-                    ->whereIn('group_user.group_id', $autoVerifiedGroupIds);
+                    ->whereIn('group_user.group_id', $targetTierGroupIds);
             });
 
         if (! $adminAllowed) {

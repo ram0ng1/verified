@@ -160,14 +160,119 @@ class VerificationRequestService
             $request->admin_note = $note;
             $request->save();
 
-            $this->verifiedStatus->mark($user, (int) $actor->id, $tier, $now);
-
-            $this->retention->onRequestHandled($request);
+            $this->finalizeApproval($user, $actor, $tier, $now, [$request]);
         });
 
         $this->events->dispatch(new UserVerified($user, $actor));
 
         return $request;
+    }
+
+    /**
+     * Aprovação direta por um moderador via rota POST /verified/users/{id}/verify,
+     * sem depender de um pedido pendente prévio. Fecha qualquer pedido pendente
+     * do alvo — ou grava uma linha de auditoria APPROVED quando não há nenhum —
+     * e compartilha com approve() o núcleo `finalizeApproval()`. Devolve o tier
+     * resolvido para o caller montar a resposta. O dispatch de `UserVerified`
+     * fica fora da transação para publicar apenas após commit.
+     */
+    public function verifyDirect(User $target, User $actor, ?string $note, ?string $tierId, Carbon $now): string
+    {
+        if ($this->verifiedStatus->isVerified($target)) {
+            throw new ValidationException([
+                'status' => $this->translator->trans('ramon-verified.api.already_verified'),
+            ]);
+        }
+
+        $resolvedTierId = $this->tiers->resolveRequestedTierId($tierId);
+        $adminNote      = $note ?: $this->translator->trans('ramon-verified.api.verified_by_admin_note');
+
+        VerificationRequest::runInTransaction(function () use ($target, $actor, $now, $resolvedTierId, $adminNote) {
+            $flippedIds = VerificationRequest::query()
+                ->where('user_id', $target->id)
+                ->where('status', VerificationRequest::STATUS_PENDING)
+                ->pluck('id')
+                ->map(fn ($id) => (int) $id)
+                ->all();
+
+            if (! empty($flippedIds)) {
+                VerificationRequest::query()
+                    ->whereIn('id', $flippedIds)
+                    ->update([
+                        'status'     => VerificationRequest::STATUS_APPROVED,
+                        'handled_by' => (int) $actor->id,
+                        'handled_at' => $now,
+                        'updated_at' => $now,
+                        'admin_note' => $adminNote,
+                    ]);
+            } else {
+                $insertedId = (int) VerificationRequest::query()->insertGetId([
+                    'user_id'    => (int) $target->id,
+                    'status'     => VerificationRequest::STATUS_APPROVED,
+                    'reason'     => null,
+                    'admin_note' => $adminNote,
+                    'handled_by' => (int) $actor->id,
+                    'handled_at' => $now,
+                    'created_at' => $now,
+                    'updated_at' => $now,
+                ]);
+                $flippedIds = [$insertedId];
+            }
+
+            $handled = VerificationRequest::query()->whereIn('id', $flippedIds)->get();
+            $this->finalizeApproval($target, $actor, $resolvedTierId, $now, $handled);
+        });
+
+        $this->events->dispatch(new UserVerified($target, $actor));
+
+        return $resolvedTierId;
+    }
+
+    /**
+     * Revogação direta via rota DELETE /verified/users/{id}/verify. Grava a
+     * linha de auditoria REJECTED e limpa o estado verified. Quando a
+     * verificação era apenas auto-tier (sem linha manual) persiste o tombstone
+     * de opt-out em vez de deletar. A apresentação do auto-tier remanescente
+     * fica no controller — aqui só a mutação.
+     */
+    public function unverifyDirect(User $target, User $actor, ?string $note, Carbon $now, bool $hasManualVerification): void
+    {
+        $defaultNote = $this->translator->trans('ramon-verified.api.revoked_default_note');
+
+        VerificationRequest::runInTransaction(function () use ($target, $actor, $note, $now, $defaultNote, $hasManualVerification) {
+            VerificationRequest::query()->insert([
+                'user_id'    => (int) $target->id,
+                'status'     => VerificationRequest::STATUS_REJECTED,
+                'reason'     => null,
+                'admin_note' => $note ?: $defaultNote,
+                'handled_by' => (int) $actor->id,
+                'handled_at' => $now,
+                'created_at' => $now,
+                'updated_at' => $now,
+            ]);
+
+            if ($hasManualVerification) {
+                $this->verifiedStatus->clear($target);
+            } else {
+                $this->verifiedStatus->markAutoRevoked($target, $now);
+            }
+        });
+    }
+
+    /**
+     * Núcleo compartilhado por approve() e verifyDirect(): marca o usuário como
+     * verificado e aplica a política de retenção a cada pedido fechado. Roda
+     * sempre dentro da transação do caller.
+     *
+     * @param iterable<VerificationRequest> $handledRequests
+     */
+    private function finalizeApproval(User $user, User $actor, ?string $tier, Carbon $now, iterable $handledRequests): void
+    {
+        $this->verifiedStatus->mark($user, (int) $actor->id, $tier, $now);
+
+        foreach ($handledRequests as $request) {
+            $this->retention->onRequestHandled($request);
+        }
     }
 
     public function reject(Context $context): VerificationRequest

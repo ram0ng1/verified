@@ -6,17 +6,13 @@ use Carbon\Carbon;
 use Flarum\Foundation\ValidationException;
 use Flarum\Http\RequestUtil;
 use Flarum\Locale\TranslatorInterface;
-use Flarum\Settings\SettingsRepositoryInterface;
 use Flarum\User\Exception\PermissionDeniedException;
 use Flarum\User\User;
-use Illuminate\Contracts\Events\Dispatcher;
 use Laminas\Diactoros\Response\JsonResponse;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\RequestHandlerInterface;
-use Ramon\Verified\Documents\DocumentRetention;
-use Ramon\Verified\Event\UserVerified;
-use Ramon\Verified\Models\VerificationRequest;
+use Ramon\Verified\Service\Verification\VerificationRequestService;
 use Ramon\Verified\TierResolver;
 use Ramon\Verified\VerifiedStatus;
 
@@ -32,11 +28,9 @@ class VerifyUserController implements RequestHandlerInterface
 {
     public function __construct(
         protected TranslatorInterface $translator,
-        protected Dispatcher $events,
-        protected DocumentRetention $retention,
-        protected SettingsRepositoryInterface $settings,
         protected TierResolver $tiers,
-        protected VerifiedStatus $verifiedStatus
+        protected VerifiedStatus $verifiedStatus,
+        protected VerificationRequestService $service
     ) {
     }
 
@@ -109,61 +103,14 @@ class VerifyUserController implements RequestHandlerInterface
     }
 
     /**
-     * Aprovação direta envolvida em transação. O dispatch do `UserVerified`
-     * fica FORA do bloco para publicar apenas após commit. O pós-processamento
-     * de retenção mira a lista de IDs capturada antes do UPDATE — filtro por
-     * `handled_at` colidiria com verificações gravadas no mesmo segundo.
+     * Aprovação direta. A mutação (transação + retenção + dispatch do
+     * `UserVerified`) vive em `VerificationRequestService::verifyDirect()`,
+     * compartilhada com o fluxo de aprovação de pedidos — o controller só
+     * monta o envelope JSON da resposta.
      */
     private function verify(User $target, User $actor, ?string $note, ?string $tierId, Carbon $now): JsonResponse
     {
-        if ($this->verifiedStatus->isVerified($target)) {
-            throw new ValidationException(['status' => $this->translator->trans('ramon-verified.api.already_verified')]);
-        }
-
-        $resolvedTierId = $this->tiers->resolveRequestedTierId($tierId);
-        $adminNote      = $note ?: $this->translator->trans('ramon-verified.api.verified_by_admin_note');
-
-        VerificationRequest::runInTransaction(function () use ($target, $actor, $now, $resolvedTierId, $adminNote) {
-            $flippedIds = VerificationRequest::query()
-                ->where('user_id', $target->id)
-                ->where('status', VerificationRequest::STATUS_PENDING)
-                ->pluck('id')
-                ->map(fn ($id) => (int) $id)
-                ->all();
-
-            if (! empty($flippedIds)) {
-                VerificationRequest::query()
-                    ->whereIn('id', $flippedIds)
-                    ->update([
-                        'status'     => VerificationRequest::STATUS_APPROVED,
-                        'handled_by' => (int) $actor->id,
-                        'handled_at' => $now,
-                        'updated_at' => $now,
-                        'admin_note' => $adminNote,
-                    ]);
-            } else {
-                $insertedId = (int) VerificationRequest::query()->insertGetId([
-                    'user_id'    => (int) $target->id,
-                    'status'     => VerificationRequest::STATUS_APPROVED,
-                    'reason'     => null,
-                    'admin_note' => $adminNote,
-                    'handled_by' => (int) $actor->id,
-                    'handled_at' => $now,
-                    'created_at' => $now,
-                    'updated_at' => $now,
-                ]);
-                $flippedIds = [$insertedId];
-            }
-
-            $this->verifiedStatus->mark($target, (int) $actor->id, $resolvedTierId, $now);
-
-            VerificationRequest::query()
-                ->whereIn('id', $flippedIds)
-                ->get()
-                ->each(fn (VerificationRequest $req) => $this->retention->onRequestHandled($req));
-        });
-
-        $this->events->dispatch(new UserVerified($target, $actor));
+        $resolvedTierId = $this->service->verifyDirect($target, $actor, $note, $tierId, $now);
 
         return new JsonResponse([
             'data' => [
@@ -200,26 +147,7 @@ class VerifyUserController implements RequestHandlerInterface
             throw new ValidationException(['status' => $this->translator->trans('ramon-verified.api.not_verified')]);
         }
 
-        $defaultNote = $this->translator->trans('ramon-verified.api.revoked_default_note');
-
-        VerificationRequest::runInTransaction(function () use ($target, $actor, $note, $now, $defaultNote, $hasManualVerification) {
-            VerificationRequest::query()->insert([
-                'user_id'    => (int) $target->id,
-                'status'     => VerificationRequest::STATUS_REJECTED,
-                'reason'     => null,
-                'admin_note' => $note ?: $defaultNote,
-                'handled_by' => (int) $actor->id,
-                'handled_at' => $now,
-                'created_at' => $now,
-                'updated_at' => $now,
-            ]);
-
-            if ($hasManualVerification) {
-                $this->verifiedStatus->clear($target);
-            } else {
-                $this->verifiedStatus->markAutoRevoked($target, $now);
-            }
-        });
+        $this->service->unverifyDirect($target, $actor, $note, $now, $hasManualVerification);
 
         $target->load('groups');
 
