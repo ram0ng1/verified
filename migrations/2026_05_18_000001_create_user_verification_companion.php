@@ -48,25 +48,31 @@ return [
             && $schema->hasColumn('users', 'verified_at')
             && $schema->hasColumn('users', 'verified_by')
         ) {
-            $rows = $db->table('users')
+            /*
+             * `chunkById` em vez de `cursor()`: o cursor abre um result set
+             * não-bufferizado e, no MySQL/PDO, gravar (`updateOrInsert`) na
+             * mesma conexão enquanto ele está aberto lança "Cannot execute
+             * queries while other unbuffered queries are active". O chunk
+             * bufferiza cada lote e libera a conexão para os writes.
+             */
+            $db->table('users')
                 ->select(['id', 'is_verified', 'verified_at', 'verified_by', 'verified_tier'])
                 ->where(function ($q) {
                     $q->where('is_verified', true)->orWhereNotNull('verified_tier');
                 })
-                ->orderBy('id')
-                ->cursor();
-
-            foreach ($rows as $row) {
-                $db->table('user_verification')->updateOrInsert(
-                    ['user_id' => (int) $row->id],
-                    [
-                        'is_verified'   => (bool) ($row->is_verified ?? false),
-                        'verified_at'   => $row->verified_at,
-                        'verified_by'   => $row->verified_by !== null ? (int) $row->verified_by : null,
-                        'verified_tier' => $row->verified_tier,
-                    ]
-                );
-            }
+                ->chunkById(500, function ($rows) use ($db) {
+                    foreach ($rows as $row) {
+                        $db->table('user_verification')->updateOrInsert(
+                            ['user_id' => (int) $row->id],
+                            [
+                                'is_verified'   => (bool) ($row->is_verified ?? false),
+                                'verified_at'   => $row->verified_at,
+                                'verified_by'   => $row->verified_by !== null ? (int) $row->verified_by : null,
+                                'verified_tier' => $row->verified_tier,
+                            ]
+                        );
+                    }
+                }, 'id');
 
             if ($indexExists($schema, 'users', 'users_is_verified_verified_tier_index')) {
                 $schema->table('users', function (Blueprint $table) {
@@ -99,18 +105,18 @@ return [
 
             $db = $schema->getConnection();
             $db->table('user_verification')
-                ->orderBy('user_id')
-                ->cursor()
-                ->each(function ($row) use ($db) {
-                    $db->table('users')
-                        ->where('id', (int) $row->user_id)
-                        ->update([
-                            'is_verified'   => (bool) $row->is_verified,
-                            'verified_at'   => $row->verified_at,
-                            'verified_by'   => $row->verified_by !== null ? (int) $row->verified_by : null,
-                            'verified_tier' => $row->verified_tier,
-                        ]);
-                });
+                ->chunkById(500, function ($rows) use ($db) {
+                    foreach ($rows as $row) {
+                        $db->table('users')
+                            ->where('id', (int) $row->user_id)
+                            ->update([
+                                'is_verified'   => (bool) $row->is_verified,
+                                'verified_at'   => $row->verified_at,
+                                'verified_by'   => $row->verified_by !== null ? (int) $row->verified_by : null,
+                                'verified_tier' => $row->verified_tier,
+                            ]);
+                    }
+                }, 'user_id');
         }
 
         $base['down']($schema);
