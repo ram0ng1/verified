@@ -20,11 +20,17 @@ use Ramon\Verified\VerifiedStatus;
  * (`is_verified=1`) e auto-verificados via tier `autoGroups`. Aba "Approved"
  * do admin. Toda a complexidade de query/paginação fica em `ApprovedUserQuery`;
  * este handler só recebe critérios, resolve o page, monta o payload.
+ *
+ * Estas linhas são um agregado virtual (união de dois conjuntos), sem model
+ * próprio — não cabem num `AbstractDatabaseResource`. O payload, porém, segue
+ * o envelope JSON:API: `data` é uma lista de objetos `{type, id, attributes}`
+ * e `meta` carrega total/paginação/tiers.
  */
 class ListApprovedUsersController implements RequestHandlerInterface
 {
     public const DEFAULT_LIMIT = 15;
     public const MAX_LIMIT = 50;
+    public const RESOURCE_TYPE = 'verified-approved-user';
 
     public function __construct(
         protected ApprovedUserQuery $query,
@@ -61,6 +67,10 @@ class ListApprovedUsersController implements RequestHandlerInterface
     }
 
     /**
+     * Monta a lista `data` como objetos-recurso JSON:API. O `id` vai no
+     * objeto-recurso (string, conforme a spec); os demais campos em
+     * `attributes`.
+     *
      * @param \Illuminate\Support\Collection<int, User> $users
      */
     private function buildData($users): array
@@ -93,18 +103,22 @@ class ListApprovedUsersController implements RequestHandlerInterface
 
         $autoVerifiedGroupSet = array_flip($this->query->autoVerifiedGroupIds());
 
-        return $users->map(fn (User $user) => $this->buildRow(
-            $user,
-            $approvedRequests,
-            $handlers,
-            $autoVerifiedGroupSet
-        ))->all();
+        return $users->map(fn (User $user) => [
+            'type'       => self::RESOURCE_TYPE,
+            'id'         => (string) $user->id,
+            'attributes' => $this->buildAttributes(
+                $user,
+                $approvedRequests,
+                $handlers,
+                $autoVerifiedGroupSet
+            ),
+        ])->all();
     }
 
     /**
      * @param array<int, true> $autoVerifiedGroupSet
      */
-    private function buildRow(User $user, $approvedRequests, $handlers, array $autoVerifiedGroupSet): array
+    private function buildAttributes(User $user, $approvedRequests, $handlers, array $autoVerifiedGroupSet): array
     {
         $latestRequest = $approvedRequests->has($user->id)
             ? $approvedRequests[$user->id]->first()
@@ -126,7 +140,6 @@ class ListApprovedUsersController implements RequestHandlerInterface
             ->all();
 
         $row = [
-            'id'                 => (int) $user->id,
             'username'           => (string) $user->username,
             'displayName'        => (string) ($user->display_name ?: $user->nickname ?: $user->username),
             'avatarUrl'          => $user->avatar_url,

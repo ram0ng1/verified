@@ -16,6 +16,7 @@ use Ramon\Verified\Crypto\DocumentCipher;
 use Ramon\Verified\Documents\DocumentPathResolver;
 use Ramon\Verified\Documents\DocumentRetention;
 use Ramon\Verified\Models\VerificationRequest;
+use Ramon\Verified\Support\UploadedFileMime;
 use Ramon\Verified\VerifiedStatus;
 
 /**
@@ -169,7 +170,7 @@ class UploadDocumentController implements RequestHandlerInterface
             ]);
         }
 
-        $detectedMime = $this->detectServerMime($file);
+        $detectedMime = UploadedFileMime::detect($file);
 
         if ($detectedMime === null) {
             throw new ValidationException([
@@ -184,27 +185,4 @@ class UploadDocumentController implements RequestHandlerInterface
         }
     }
 
-    private function detectServerMime(UploadedFileInterface $file): ?string
-    {
-        $tmpPath = $file->getStream()->getMetadata('uri');
-        if (! is_string($tmpPath) || ! is_readable($tmpPath)) {
-            return null;
-        }
-
-        if (function_exists('finfo_open')) {
-            $finfo = finfo_open(FILEINFO_MIME_TYPE);
-            if ($finfo) {
-                $detected = finfo_file($finfo, $tmpPath);
-                finfo_close($finfo);
-                return is_string($detected) && $detected !== '' ? $detected : null;
-            }
-        }
-
-        if (function_exists('mime_content_type')) {
-            $detected = mime_content_type($tmpPath);
-            return is_string($detected) && $detected !== '' ? $detected : null;
-        }
-
-        return null;
-    }
 }
