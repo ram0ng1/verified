@@ -116,19 +116,49 @@ class ListApprovedUsersController implements RequestHandlerInterface
     }
 
     /**
+     * Monta o objeto `attributes` de uma linha: estado base do usuário,
+     * grupos auto-verificadores e — quando existe — o bloco do último pedido
+     * aprovado. Cada uma das duas últimas partes vive num helper próprio.
+     *
      * @param array<int, true> $autoVerifiedGroupSet
      */
     private function buildAttributes(User $user, $approvedRequests, $handlers, array $autoVerifiedGroupSet): array
     {
+        $isManual   = $this->verifiedStatus->isVerified($user);
+        $verifiedAt = $this->verifiedStatus->verifiedAt($user);
+
+        $row = [
+            'username'           => (string) $user->username,
+            'displayName'        => (string) ($user->display_name ?: $user->nickname ?: $user->username),
+            'avatarUrl'          => $user->avatar_url,
+            'source'             => $isManual ? 'manual' : 'group',
+            'isVerified'         => $isManual,
+            'verifiedAt'         => $verifiedAt ? $verifiedAt->toRfc3339String() : null,
+            'verifiedTier'       => $this->tierResolver->resolveTierId($user),
+            'autoVerifiedGroups' => $this->buildAutoGroups($user, $autoVerifiedGroupSet),
+        ];
+
         $latestRequest = $approvedRequests->has($user->id)
             ? $approvedRequests[$user->id]->first()
             : null;
 
-        $isManual = $this->verifiedStatus->isVerified($user);
-        $source = $isManual ? 'manual' : 'group';
-        $verifiedAt = $this->verifiedStatus->verifiedAt($user);
+        if ($latestRequest) {
+            $row['request'] = $this->buildRequestBlock($latestRequest, $handlers);
+        }
 
-        $autoGroups = $user->groups
+        return $row;
+    }
+
+    /**
+     * Subconjunto dos grupos do usuário que disparam auto-verificação, no
+     * shape leve consumido pela aba Approved.
+     *
+     * @param array<int, true> $autoVerifiedGroupSet
+     * @return array<int, array{id:int,name:string,color:?string,icon:?string}>
+     */
+    private function buildAutoGroups(User $user, array $autoVerifiedGroupSet): array
+    {
+        return $user->groups
             ->filter(fn (Group $g) => isset($autoVerifiedGroupSet[$g->id]))
             ->map(fn (Group $g) => [
                 'id'    => (int) $g->id,
@@ -138,38 +168,34 @@ class ListApprovedUsersController implements RequestHandlerInterface
             ])
             ->values()
             ->all();
+    }
 
-        $row = [
-            'username'           => (string) $user->username,
-            'displayName'        => (string) ($user->display_name ?: $user->nickname ?: $user->username),
-            'avatarUrl'          => $user->avatar_url,
-            'source'             => $source,
-            'isVerified'         => $isManual,
-            'verifiedAt'         => $verifiedAt ? $verifiedAt->toRfc3339String() : null,
-            'verifiedTier'       => $this->tierResolver->resolveTierId($user),
-            'autoVerifiedGroups' => $autoGroups,
+    /**
+     * Bloco `request` da linha: o último pedido aprovado do usuário e o
+     * moderador que o tratou.
+     *
+     * @param \Illuminate\Support\Collection<int, User> $handlers
+     */
+    private function buildRequestBlock(VerificationRequest $latestRequest, $handlers): array
+    {
+        $handler = $latestRequest->handled_by
+            ? $handlers->get((int) $latestRequest->handled_by)
+            : null;
+
+        return [
+            'id'           => (int) $latestRequest->id,
+            'reason'       => $latestRequest->reason,
+            'documentType' => $latestRequest->document_type,
+            'documentPath' => $latestRequest->document_path,
+            'adminNote'    => $latestRequest->admin_note,
+            'createdAt'    => $latestRequest->created_at ? $latestRequest->created_at->toRfc3339String() : null,
+            'handledAt'    => $latestRequest->handled_at ? $latestRequest->handled_at->toRfc3339String() : null,
+            'handler'      => $handler ? [
+                'id'          => (int) $handler->id,
+                'username'    => (string) $handler->username,
+                'displayName' => $handler->display_name ?: (string) $handler->username,
+            ] : null,
         ];
-
-        if ($latestRequest) {
-            $handler = $latestRequest->handled_by ? $handlers->get((int) $latestRequest->handled_by) : null;
-
-            $row['request'] = [
-                'id'           => (int) $latestRequest->id,
-                'reason'       => $latestRequest->reason,
-                'documentType' => $latestRequest->document_type,
-                'documentPath' => $latestRequest->document_path,
-                'adminNote'    => $latestRequest->admin_note,
-                'createdAt'    => $latestRequest->created_at ? $latestRequest->created_at->toRfc3339String() : null,
-                'handledAt'    => $latestRequest->handled_at ? $latestRequest->handled_at->toRfc3339String() : null,
-                'handler'      => $handler ? [
-                    'id'          => (int) $handler->id,
-                    'username'    => (string) $handler->username,
-                    'displayName' => $handler->display_name ?: (string) $handler->username,
-                ] : null,
-            ];
-        }
-
-        return $row;
     }
 
     /**

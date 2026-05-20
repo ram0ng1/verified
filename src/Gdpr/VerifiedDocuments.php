@@ -25,12 +25,13 @@ use Closure;
  *
  * GDPR instancia tipos via `new $type(...)` com exatamente 6 args fixos
  * (vendor/flarum/gdpr/src/Exporter.php:56), então a janela usual de DI por
- * construtor está fechada. `DocumentPathResolver` e `VerifiedStatus` não
- * têm dependências de construtor — instanciamos direto. O `DocumentCipher`
- * e o logger chegam por resolvers estáticos que o
- * `VerifiedDocumentsServiceProvider` grava no boot — closures restritos ao
- * que o data type usa, nunca o container inteiro. Testes injetam o cipher
- * direto via 7º arg opcional do construtor.
+ * construtor está fechada. Os colaboradores chegam pelo container via
+ * setters estáticos que o `VerifiedDocumentsServiceProvider` grava no boot:
+ * `DocumentPathResolver` e `VerifiedStatus` como instâncias resolvidas,
+ * `DocumentCipher` por resolver lazy e o logger direto — o data type nunca
+ * alcança o container por dentro. Sem boot completo (testes) os setters
+ * ficam vazios e o construtor cai em `new` para os dois colaboradores sem
+ * dependências; o cipher pode ser injetado via 7º arg opcional.
  */
 class VerifiedDocuments extends Type
 {
@@ -49,6 +50,17 @@ class VerifiedDocuments extends Type
      */
     protected static ?LoggerInterface $logger = null;
 
+    /**
+     * Colaboradores sem dependências de construtor, resolvidos do container
+     * pelo `VerifiedDocumentsServiceProvider::boot()`. Estáticos porque o
+     * GDPR Exporter instancia o data type com argumentos fixos e não há
+     * janela de DI por construtor; ambos são stateless, então o estático
+     * equivale a um singleton (sem o leak de estado por-request de §44.2).
+     */
+    protected static ?DocumentPathResolver $pathResolverInstance = null;
+
+    protected static ?VerifiedStatus $verifiedStatusInstance = null;
+
     protected DocumentPathResolver $pathResolver;
 
     protected VerifiedStatus $verifiedStatus;
@@ -66,8 +78,8 @@ class VerifiedDocuments extends Type
     ) {
         parent::__construct($user, $erasureRequest, $factory, $settings, $url, $translator);
 
-        $this->pathResolver   = new DocumentPathResolver();
-        $this->verifiedStatus = new VerifiedStatus();
+        $this->pathResolver   = static::$pathResolverInstance ?? new DocumentPathResolver();
+        $this->verifiedStatus = static::$verifiedStatusInstance ?? new VerifiedStatus();
         $this->cipherOverride = $cipher;
     }
 
@@ -79,6 +91,16 @@ class VerifiedDocuments extends Type
     public static function setLogger(LoggerInterface $logger): void
     {
         static::$logger = $logger;
+    }
+
+    public static function setPathResolver(DocumentPathResolver $resolver): void
+    {
+        static::$pathResolverInstance = $resolver;
+    }
+
+    public static function setVerifiedStatus(VerifiedStatus $verifiedStatus): void
+    {
+        static::$verifiedStatusInstance = $verifiedStatus;
     }
 
     /**
