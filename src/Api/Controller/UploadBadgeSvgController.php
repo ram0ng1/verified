@@ -123,15 +123,18 @@ class UploadBadgeSvgController extends UploadImageController
     }
 
     /**
-     * Allowlist em duas camadas: cliente-MIME (defesa rápida) + detecção
-     * server-side via `finfo`/`mime_content_type` (defesa real contra
-     * polyglot e Content-Type forjado). Quando o temp file não é legível,
-     * a detecção retorna null — falha o upload, igual ao UploadDocumentController.
+     * Allowlist em duas camadas: cliente-MIME (defesa rápida contra
+     * ferramentas honestas) + detecção server-side via `finfo`/
+     * `mime_content_type` (defesa real contra polyglot e Content-Type
+     * forjado). Quando o cliente OMITE o Content-Type E a detecção
+     * server-side também falha (temp file ilegível, finfo ausente),
+     * o upload é recusado — falhar fechado em vez de aceitar cego,
+     * mesmo padrão do `UploadDocumentController::validateMimeTypes` (audit F5).
      */
     private function validateMime(UploadedFileInterface $file): void
     {
         $clientMime = strtolower((string) $file->getClientMediaType());
-        if ($clientMime !== '' && ! in_array($clientMime, self::ALLOWED_MIMES, true)) {
+        if ($clientMime === '' || ! in_array($clientMime, self::ALLOWED_MIMES, true)) {
             throw new ValidationException([
                 'badge_svg' => $this->translator->trans('ramon-verified.api.badge_svg.bad_mime'),
             ]);
@@ -139,7 +142,9 @@ class UploadBadgeSvgController extends UploadImageController
 
         $detected = $this->detectServerMime($file);
         if ($detected === null) {
-            return;
+            throw new ValidationException([
+                'badge_svg' => $this->translator->trans('ramon-verified.api.badge_svg.upload_failed'),
+            ]);
         }
 
         if (! in_array(strtolower($detected), self::ALLOWED_MIMES, true)) {
