@@ -17,50 +17,22 @@ use Ramon\Verified\Models\VerificationRequest;
 use Ramon\Verified\VerifiedStatus;
 use Symfony\Contracts\Translation\TranslatorInterface;
 use Throwable;
-use Closure;
 
 /**
  * DataType do flarum/gdpr. Exporta/anonimiza/deleta as linhas de
  * `verification_requests` e o estado em `user_verification` deste usuário.
  *
- * GDPR instancia tipos via `new $type(...)` com exatamente 6 args fixos
- * (vendor/flarum/gdpr/src/Exporter.php:56), então a janela usual de DI por
- * construtor está fechada. Os colaboradores chegam pelo container via
- * setters estáticos que o `VerifiedDocumentsServiceProvider` grava no boot:
- * `DocumentPathResolver` e `VerifiedStatus` como instâncias resolvidas,
- * `DocumentCipher` por resolver lazy e o logger direto — o data type nunca
- * alcança o container por dentro. Sem boot completo (testes) os setters
- * ficam vazios e o construtor cai em `new` para os dois colaboradores sem
- * dependências; o cipher pode ser injetado via 7º arg opcional.
+ * O GDPR `Exporter` instancia tipos via `new $type(...)` com exatamente 6
+ * args fixos (vendor/flarum/gdpr/src/Exporter.php:56), então não há janela
+ * de DI por construtor para os colaboradores extras. `DocumentPathResolver`
+ * e `VerifiedStatus` são stateless sem dependências — instanciados direto.
+ * `DocumentCipher` e o logger têm dependências de container e são resolvidos
+ * de forma lazy, no mesmo padrão da classe-base `Type::staticTranslator()`,
+ * que já usa `resolve()` por exatamente esse motivo. Testes sem boot da app
+ * injetam o cipher pelo 7º argumento opcional do construtor.
  */
 class VerifiedDocuments extends Type
 {
-    /**
-     * Resolver lazy do `DocumentCipher`, gravado pelo
-     * `VerifiedDocumentsServiceProvider::boot()`. Estático porque o GDPR
-     * Exporter instancia o data type com argumentos fixos e não há janela
-     * de DI por construtor; um closure mantém a autoridade restrita ao
-     * cipher em vez de carregar o container inteiro.
-     */
-    protected static ?Closure $cipherResolver = null;
-
-    /**
-     * Logger gravado pelo mesmo service provider. Ausente em testes que
-     * não bootam a app — os call sites usam `?->`.
-     */
-    protected static ?LoggerInterface $logger = null;
-
-    /**
-     * Colaboradores sem dependências de construtor, resolvidos do container
-     * pelo `VerifiedDocumentsServiceProvider::boot()`. Estáticos porque o
-     * GDPR Exporter instancia o data type com argumentos fixos e não há
-     * janela de DI por construtor; ambos são stateless, então o estático
-     * equivale a um singleton (sem o leak de estado por-request de §44.2).
-     */
-    protected static ?DocumentPathResolver $pathResolverInstance = null;
-
-    protected static ?VerifiedStatus $verifiedStatusInstance = null;
-
     protected DocumentPathResolver $pathResolver;
 
     protected VerifiedStatus $verifiedStatus;
@@ -78,35 +50,15 @@ class VerifiedDocuments extends Type
     ) {
         parent::__construct($user, $erasureRequest, $factory, $settings, $url, $translator);
 
-        $this->pathResolver   = static::$pathResolverInstance ?? new DocumentPathResolver();
-        $this->verifiedStatus = static::$verifiedStatusInstance ?? new VerifiedStatus();
+        $this->pathResolver   = new DocumentPathResolver();
+        $this->verifiedStatus = new VerifiedStatus();
         $this->cipherOverride = $cipher;
-    }
-
-    public static function setCipherResolver(Closure $resolver): void
-    {
-        static::$cipherResolver = $resolver;
-    }
-
-    public static function setLogger(LoggerInterface $logger): void
-    {
-        static::$logger = $logger;
-    }
-
-    public static function setPathResolver(DocumentPathResolver $resolver): void
-    {
-        static::$pathResolverInstance = $resolver;
-    }
-
-    public static function setVerifiedStatus(VerifiedStatus $verifiedStatus): void
-    {
-        static::$verifiedStatusInstance = $verifiedStatus;
     }
 
     /**
      * Resolve o `DocumentCipher` apenas no momento em que arquivos cifrados
-     * são encontrados. Quando o resolver ainda não foi gravado (cenário de
-     * teste sem boot completo) o cipher injetado no construtor cobre o caso.
+     * são encontrados. O cipher injetado no construtor tem prioridade
+     * (cenário de teste sem boot completo); fora dele, resolve do container.
      */
     private function cipher(): ?DocumentCipher
     {
@@ -114,18 +66,28 @@ class VerifiedDocuments extends Type
             return $this->cipherOverride;
         }
 
-        $resolver = static::$cipherResolver;
-        if ($resolver === null) {
-            return null;
-        }
-
         try {
-            $cipher = $resolver();
+            $cipher = resolve(DocumentCipher::class);
         } catch (Throwable $e) {
             return null;
         }
 
         return $cipher instanceof DocumentCipher ? $cipher : null;
+    }
+
+    /**
+     * Logger resolvido de forma lazy. Ausente em testes que não bootam a
+     * app — os call sites usam `?->`.
+     */
+    private function logger(): ?LoggerInterface
+    {
+        try {
+            $logger = resolve(LoggerInterface::class);
+        } catch (Throwable $e) {
+            return null;
+        }
+
+        return $logger instanceof LoggerInterface ? $logger : null;
     }
 
     public static function dataType(): string
@@ -326,7 +288,7 @@ class VerifiedDocuments extends Type
         try {
             $disk->deleteDirectory($userDir);
         } catch (Throwable $e) {
-            static::$logger?->warning('verified: GDPR failed to delete user document directory', [
+            $this->logger()?->warning('verified: GDPR failed to delete user document directory', [
                 'user_id'   => (int) $this->user->id,
                 'exception' => $e->getMessage(),
             ]);
