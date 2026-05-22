@@ -3,7 +3,6 @@
 namespace Ramon\Verified\Api\Controller;
 
 use Flarum\Http\RequestUtil;
-use Flarum\User\Exception\PermissionDeniedException;
 use Laminas\Diactoros\Response\JsonResponse;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
@@ -28,10 +27,7 @@ class EncryptionStatusController implements RequestHandlerInterface
     {
         $actor = RequestUtil::getActor($request);
         $actor->assertRegistered();
-
-        if (! $actor->isAdmin()) {
-            throw new PermissionDeniedException();
-        }
+        $actor->assertAdmin();
 
         return new JsonResponse($this->cipher->status(), 200);
     }
