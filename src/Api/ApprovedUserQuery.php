@@ -15,17 +15,16 @@ use Ramon\Verified\TierResolver;
  * Une o conjunto manual (`is_verified=1`) com o conjunto auto-verificado
  * (membros de `autoGroups` de algum tier configurado).
  *
- * O caso difícil é o filtro por tier. Os dois ramos são limitados por
- * `TIER_FILTER_TOTAL_CAP` para nunca materializar mais que esse número de
- * IDs em memória:
- *   - Manual: o tier mora numa coluna (`verified_tier`), então o filtro é
- *     SQL puro — basta um `LIMIT` no cap para o pluck não crescer com a
- *     quantidade de verificados manuais de um tier.
- *   - Auto: o tier efetivo depende da ordem de prioridade dos `autoGroups`,
- *     então a confirmação final roda em PHP — mas a query SQL já restringe
- *     os candidatos aos membros dos `autoGroups` do tier filtrado, então o
- *     `chunkById` percorre só quem PODE ter o tier, não todo o conjunto
- *     auto-verificado; para no momento em que houver IDs para o cap restante.
+ * O caso difícil é o filtro por tier — conjunto virtual sem query SQL única
+ * paginável, porque o tier efetivo do ramo auto só se resolve em PHP. A
+ * página é montada sem materializar o conjunto inteiro:
+ *   - Manual: o tier mora numa coluna (`verified_tier`), então conta por
+ *     `COUNT(*)` e busca só a fatia da página por `LIMIT/OFFSET` — nenhum ID
+ *     materializado.
+ *   - Auto: o `chunkById` percorre só os candidatos (membros dos `autoGroups`
+ *     do tier filtrado), conta os que resolvem para o tier-alvo e guarda
+ *     apenas os IDs dentro da janela da página — no máximo `limit` IDs, não
+ *     o conjunto. As contagens param em `TIER_FILTER_TOTAL_CAP`.
  * Quando qualquer ramo atinge o cap, `truncated=true` sinaliza ao admin que
  * a busca precisa ser refinada.
  */
@@ -153,6 +152,13 @@ class ApprovedUserQuery
     }
 
     /**
+     * Listagem filtrada por tier. O conjunto é virtual (manual unido a auto)
+     * e o tier do ramo auto só se resolve em PHP, então não há query SQL
+     * única paginável. A página é montada sem materializar o conjunto: o
+     * ramo manual conta por `COUNT(*)` e busca a fatia por `LIMIT/OFFSET`; o
+     * ramo auto percorre os candidatos uma vez, conta os que casam o tier e
+     * guarda só os IDs da janela da página.
+     *
      * @return array{users: Collection<int, User>, total: int, truncated: bool}
      */
     private function pageWithTierFilter(
@@ -168,76 +174,96 @@ class ApprovedUserQuery
         $targetTierGroupIds = $targetTier !== null ? $targetTier['autoGroups'] : [];
 
         $cap = self::TIER_FILTER_TOTAL_CAP;
+        $offset = $criteria->offset;
+        $limit  = $criteria->limit;
 
-        $manualIds = $this->collectManualTierIds($criteria, $needle, $isDefaultTier, $blueIsConfigured, $cap);
-        $manualCount = count($manualIds);
+        $manualQuery = $this->manualTierQuery($criteria, $needle, $isDefaultTier, $blueIsConfigured);
+        $manualTotal = (clone $manualQuery)->count();
+        $manualTruncated = $manualTotal >= $cap;
+        $manualCount = min($manualTotal, $cap);
 
-        $truncated = $manualCount >= $cap;
-        $autoIds = [];
+        $autoCount = 0;
+        $autoTruncated = false;
+        $autoPageIds = [];
 
-        if (! $truncated && ! empty($targetTierGroupIds)) {
-            $remainingCap = $cap - $manualCount;
-            $autoIds = $this->collectAutoTierIds(
+        if (! $manualTruncated && ! empty($targetTierGroupIds)) {
+            // Janela da página em coordenadas locais do ramo auto, que segue
+            // o manual na união: posições da página que caem após o manual.
+            $autoWindowStart  = max(0, $offset - $manualCount);
+            $autoWindowLength = max(0, ($offset + $limit) - max($offset, $manualCount));
+
+            $auto = $this->collectAutoTierPage(
                 $criteria,
                 $targetTierGroupIds,
                 $adminAllowed,
                 $needle,
-                $remainingCap,
-                $truncated
+                $cap - $manualCount,
+                $autoWindowStart,
+                $autoWindowLength
             );
+            $autoCount     = $auto['count'];
+            $autoTruncated = $auto['truncated'];
+            $autoPageIds   = $auto['pageIds'];
         }
 
-        $matchingIds = array_merge($manualIds, $autoIds);
-        $total = count($matchingIds);
-        $pageIds = array_slice($matchingIds, $criteria->offset, $criteria->limit);
+        $total     = $manualCount + $autoCount;
+        $truncated = $manualTruncated || $autoTruncated;
 
-        if (empty($pageIds)) {
-            return [
-                'users'     => collect(),
-                'total'     => $total,
-                'truncated' => $truncated,
-            ];
-        }
-
-        $fetched = User::query()
-            ->with(['groups', 'verification'])
-            ->whereIn('id', $pageIds)
-            ->get();
-
-        $indexed = $fetched->keyBy('id');
         $ordered = [];
-        foreach ($pageIds as $id) {
-            $row = $indexed->get($id);
-            if ($row !== null) {
+
+        // Fatia manual da página — SQL puro, sem materializar IDs.
+        $manualSkip = min($offset, $manualCount);
+        $manualTake = max(0, min($offset + $limit, $manualCount) - $manualSkip);
+        if ($manualTake > 0) {
+            $manualPage = $manualQuery
+                ->select('users.*')
+                ->with(['groups', 'verification'])
+                ->orderBy('user_verification.verified_at', 'desc')
+                ->orderBy('users.username', 'asc')
+                ->orderBy('users.id', 'asc')
+                ->skip($manualSkip)
+                ->take($manualTake)
+                ->get();
+            foreach ($manualPage as $row) {
                 $ordered[] = $row;
             }
         }
-        $users = $fetched->make($ordered);
+
+        // Fatia auto da página — só os IDs já coletados na janela.
+        if (! empty($autoPageIds)) {
+            $autoFetched = User::query()
+                ->with(['groups', 'verification'])
+                ->whereIn('id', $autoPageIds)
+                ->get()
+                ->keyBy('id');
+            foreach ($autoPageIds as $id) {
+                $row = $autoFetched->get($id);
+                if ($row !== null) {
+                    $ordered[] = $row;
+                }
+            }
+        }
 
         return [
-            'users'     => $users,
+            'users'     => collect($ordered),
             'total'     => $total,
             'truncated' => $truncated,
         ];
     }
 
     /**
-     * Caminho manual com cap. O filtro é SQL puro (`verified_tier` é coluna),
-     * então só precisamos limitar o pluck a `$cap` linhas — sem o `LIMIT`,
-     * um tier com dezenas de milhares de verificados manuais materializaria
-     * todos os IDs em memória. O caller marca `truncated` quando a contagem
-     * devolvida atinge o cap.
-     *
-     * @return int[]
+     * Builder do ramo manual do filtro de tier: join na tabela companheira,
+     * `is_verified=1` e casamento do tier (`verified_tier`, ou NULL quando o
+     * tier-alvo é o default azul configurado). Sem ordenação nem limite — o
+     * caller decide se conta (`COUNT`) ou pagina (`LIMIT/OFFSET`).
      */
-    private function collectManualTierIds(
+    private function manualTierQuery(
         ApprovedUserCriteria $criteria,
         string $needle,
         bool $isDefaultTier,
-        bool $blueIsConfigured,
-        int $cap
-    ): array {
-        $manualQuery = User::query()
+        bool $blueIsConfigured
+    ): Builder {
+        $query = User::query()
             ->join('user_verification', 'user_verification.user_id', '=', 'users.id')
             ->where('user_verification.is_verified', true)
             ->where(function (Builder $w) use ($needle, $isDefaultTier, $blueIsConfigured) {
@@ -246,42 +272,32 @@ class ApprovedUserQuery
                     $w->orWhereNull('user_verification.verified_tier');
                 }
             });
-        $this->applySearch($manualQuery, $criteria->q);
 
-        return $manualQuery
-            ->orderBy('user_verification.verified_at', 'desc')
-            ->orderBy('users.username', 'asc')
-            ->orderBy('users.id', 'asc')
-            ->limit($cap)
-            ->pluck('users.id')
-            ->map(fn ($id) => (int) $id)
-            ->all();
+        $this->applySearch($query, $criteria->q);
+
+        return $query;
     }
 
     /**
-     * Caminho auto-only com cap. O `whereExists` restringe os candidatos aos
-     * membros dos `autoGroups` do tier filtrado — só quem está num desses
-     * grupos PODE resolver para o tier-alvo, então o scan PHP percorre um
-     * conjunto bem menor que "todos os auto-verificados". A confirmação final
-     * (`resolveTierId`) ainda roda em PHP porque a precedência entre tiers e
-     * a imunidade de admin não cabem num único predicado SQL. Para assim que
-     * a contagem coletada chega ao limite — truncated=true sinaliza ao admin.
+     * Percorre os candidatos do ramo auto (membros dos `autoGroups` do tier
+     * filtrado), confirma o tier efetivo em PHP via `resolveTierId` e devolve
+     * a contagem total mais os IDs que caem na janela `[windowStart, +len)`.
+     * Guarda no máximo `windowLength` IDs — a contagem segue até `$cap`, mas o
+     * array de página não cresce com o conjunto. `truncated=true` quando o
+     * walk atinge o cap antes de esgotar os candidatos.
      *
      * @param int[] $targetTierGroupIds
-     * @return int[]
+     * @return array{count: int, pageIds: int[], truncated: bool}
      */
-    private function collectAutoTierIds(
+    private function collectAutoTierPage(
         ApprovedUserCriteria $criteria,
         array $targetTierGroupIds,
         bool $adminAllowed,
         string $needle,
-        int $remainingCap,
-        bool &$truncated
+        int $cap,
+        int $windowStart,
+        int $windowLength
     ): array {
-        if (empty($targetTierGroupIds)) {
-            return [];
-        }
-
         $autoQuery = User::query()
             ->whereNotExists(function ($sub) {
                 $sub->from('user_verification')
@@ -304,27 +320,41 @@ class ApprovedUserQuery
 
         $this->applySearch($autoQuery, $criteria->q);
 
-        $autoIds = [];
+        $matched   = 0;
+        $pageIds   = [];
+        $truncated = false;
+        $windowEnd = $windowStart + $windowLength;
 
         $autoQuery
             ->orderBy('username', 'asc')
             ->orderBy('id', 'asc')
-            ->chunkById(self::TIER_FILTER_CHUNK, function ($users) use ($needle, $remainingCap, &$autoIds, &$truncated) {
+            ->chunkById(self::TIER_FILTER_CHUNK, function ($users) use (
+                $needle,
+                $cap,
+                $windowStart,
+                $windowEnd,
+                &$matched,
+                &$pageIds,
+                &$truncated
+            ) {
                 $users->load(['groups', 'verification']);
                 foreach ($users as $user) {
-                    $tierId = $this->tierResolver->resolveTierId($user);
-                    if ($tierId === $needle) {
-                        $autoIds[] = (int) $user->id;
-                        if (count($autoIds) >= $remainingCap) {
-                            $truncated = true;
-                            return false;
-                        }
+                    if ($this->tierResolver->resolveTierId($user) !== $needle) {
+                        continue;
+                    }
+                    if ($matched >= $windowStart && $matched < $windowEnd) {
+                        $pageIds[] = (int) $user->id;
+                    }
+                    $matched++;
+                    if ($matched >= $cap) {
+                        $truncated = true;
+                        return false;
                     }
                 }
                 return true;
             });
 
-        return $autoIds;
+        return ['count' => $matched, 'pageIds' => $pageIds, 'truncated' => $truncated];
     }
 
     /**
