@@ -5,7 +5,6 @@ namespace Ramon\Verified\Api\Controller;
 use Flarum\Foundation\ValidationException;
 use Flarum\Http\RequestUtil;
 use Flarum\Locale\TranslatorInterface;
-use Flarum\User\Exception\PermissionDeniedException;
 use Illuminate\Contracts\Bus\Dispatcher as BusDispatcher;
 use Laminas\Diactoros\Response\JsonResponse;
 use Psr\Http\Message\ResponseInterface;
@@ -50,10 +49,7 @@ class GenerateKeypairController implements RequestHandlerInterface
     {
         $actor = RequestUtil::getActor($request);
         $actor->assertRegistered();
-
-        if (! $actor->isAdmin()) {
-            throw new PermissionDeniedException();
-        }
+        $actor->assertAdmin();
 
         if (! $this->cipher->isAvailable()) {
             throw new ValidationException([
