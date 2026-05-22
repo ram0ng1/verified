@@ -26,7 +26,6 @@ class EncryptionStatusController implements RequestHandlerInterface
     public function handle(ServerRequestInterface $request): ResponseInterface
     {
         $actor = RequestUtil::getActor($request);
-        $actor->assertRegistered();
         $actor->assertAdmin();
 
         return new JsonResponse($this->cipher->status(), 200);
