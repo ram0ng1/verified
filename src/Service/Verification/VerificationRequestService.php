@@ -175,6 +175,10 @@ class VerificationRequestService
      * e compartilha com approve() o núcleo `finalizeApproval()`. Devolve o tier
      * resolvido para o caller montar a resposta. O dispatch de `UserVerified`
      * fica fora da transação para publicar apenas após commit.
+     *
+     * A varredura de pendentes roda com `lockForUpdate` sobre `(user_id, status)`
+     * — a mesma trava de `create()`. Sem ela, um `create()` concorrente gravaria
+     * um pedido pendente entre a varredura e o commit, deixando-o sem ser fechado.
      */
     public function verifyDirect(User $target, User $actor, ?string $note, ?string $tierId, Carbon $now): string
     {
@@ -191,6 +195,7 @@ class VerificationRequestService
             $flippedIds = VerificationRequest::query()
                 ->where('user_id', $target->id)
                 ->where('status', VerificationRequest::STATUS_PENDING)
+                ->lockForUpdate()
                 ->pluck('id')
                 ->map(fn ($id) => (int) $id)
                 ->all();
