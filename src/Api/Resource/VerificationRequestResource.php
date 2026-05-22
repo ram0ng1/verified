@@ -71,18 +71,26 @@ class VerificationRequestResource extends AbstractDatabaseResource
         }
     }
 
+    /**
+     * `eagerLoad('user.verification')` nos endpoints de leitura: o `eagerLoad`
+     * do `UserResource` cobre só as rotas próprias dele, não o `user` incluído
+     * aqui. Sem isto, os campos de `UserResource` (`isVerified`, `verifiedTier`)
+     * disparariam uma consulta à tabela companheira por usuário serializado.
+     */
     public function endpoints(): array
     {
         return [
             Endpoint\Index::make()
                 ->authenticated()
                 ->paginate(15, 50)
-                ->defaultInclude(['user', 'handler']),
+                ->defaultInclude(['user', 'handler'])
+                ->eagerLoad(['user.verification', 'handler.verification']),
 
             Endpoint\Show::make()
                 ->authenticated()
                 ->can('view')
-                ->defaultInclude(['user', 'handler']),
+                ->defaultInclude(['user', 'handler'])
+                ->eagerLoad(['user.verification', 'handler.verification']),
 
             Endpoint\Create::make()
                 ->authenticated()

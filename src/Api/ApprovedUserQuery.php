@@ -24,14 +24,22 @@ use Ramon\Verified\TierResolver;
  *   - Auto: o `chunkById` percorre só os candidatos (membros dos `autoGroups`
  *     do tier filtrado), conta os que resolvem para o tier-alvo e guarda
  *     apenas os IDs dentro da janela da página — no máximo `limit` IDs, não
- *     o conjunto. As contagens param em `TIER_FILTER_TOTAL_CAP`.
- * Quando qualquer ramo atinge o cap, `truncated=true` sinaliza ao admin que
- * a busca precisa ser refinada.
+ *     o conjunto. O walk para em `TIER_FILTER_AUTO_WALK_CAP`; ao atingi-lo,
+ *     `truncated=true` sinaliza ao admin que a busca precisa ser refinada.
  */
 class ApprovedUserQuery
 {
-    public const TIER_FILTER_CHUNK     = 200;
-    public const TIER_FILTER_TOTAL_CAP = 5000;
+    public const TIER_FILTER_CHUNK = 200;
+
+    /**
+     * Teto do walk PHP do ramo auto. O tier efetivo de um auto-verificado só
+     * se resolve em PHP (precedência entre tiers + imunidade de admin), então
+     * o ramo auto percorre candidatos em chunks — custo proporcional ao número
+     * percorrido. 1000 = 5 chunks; ao atingi-lo, `truncated=true` pede refino
+     * da busca. O ramo manual NÃO usa este cap: é SQL puro (`COUNT` +
+     * `LIMIT/OFFSET`), exato e barato em qualquer tamanho.
+     */
+    public const TIER_FILTER_AUTO_WALK_CAP = 1000;
 
     /**
      * Cache de instância. Em processos longos (Octane, queue workers) um
@@ -155,9 +163,12 @@ class ApprovedUserQuery
      * Listagem filtrada por tier. O conjunto é virtual (manual unido a auto)
      * e o tier do ramo auto só se resolve em PHP, então não há query SQL
      * única paginável. A página é montada sem materializar o conjunto: o
-     * ramo manual conta por `COUNT(*)` e busca a fatia por `LIMIT/OFFSET`; o
-     * ramo auto percorre os candidatos uma vez, conta os que casam o tier e
-     * guarda só os IDs da janela da página.
+     * ramo manual conta por `COUNT(*)` e busca a fatia por `LIMIT/OFFSET`
+     * (exato, sem cap); o ramo auto percorre os candidatos uma vez (limitado
+     * por `TIER_FILTER_AUTO_WALK_CAP`), conta os que casam o tier e guarda só
+     * os IDs da janela da página. A janela do ramo auto é calculada em
+     * coordenadas locais — as posições da página que caem depois do bloco
+     * manual, que vem primeiro na união.
      *
      * @return array{users: Collection<int, User>, total: int, truncated: bool}
      */
@@ -173,22 +184,17 @@ class ApprovedUserQuery
         $targetTier = TierConfig::findById($tiers, $needle);
         $targetTierGroupIds = $targetTier !== null ? $targetTier['autoGroups'] : [];
 
-        $cap = self::TIER_FILTER_TOTAL_CAP;
         $offset = $criteria->offset;
         $limit  = $criteria->limit;
 
         $manualQuery = $this->manualTierQuery($criteria, $needle, $isDefaultTier, $blueIsConfigured);
-        $manualTotal = (clone $manualQuery)->count();
-        $manualTruncated = $manualTotal >= $cap;
-        $manualCount = min($manualTotal, $cap);
+        $manualCount = (clone $manualQuery)->count();
 
         $autoCount = 0;
         $autoTruncated = false;
         $autoPageIds = [];
 
-        if (! $manualTruncated && ! empty($targetTierGroupIds)) {
-            // Janela da página em coordenadas locais do ramo auto, que segue
-            // o manual na união: posições da página que caem após o manual.
+        if (! empty($targetTierGroupIds)) {
             $autoWindowStart  = max(0, $offset - $manualCount);
             $autoWindowLength = max(0, ($offset + $limit) - max($offset, $manualCount));
 
@@ -197,7 +203,7 @@ class ApprovedUserQuery
                 $targetTierGroupIds,
                 $adminAllowed,
                 $needle,
-                $cap - $manualCount,
+                self::TIER_FILTER_AUTO_WALK_CAP,
                 $autoWindowStart,
                 $autoWindowLength
             );
@@ -207,11 +213,10 @@ class ApprovedUserQuery
         }
 
         $total     = $manualCount + $autoCount;
-        $truncated = $manualTruncated || $autoTruncated;
+        $truncated = $autoTruncated;
 
         $ordered = [];
 
-        // Fatia manual da página — SQL puro, sem materializar IDs.
         $manualSkip = min($offset, $manualCount);
         $manualTake = max(0, min($offset + $limit, $manualCount) - $manualSkip);
         if ($manualTake > 0) {
@@ -229,7 +234,6 @@ class ApprovedUserQuery
             }
         }
 
-        // Fatia auto da página — só os IDs já coletados na janela.
         if (! empty($autoPageIds)) {
             $autoFetched = User::query()
                 ->with(['groups', 'verification'])
