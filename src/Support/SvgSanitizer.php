@@ -5,9 +5,10 @@ namespace Ramon\Verified\Support;
 use Flarum\Foundation\ValidationException;
 
 /**
- * Sanitiza SVGs admin-uploaded. Remove DOCTYPE/ENTITY (XXE), tags ativas
- * (script, foreignObject, iframe, etc.), handlers `on*`, URLs `javascript:` /
- * `data:`, qualquer `href`/`xlink:href` que não seja referência interna
+ * Sanitiza SVGs admin-uploaded. Remove DOCTYPE/ENTITY (XXE), todo elemento
+ * fora da allowlist `ALLOWED_TAGS` (script, foreignObject, iframe, animate*,
+ * etc.), handlers `on*`, URLs `javascript:` / `data:`, qualquer
+ * `href`/`xlink:href` que não seja referência interna
  * `#fragment` (defeats `<use href="evil.svg#x">`, relativo ou absoluto), e
  * referências `url(...)` para recursos externos em atributos e em CSS
  * inline. Opcionalmente reescreve `fill` para `currentColor`, deixando o
@@ -33,16 +34,34 @@ class SvgSanitizer
     ];
 
     /**
-     * Tags removidas incondicionalmente. `<a>` mata phishing-via-badge;
-     * `animate*` é stripado porque SMIL pode reescrever `xlink:href` em
-     * runtime, contornando o scrub estático. `<image>` e `<feImage>` mesmo
-     * após zerar `href`/`xlink:href` aceitam `style: url(...)` e sintaxes
-     * percent-encoded que reescapam o filtro de URL externa.
+     * Allowlist de elementos SVG aceitos — qualquer elemento fora desta
+     * lista é removido. Allowlist em vez de blocklist porque falha fechado:
+     * um elemento ativo novo (ou esquecido — `<animateColor>`, `<mpath>`,
+     * foreign-content de outro namespace cujo `localName` colide) nunca
+     * passa por não constar aqui, sem depender de o sanitizador conhecer
+     * a ameaça de antemão.
+     *
+     * Cobre estrutura, formas, texto, gradientes/paint servers e primitivas
+     * de filtro. Fora da lista de propósito: `script`, `style`, `a`,
+     * `foreignObject`, `iframe`, `object`, `embed`, `base`, `link`, todos os
+     * `animate*`/`set`/`mpath` (SMIL reescreve `xlink:href` em runtime,
+     * contornando o scrub estático) e `image`/`feImage` (carregam recurso
+     * externo mesmo após o scrub de `href`).
      */
-    private const DANGEROUS_TAGS = [
-        'script', 'foreignobject', 'iframe', 'object', 'embed', 'base', 'link', 'style',
-        'a', 'animate', 'animatetransform', 'animatemotion', 'set',
-        'image', 'feimage',
+    private const ALLOWED_TAGS = [
+        'svg', 'g', 'defs', 'symbol', 'use', 'switch',
+        'title', 'desc', 'metadata',
+        'path', 'rect', 'circle', 'ellipse', 'line', 'polyline', 'polygon',
+        'text', 'tspan', 'textpath',
+        'lineargradient', 'radialgradient', 'stop',
+        'pattern', 'clippath', 'mask', 'marker',
+        'filter',
+        'feblend', 'fecolormatrix', 'fecomponenttransfer', 'fecomposite',
+        'feconvolvematrix', 'fediffuselighting', 'fedisplacementmap',
+        'fedropshadow', 'feflood', 'fefunca', 'fefuncb', 'fefuncg', 'fefuncr',
+        'fegaussianblur', 'femerge', 'femergenode', 'femorphology', 'feoffset',
+        'fespecularlighting', 'fetile', 'feturbulence',
+        'fedistantlight', 'fepointlight', 'fespotlight',
     ];
 
     /**
@@ -194,7 +213,7 @@ class SvgSanitizer
 
         foreach ($children as $child) {
             if ($child instanceof \DOMElement) {
-                if (in_array(strtolower($child->localName), self::DANGEROUS_TAGS, true)) {
+                if (! in_array(strtolower($child->localName), self::ALLOWED_TAGS, true)) {
                     $node->removeChild($child);
                     continue;
                 }
