@@ -9,7 +9,6 @@ use Flarum\Settings\SettingsRepositoryInterface;
 use Flarum\User\User;
 use Illuminate\Contracts\Filesystem\Factory;
 use Illuminate\Contracts\Filesystem\Filesystem;
-use Psr\Log\LoggerInterface;
 use Ramon\Verified\Crypto\DocumentCipher;
 use Ramon\Verified\Documents\DocumentPathResolver;
 use Ramon\Verified\Models\UserVerification;
@@ -22,14 +21,15 @@ use Throwable;
  * DataType do flarum/gdpr. Exporta/anonimiza/deleta as linhas de
  * `verification_requests` e o estado em `user_verification` deste usuário.
  *
- * O GDPR `Exporter` instancia tipos via `new $type(...)` com exatamente 6
- * args fixos (vendor/flarum/gdpr/src/Exporter.php:56), então não há janela
- * de DI por construtor para os colaboradores extras. `DocumentPathResolver`
- * e `VerifiedStatus` são stateless sem dependências — instanciados direto.
- * `DocumentCipher` e o logger têm dependências de container e são resolvidos
- * de forma lazy, no mesmo padrão da classe-base `Type::staticTranslator()`,
- * que já usa `resolve()` por exatamente esse motivo. Testes sem boot da app
- * injetam o cipher pelo 7º argumento opcional do construtor.
+ * O GDPR instancia tipos via `new $type(...)` com 6 args fixos
+ * (Exporter.php:56, ErasureJob.php:102), então não há janela de DI por
+ * construtor para colaboradores extras. `DocumentPathResolver` e
+ * `VerifiedStatus` são stateless sem dependências — instanciados direto.
+ * O `DocumentCipher` precisa de `Flarum\Foundation\Config` (a chave privada
+ * mora em `config.php`, não na tabela `settings`), inalcançável pelos 6
+ * args; é resolvido de forma lazy, só na exportação, no mesmo padrão da
+ * classe-base `Type::staticTranslator()`. Testes sem boot da app injetam o
+ * cipher pelo 7º argumento opcional do construtor.
  */
 class VerifiedDocuments extends Type
 {
@@ -73,21 +73,6 @@ class VerifiedDocuments extends Type
         }
 
         return $cipher instanceof DocumentCipher ? $cipher : null;
-    }
-
-    /**
-     * Logger resolvido de forma lazy. Ausente em testes que não bootam a
-     * app — os call sites usam `?->`.
-     */
-    private function logger(): ?LoggerInterface
-    {
-        try {
-            $logger = resolve(LoggerInterface::class);
-        } catch (Throwable $e) {
-            return null;
-        }
-
-        return $logger instanceof LoggerInterface ? $logger : null;
     }
 
     public static function dataType(): string
@@ -276,6 +261,13 @@ class VerifiedDocuments extends Type
         return $out;
     }
 
+    /**
+     * Apaga o diretório de documentos do usuário no disco privado. Uma falha
+     * NÃO é silenciada: propaga e faz o `ErasureJob` (job de fila) falhar em
+     * vez de marcar a erasure como concluída deixando documentos de identidade
+     * em disco — exatamente a violação de GDPR que o fluxo existe para evitar.
+     * O job reexecuta; as mutações de DB anteriores são idempotentes.
+     */
     private function deleteDocumentFiles(): void
     {
         $disk    = $this->disk();
@@ -285,14 +277,7 @@ class VerifiedDocuments extends Type
             return;
         }
 
-        try {
-            $disk->deleteDirectory($userDir);
-        } catch (Throwable $e) {
-            $this->logger()?->warning('verified: GDPR failed to delete user document directory', [
-                'user_id'   => (int) $this->user->id,
-                'exception' => $e->getMessage(),
-            ]);
-        }
+        $disk->deleteDirectory($userDir);
     }
 
     private function disk(): Filesystem

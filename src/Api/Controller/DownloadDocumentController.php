@@ -8,6 +8,7 @@ use Flarum\Locale\TranslatorInterface;
 use Illuminate\Contracts\Filesystem\Factory;
 use Illuminate\Contracts\Filesystem\Filesystem;
 use Laminas\Diactoros\Response;
+use Laminas\Diactoros\Response\JsonResponse;
 use Laminas\Diactoros\Stream;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
@@ -82,14 +83,25 @@ class DownloadDocumentController implements RequestHandlerInterface
 
         if ($isEncrypted && ! $this->cipher->canDecrypt()) {
             fclose($fileStream);
-            throw new RuntimeException(
+
+            return $this->encryptionError(
+                'private_key_missing',
+                503,
                 (string) $this->translator->trans('ramon-verified.api.encryption.private_key_missing')
             );
         }
 
-        [$body, $contentLength] = $isEncrypted
-            ? $this->buildEncryptedBody($fileStream, $disk, $relative)
-            : $this->buildPlainBody($fileStream, $disk, $relative);
+        try {
+            [$body, $contentLength] = $isEncrypted
+                ? $this->buildEncryptedBody($fileStream, $disk, $relative)
+                : $this->buildPlainBody($fileStream, $disk, $relative);
+        } catch (RuntimeException $e) {
+            return $this->encryptionError(
+                'decryption_failed',
+                500,
+                (string) $this->translator->trans('ramon-verified.api.encryption.decryption_failed')
+            );
+        }
 
         $disposition = $request->getQueryParams()['download'] ?? null
             ? 'attachment'
@@ -109,6 +121,23 @@ class DownloadDocumentController implements RequestHandlerInterface
         }
 
         return $response;
+    }
+
+    /**
+     * Resposta de erro estruturada (envelope JSON:API) para falhas de
+     * criptografia. Uma `RuntimeException` crua viraria um 500 genérico cujo
+     * corpo o handler de erros da API esvazia — a mensagem traduzida, que diz
+     * ao admin exatamente o que corrigir em `config.php`, nunca chegaria.
+     */
+    private function encryptionError(string $code, int $status, string $detail): JsonResponse
+    {
+        return new JsonResponse([
+            'errors' => [[
+                'status' => (string) $status,
+                'code'   => $code,
+                'detail' => $detail,
+            ]],
+        ], $status);
     }
 
     /**
