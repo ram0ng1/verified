@@ -38,7 +38,6 @@ class DownloadDocumentController implements RequestHandlerInterface
     public function handle(ServerRequestInterface $request): ResponseInterface
     {
         $actor = RequestUtil::getActor($request);
-        $actor->assertRegistered();
         $actor->assertAdmin();
 
         $rawId = $request->getAttribute('id') ?? ($request->getQueryParams()['id'] ?? 0);
