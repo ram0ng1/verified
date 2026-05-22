@@ -48,7 +48,28 @@ class UploadBadgeSvgController extends UploadImageController
      */
     private const ALLOWED_EXTENSIONS = ['svg'];
 
-    private const ALLOWED_MIMES = [
+    /**
+     * MIME que um cliente honesto envia no `Content-Type` de um `.svg`: só
+     * o tipo IANA oficial e a variante legada sem `+xml`. Estrito de
+     * propósito — navegadores e ferramentas de upload nunca rotulam um SVG
+     * como `text/xml`/`application/xml`/`text/plain`, então aceitá-los na
+     * primeira barreira só a alargaria sem ganho legítimo.
+     */
+    private const ALLOWED_CLIENT_MIMES = [
+        'image/svg+xml',
+        'image/svg',
+    ];
+
+    /**
+     * MIME que `finfo`/libmagic pode devolver para um SVG real. libmagic
+     * varia conforme o conteúdo: SVG com prólogo `<?xml?>` vira
+     * `image/svg+xml`; sem prólogo, frequentemente `text/xml`,
+     * `application/xml` ou até `text/plain`. A lista é permissiva de
+     * propósito — o gate de conteúdo autoritativo é o `SvgSanitizer`, que
+     * parseia via DOMDocument e exige `<svg>` como elemento raiz; um arquivo
+     * não-SVG que passe por aqui ainda falha lá com 422.
+     */
+    private const ALLOWED_DETECTED_MIMES = [
         'image/svg+xml',
         'image/svg',
         'text/xml',
@@ -124,18 +145,20 @@ class UploadBadgeSvgController extends UploadImageController
     }
 
     /**
-     * Allowlist em duas camadas: cliente-MIME (defesa rápida contra
-     * ferramentas honestas) + detecção server-side via `finfo`/
-     * `mime_content_type` (defesa real contra polyglot e Content-Type
-     * forjado). Quando o cliente OMITE o Content-Type E a detecção
-     * server-side também falha (temp file ilegível, finfo ausente),
-     * o upload é recusado — falhar fechado em vez de aceitar cego,
-     * mesmo padrão do `UploadDocumentController::validateMimeTypes`.
+     * Allowlist em duas camadas com listas distintas: cliente-MIME estrito
+     * (`ALLOWED_CLIENT_MIMES` — defesa rápida contra ferramentas honestas)
+     * + detecção server-side via `finfo`/`mime_content_type` contra a lista
+     * permissiva (`ALLOWED_DETECTED_MIMES` — defesa real contra polyglot e
+     * Content-Type forjado, tolerando a variação do libmagic para SVG).
+     * Quando o cliente OMITE o Content-Type E a detecção server-side também
+     * falha (temp file ilegível, finfo ausente), o upload é recusado —
+     * falhar fechado em vez de aceitar cego, mesmo padrão do
+     * `UploadDocumentController::validateMimeTypes`.
      */
     private function validateMime(UploadedFileInterface $file): void
     {
         $clientMime = strtolower((string) $file->getClientMediaType());
-        if ($clientMime === '' || ! in_array($clientMime, self::ALLOWED_MIMES, true)) {
+        if ($clientMime === '' || ! in_array($clientMime, self::ALLOWED_CLIENT_MIMES, true)) {
             throw new ValidationException([
                 'badge_svg' => $this->translator->trans('ramon-verified.api.badge_svg.bad_mime'),
             ]);
@@ -148,7 +171,7 @@ class UploadBadgeSvgController extends UploadImageController
             ]);
         }
 
-        if (! in_array(strtolower($detected), self::ALLOWED_MIMES, true)) {
+        if (! in_array(strtolower($detected), self::ALLOWED_DETECTED_MIMES, true)) {
             throw new ValidationException([
                 'badge_svg' => $this->translator->trans('ramon-verified.api.badge_svg.bad_mime'),
             ]);
