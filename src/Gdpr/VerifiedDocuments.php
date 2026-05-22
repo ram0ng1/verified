@@ -33,6 +33,14 @@ use Throwable;
  */
 class VerifiedDocuments extends Type
 {
+    /**
+     * Tamanho do chunk ao percorrer as solicitações tratadas por um admin no
+     * export. Um administrador veterano pode ter tratado dezenas de milhares
+     * de linhas; `chunkById` mantém apenas este número de models hidratados em
+     * memória por vez, em vez de materializar o conjunto inteiro de uma vez.
+     */
+    private const EXPORT_CHUNK = 200;
+
     protected DocumentPathResolver $pathResolver;
 
     protected VerifiedStatus $verifiedStatus;
@@ -131,19 +139,20 @@ class VerifiedDocuments extends Type
             ])];
         }
 
-        $handled = VerificationRequest::query()
+        VerificationRequest::query()
             ->where('handled_by', $this->user->id)
-            ->orderBy('handled_at', 'asc')
-            ->get();
-
-        foreach ($handled as $req) {
-            $exportData[] = ["verified/handled/request-{$req->id}.json" => $this->encodeForExport([
-                'request_id'   => (int) $req->id,
-                'final_status' => $req->status,
-                'admin_note'   => $req->admin_note,
-                'handled_at'   => optional($req->handled_at)->toRfc3339String(),
-            ])];
-        }
+            ->select(['id', 'status', 'admin_note', 'handled_at'])
+            ->orderBy('id')
+            ->chunkById(self::EXPORT_CHUNK, function ($handled) use (&$exportData) {
+                foreach ($handled as $req) {
+                    $exportData[] = ["verified/handled/request-{$req->id}.json" => $this->encodeForExport([
+                        'request_id'   => (int) $req->id,
+                        'final_status' => $req->status,
+                        'admin_note'   => $req->admin_note,
+                        'handled_at'   => optional($req->handled_at)->toRfc3339String(),
+                    ])];
+                }
+            });
 
         foreach ($this->collectDocumentFiles() as $name => $contents) {
             $exportData[] = ["verified/documents/{$name}" => $contents];

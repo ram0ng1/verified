@@ -48,7 +48,6 @@ class GenerateKeypairController implements RequestHandlerInterface
     public function handle(ServerRequestInterface $request): ResponseInterface
     {
         $actor = RequestUtil::getActor($request);
-        $actor->assertRegistered();
         $actor->assertAdmin();
 
         if (! $this->cipher->isAvailable()) {
