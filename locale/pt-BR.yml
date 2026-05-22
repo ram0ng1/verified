@@ -307,6 +307,7 @@ ramon-verified:
       libsodium_missing: "libsodium não está disponível nesta instalação do PHP."
       acknowledge_loss_required: "Você precisa confirmar que todos os documentos cifrados existentes serão apagados antes de gerar um novo par de chaves."
       private_key_missing: "Este documento está cifrado, mas a chave privada não está configurada em config.php neste servidor. Adicione-a sob a chave 'verified-private-key', ou gere um novo par de chaves (o que apagará todos os documentos cifrados)."
+      decryption_failed: "Este documento está cifrado e não pôde ser descifrado. A chave privada em config.php pode não corresponder à chave pública salva, ou o arquivo está corrompido."
     badge_svg:
       missing: "Nenhum arquivo SVG foi enviado no campo \"verified-badge\"."
       upload_failed: "Falha ao enviar o SVG. Tente novamente."
