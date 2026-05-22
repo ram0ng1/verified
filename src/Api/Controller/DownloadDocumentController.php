@@ -5,7 +5,6 @@ namespace Ramon\Verified\Api\Controller;
 use Flarum\Http\Exception\RouteNotFoundException;
 use Flarum\Http\RequestUtil;
 use Flarum\Locale\TranslatorInterface;
-use Flarum\User\Exception\PermissionDeniedException;
 use Illuminate\Contracts\Filesystem\Factory;
 use Illuminate\Contracts\Filesystem\Filesystem;
 use Laminas\Diactoros\Response;
@@ -39,10 +38,7 @@ class DownloadDocumentController implements RequestHandlerInterface
     {
         $actor = RequestUtil::getActor($request);
         $actor->assertRegistered();
-
-        if (! $actor->isAdmin()) {
-            throw new PermissionDeniedException();
-        }
+        $actor->assertAdmin();
 
         $rawId = $request->getAttribute('id') ?? ($request->getQueryParams()['id'] ?? 0);
         $id    = (int) $rawId;
