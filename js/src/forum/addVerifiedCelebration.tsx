@@ -12,12 +12,19 @@ const MAX_RETRIES = 20; // 5s cap em 250ms ticks
  * `ramonVerifiedCelebrationShownAt` — armazena o `verifiedAt` para o qual
  * o modal já foi visto. Quando uma nova verificação acontece (revogação
  * + re-emissão), o `verifiedAt` muda e o modal aparece de novo uma vez.
+ *
+ * Gating: o modal só aparece quando o admin habilitou
+ * `ramonVerifiedPromptOnRegister` (mesmo toggle do checkbox no signup).
+ * Com o toggle desligado, o usuário verificado recebe apenas a
+ * notificação padrão — comportamento default sem UI extra.
  */
 export default function addVerifiedCelebration(): void {
   setTimeout(() => tick(0), 0);
 }
 
 function tick(retries: number): void {
+  if (!app.forum.attribute("ramonVerifiedPromptOnRegister")) return;
+
   const user = app.session && app.session.user;
   if (!user) return;
 
