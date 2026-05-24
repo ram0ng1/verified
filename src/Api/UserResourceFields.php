@@ -77,11 +77,7 @@ class UserResourceFields
                         return false;
                     }
 
-                    // Gate por permissão é admin-configurável (espelha
-                    // `VerificationRequestService` + `UploadDocumentController`).
-                    // Default off: qualquer autenticado pode solicitar.
-                    if ((bool) $this->settings->get('ramon-verified.gate_by_permission', false)
-                        && ! $actor->hasPermission('verified.request')) {
+                    if (! $actor->hasPermission('verified.request')) {
                         return false;
                     }
 

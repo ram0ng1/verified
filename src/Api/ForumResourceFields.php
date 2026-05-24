@@ -40,13 +40,9 @@ class ForumResourceFields
                     $context->getActor()->hasPermission('verified.selfRevoke'))
                 ->visible($loggedIn),
 
-            // `requests_open` é visível também a guests: o checkbox no
-            // modal de cadastro (`SignUpModal`) precisa lê-lo pra decidir
-            // se aparece — sem isso, o checkbox apareceria com requests
-            // fechados e o POST falharia depois do submit. Sem dado
-            // sensível: é um toggle operacional, não um segredo.
             Schema\Boolean::make('ramonVerifiedRequestsOpen')
-                ->get(fn () => (bool) $this->settings->get('ramon-verified.requests_open', true)),
+                ->get(fn () => (bool) $this->settings->get('ramon-verified.requests_open', true))
+                ->visible($loggedIn),
 
             Schema\Boolean::make('ramonVerifiedRequireDocument')
                 ->get(fn () => (bool) $this->settings->get('ramon-verified.require_document', false))
