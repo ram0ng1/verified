@@ -46,22 +46,7 @@ class VerificationRequestService
     {
         $actor = $context->getActor();
         $actor->assertRegistered();
-
-        // Gate de permissão `verified.request` é admin-configurável via
-        // `ramon-verified.gate_by_permission`:
-        //
-        // - **off (default)**: qualquer autenticado abre o próprio pedido —
-        //   inclusive não-confirmados / em fila do `flarum-approval`.
-        //   Fluxo de signup com checkbox depende disso.
-        // - **on**: restaura `assertCan('verified.request')` — admin pode
-        //   revogar a permissão de grupos via UI de Permissões e bloquear.
-        //
-        // Demais gates ficam de pé independente: `requests_open` (kill
-        // switch global), duplicata pendente (lockForUpdate abaixo) e
-        // já-verificado.
-        if ((bool) $this->settings->get('ramon-verified.gate_by_permission', false)) {
-            $actor->assertCan('verified.request');
-        }
+        $actor->assertCan('verified.request');
 
         if (! (bool) $this->settings->get('ramon-verified.requests_open', true)) {
             throw new ValidationException([

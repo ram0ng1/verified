@@ -53,13 +53,7 @@ class UploadDocumentController implements RequestHandlerInterface
     {
         $actor = RequestUtil::getActor($request);
         $actor->assertRegistered();
-
-        // Gate `verified.request` espelha o de
-        // `VerificationRequestService::create()` — admin-configurável via
-        // `ramon-verified.gate_by_permission` (default off).
-        if ((bool) $this->settings->get('ramon-verified.gate_by_permission', false)) {
-            $actor->assertCan('verified.request');
-        }
+        $actor->assertCan('verified.request');
 
         if (! (bool) $this->settings->get('ramon-verified.requests_open', true)) {
             throw new ValidationException([
