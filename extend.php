@@ -60,6 +60,8 @@ return [
 
     (new Extend\Settings())
         ->default('ramon-verified.requests_open', true)
+        ->default('ramon-verified.prompt_on_register', false)
+        ->default('ramon-verified.gate_by_permission', false)
         ->default('ramon-verified.require_document', false)
         ->default('ramon-verified.document_retention', 'keep')
         ->default('ramon-verified.document_retention_days', 30)
@@ -72,6 +74,7 @@ return [
         ->default('ramon-verified.document_types', '[{"id":"rg","label":"RG"},{"id":"cpf","label":"CPF"},{"id":"passport","label":"Passport"},{"id":"driver","label":"Driver\'s license"},{"id":"other","label":"Other"}]')
         ->default('ramon-verified.tiers', '[{"id":"blue","label":"Verificado","color":"#1d9bf0","description":"Esta conta tem a <strong>identidade verificada</strong>.","learnMoreUrl":"","autoGroups":[]},{"id":"gold","label":"Ouro","color":"#d4af37","description":"Conta de organização com <strong>identidade verificada</strong>.","learnMoreUrl":"","autoGroups":[]},{"id":"partner","label":"Parceiro","color":"#9b59b6","description":"Conta afiliada ou parceira oficial com <strong>identidade verificada</strong>.","learnMoreUrl":"","autoGroups":[]}]')
         ->serializeToForum('ramonVerifiedShowTooltip',     'ramon-verified.show_tooltip',     'boolval')
+        ->serializeToForum('ramonVerifiedPromptOnRegister', 'ramon-verified.prompt_on_register', 'boolval')
         ->serializeToForum('ramonVerifiedBadgeSvgPath',    'ramon-verified.badge_svg_path')
         ->serializeToForum('ramonVerifiedBadgeSvgContent', 'ramon-verified.badge_svg_content', function ($raw) {
             if (! is_string($raw) || $raw === '') return '';
@@ -83,6 +86,14 @@ return [
     (new Extend\Model(User::class))
         ->hasOne('verification', UserVerification::class, 'user_id')
         ->hasMany('verificationRequests', VerificationRequest::class, 'user_id'),
+
+    /*
+     * Persistência server-side do modal de celebração ("uma única vez por
+     * verificação") — survive a troca de dispositivo. Mesma forma usada
+     * pelo core para `discloseOnline`, `hapticFeedback` etc.
+     */
+    (new Extend\User())
+        ->registerPreference('ramonVerifiedCelebrationShownAt', 'strval', ''),
 
     (new Extend\ApiResource(UserResource::class))
         ->fields(UserResourceFields::class)

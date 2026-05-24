@@ -80,6 +80,21 @@ ramon-verified:
       user_verified_text: "Sua conta foi verificada."
       user_verified_preference: "Alguém verifica minha conta"
 
+    verified_celebration:
+      title: "Sua conta foi verificada!"
+      body: "Parabéns — sua identidade foi confirmada e o selo verificado agora aparece ao lado do seu nome em todo o fórum."
+      ok_button: "Entendi"
+
+    signup_option:
+      label: "Quero solicitar o selo verificado"
+      help: "Vamos abrir uma solicitação de verificação logo após o cadastro. Um administrador irá analisar e confirmar sua identidade."
+
+    signup_confirmation:
+      title: "Solicitação aberta!"
+      body: "Sua solicitação de verificação foi aberta. Acompanhe o status em Configurações → Verificação."
+      ok_button: "Entendi"
+      you_can_request_later: "Você pode abrir a solicitação de verificação a qualquer momento em Configurações → Verificação."
+
   admin:
     tabs:
       aria_label: "Seções do painel"
@@ -98,6 +113,10 @@ ramon-verified:
       section_behaviour_help: "Controle o que os usuários precisam enviar e o que podem alterar após verificação."
       requests_open_label: "Aceitar novas solicitações de verificação"
       requests_open_help: "Quando desativado, o botão \"Solicitar verificação\" é escondido e a API rejeita novos envios. Solicitações pendentes existentes ainda podem ser aprovadas ou rejeitadas."
+      prompt_on_register_label: "Exibir checkbox de verificação no formulário de cadastro"
+      prompt_on_register_help: "Quando ativado, o modal de cadastro exibe um checkbox \"Quero solicitar o selo verificado\". Se o usuário marcar, a solicitação de verificação é aberta automaticamente logo após o cadastro — se você também exigir documento, o formulário de upload abre num modal."
+      gate_by_permission_label: "Restringir solicitações por permissão de grupo"
+      gate_by_permission_help: "Quando ativado, apenas usuários em grupos com a permissão \"verified.request\" podem abrir solicitação de verificação. Desativado (padrão), qualquer autenticado pode — inclusive usuários ainda com e-mail não-confirmado ou aguardando aprovação. Deixe desativado para o fluxo do checkbox no cadastro funcionar com usuários novos."
       show_tooltip_label: "Mostrar popover de informações"
       show_tooltip_help: "Quando ativo, ao passar o mouse no selo aparece um card com detalhes da verificação. Desative para um selo silencioso."
       require_document_label: "Exigir documento de identidade"
