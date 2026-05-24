@@ -79,21 +79,6 @@ ramon-verified:
       user_verified_text: "Your account has been verified."
       user_verified_preference: "Someone verifies my account"
 
-    verified_celebration:
-      title: "Your account is verified!"
-      body: "Congratulations — your identity has been confirmed and the verified badge is now displayed next to your name across the forum."
-      ok_button: "Got it"
-
-    signup_option:
-      label: "I want to request a verified badge"
-      help: "We'll open a verification request right after you sign up. An administrator will review and confirm your identity."
-
-    signup_confirmation:
-      title: "Request opened!"
-      body: "Your verification request has been opened. You can follow its status under Settings → Verification."
-      ok_button: "Got it"
-      you_can_request_later: "You can open the verification request anytime from Settings → Verification."
-
   admin:
     tabs:
       aria_label: "Panel sections"
@@ -112,10 +97,6 @@ ramon-verified:
       section_behaviour_help: "Control what users must provide and what they can change after being verified."
       requests_open_label: "Accept new verification requests"
       requests_open_help: "When off, the \"Request verification\" button is hidden and the API rejects new submissions. Existing pending requests can still be approved or rejected."
-      prompt_on_register_label: "Show verification checkbox in the signup form"
-      prompt_on_register_help: "When enabled, the registration modal shows a \"I want to request a verified badge\" checkbox. If the user marks it, a verification request is opened automatically right after signup — if you also require documents, the upload form opens in a modal."
-      gate_by_permission_label: "Restrict verification requests by group permission"
-      gate_by_permission_help: "When enabled, only users in groups granted the \"verified.request\" permission can open a verification request. When off (default), any authenticated user can — including users still pending e-mail confirmation or approval. Leave off if you want the signup checkbox flow to work for new users."
       show_tooltip_label: "Show verified info popover"
       show_tooltip_help: "When enabled, hovering the badge shows a card with verification details. Disable for a silent badge."
       require_document_label: "Require identity document"

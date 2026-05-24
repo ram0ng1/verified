@@ -8,9 +8,6 @@ import addVerificationUserControls from "./addVerificationUserControls";
 import addAvatarLock from "./addAvatarLock";
 import addNotificationPreference from "./addNotificationPreference";
 import addAvocadoIntegration from "./addAvocadoIntegration";
-import addVerifiedCelebration from "./addVerifiedCelebration";
-import addSignupVerificationOption from "./addSignupVerificationOption";
-import addSignupVerificationFlow from "./addSignupVerificationFlow";
 
 export { default as extend } from "./extend";
 
@@ -29,9 +26,6 @@ app.initializers.add(
     addAvatarLock();
     addNotificationPreference();
     addAvocadoIntegration();
-    addSignupVerificationOption();
-    addSignupVerificationFlow();
-    addVerifiedCelebration();
   },
   -100,
 );
