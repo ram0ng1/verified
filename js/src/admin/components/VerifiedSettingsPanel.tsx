@@ -307,6 +307,18 @@ export default class VerifiedSettingsPanel extends Component<ComponentAttrs> {
         />
         <SubDivider />
         <AdminToggle
+          settingKey="ramon-verified.prompt_on_register"
+          label={trans("settings.prompt_on_register_label")}
+          help={trans("settings.prompt_on_register_help")}
+        />
+        <SubDivider />
+        <AdminToggle
+          settingKey="ramon-verified.gate_by_permission"
+          label={trans("settings.gate_by_permission_label")}
+          help={trans("settings.gate_by_permission_help")}
+        />
+        <SubDivider />
+        <AdminToggle
           settingKey="ramon-verified.show_tooltip"
           label={trans("settings.show_tooltip_label")}
           help={trans("settings.show_tooltip_help")}
