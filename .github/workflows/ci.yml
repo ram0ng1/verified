@@ -30,7 +30,7 @@ jobs:
       # 🟠 I3 — Harden-runner first step. Audit-only initially; promote to
       # `egress-policy: block` after two weeks of clean audit logs.
       - name: Harden runner
-        uses: step-security/harden-runner@ab7a9404c0f3da075243ca237b5fac12c98deaa5 # v2.19.3
+        uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # v2.19.4
         with:
           egress-policy: audit
 
@@ -78,7 +78,7 @@ jobs:
         flarum-core: ['^2.0.0-rc.1', '2.x-dev']
     steps:
       - name: Harden runner
-        uses: step-security/harden-runner@ab7a9404c0f3da075243ca237b5fac12c98deaa5 # v2.19.3
+        uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # v2.19.4
         with:
           egress-policy: audit
 
@@ -90,7 +90,7 @@ jobs:
         with:
           php-version: '8.3'
           coverage: none
-          tools: composer:v2, phpstan
+          tools: composer:v2
 
       - name: Selecionar versão alvo do Flarum core
         run: composer require --no-update "flarum/core:${{ matrix.flarum-core }}"
@@ -98,12 +98,11 @@ jobs:
       - name: Instalar dependências
         run: composer update --no-interaction --no-progress --prefer-dist --prefer-stable
 
-      # Nível 5 como baseline; promova para `max` depois de limpar a base.
-      # `continue-on-error` mantém o resultado informativo até a primeira
-      # passagem limpa — depois disso, troque para falhar.
+      # §35.13 R3 — nível 6 com baseline versionado (phpstan.neon +
+      # phpstan-baseline.neon). BLOQUEANTE: o baseline mantém verde e novos
+      # achados reprovam o PR (aperte o nível/baseline com o tempo).
       - name: PHPStan analyse
-        run: phpstan analyse src extend.php --level=5 --no-progress --memory-limit=1G --error-format=github
-        continue-on-error: true
+        run: vendor/bin/phpstan analyse --no-progress --memory-limit=1G --error-format=github
 
   # 🔴 JS build + 🟡 npm audit.
   js:
@@ -113,7 +112,7 @@ jobs:
       contents: read
     steps:
       - name: Harden runner
-        uses: step-security/harden-runner@ab7a9404c0f3da075243ca237b5fac12c98deaa5 # v2.19.3
+        uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # v2.19.4
         with:
           egress-policy: audit
 
@@ -181,7 +180,7 @@ jobs:
       pull-requests: write
     steps:
       - name: Harden runner
-        uses: step-security/harden-runner@ab7a9404c0f3da075243ca237b5fac12c98deaa5 # v2.19.3
+        uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # v2.19.4
         with:
           egress-policy: audit
 
