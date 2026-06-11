@@ -21,6 +21,9 @@
         "php": "^8.3",
         "flarum/core": "^2.0.0"
     },
+    "require-dev": {
+        "roave/security-advisories": "dev-latest"
+    },
     "suggest": {
         "flarum/gdpr": "Required for data-export, anonymization and erasure integration (^2.0)."
     },
