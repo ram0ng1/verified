@@ -90,7 +90,7 @@ jobs:
         with:
           php-version: '8.3'
           coverage: none
-          tools: composer:v2, phpstan
+          tools: composer:v2
 
       - name: Selecionar versão alvo do Flarum core
         run: composer require --no-update "flarum/core:${{ matrix.flarum-core }}"
@@ -98,12 +98,11 @@ jobs:
       - name: Instalar dependências
         run: composer update --no-interaction --no-progress --prefer-dist --prefer-stable
 
-      # Nível 5 como baseline; promova para `max` depois de limpar a base.
-      # `continue-on-error` mantém o resultado informativo até a primeira
-      # passagem limpa — depois disso, troque para falhar.
+      # §35.13 R3 — nível 6 com baseline versionado (phpstan.neon +
+      # phpstan-baseline.neon). BLOQUEANTE: o baseline mantém verde e novos
+      # achados reprovam o PR (aperte o nível/baseline com o tempo).
       - name: PHPStan analyse
-        run: phpstan analyse src extend.php --level=5 --no-progress --memory-limit=1G --error-format=github
-        continue-on-error: true
+        run: vendor/bin/phpstan analyse --no-progress --memory-limit=1G --error-format=github
 
   # 🔴 JS build + 🟡 npm audit.
   js:
