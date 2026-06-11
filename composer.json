@@ -1,6 +1,6 @@
 {
     "name": "ramon/verified",
-    "description": "User verification for Flarum, with a X (Twitter)-style verified badge and admin-managed verification requests.",
+    "description": "Verified user badges with admin reviewed requests for Flarum 2",
     "keywords": [
         "flarum",
         "verified",
