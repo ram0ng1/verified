@@ -108,7 +108,7 @@ class DownloadDocumentController implements RequestHandlerInterface
 
         $response = (new Response())
             ->withBody($body)
-            ->withHeader('Content-Type', $mime) /* $mime sai de um match fechado por extensão validada, nunca do cliente; nosemgrep: flarum-v2-client-controlled-mime */
+            ->withHeader('Content-Type', $mime) /* server-derived-mime: match fechado por extensão validada, nunca do cliente */
             ->withHeader('Content-Length', (string) $contentLength)
             ->withHeader('Content-Disposition', $disposition.'; filename="document.'.$extension.'"')
             ->withHeader('X-Content-Type-Options', 'nosniff')

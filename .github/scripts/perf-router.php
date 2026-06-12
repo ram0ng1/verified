@@ -10,7 +10,7 @@
 
 $uri = parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH) ?: '/';
 
-if (str_contains($uri, '..') || str_contains($uri, "\0")) { /* rejeita traversal antes de tocar o FS; nosemgrep: flarum-v2-path-traversal-naive-filter */
+if (str_contains($uri, '..') || str_contains($uri, "\0")) {
     http_response_code(400);
     return;
 }

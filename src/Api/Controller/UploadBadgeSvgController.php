@@ -157,7 +157,7 @@ class UploadBadgeSvgController extends UploadImageController
      */
     private function validateMime(UploadedFileInterface $file): void
     {
-        $clientMime = strtolower((string) $file->getClientMediaType()); /* allowlist de fachada; o gate real é o finfo fail-closed logo abaixo; nosemgrep: flarum-v2-client-controlled-mime */
+        $clientMime = strtolower((string) $file->getClientMediaType()); /* finfo-gated: allowlist de fachada, o gate real é a detecção fail-closed logo abaixo */
         if ($clientMime === '' || ! in_array($clientMime, self::ALLOWED_CLIENT_MIMES, true)) {
             throw new ValidationException([
                 'badge_svg' => $this->translator->trans('ramon-verified.api.badge_svg.bad_mime'),
