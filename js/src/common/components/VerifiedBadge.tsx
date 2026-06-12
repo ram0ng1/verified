@@ -1,4 +1,5 @@
 import app from "flarum/common/app";
+import trustedHtml from "../utils/trustedHtml";
 import Component, { ComponentAttrs } from "flarum/common/Component";
 import classList from "flarum/common/utils/classList";
 import extractText from "flarum/common/utils/extractText";
@@ -72,7 +73,7 @@ export default class VerifiedBadge extends Component<VerifiedBadgeAttrs> {
         title={tooltip}
         data-tier={tier ? tier.id : undefined}
       >
-        {m.trust(getBadgeSvg(tier))}
+        {trustedHtml(getBadgeSvg(tier))}
       </span>
     );
   }

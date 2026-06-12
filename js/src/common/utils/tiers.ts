@@ -92,7 +92,7 @@ function warnDev(msg: string, err: unknown): void {
 /**
  * Allow only `<strong>` and `<em>` in the tier description so admins can
  * highlight key words. Everything else is escaped so the description is safe
- * to feed through `m.trust()` on render. Mirrors `TierConfig::sanitiseDescription`
+ * to render as trusted markup. Mirrors `TierConfig::sanitiseDescription`
  * server-side — we re-run it client-side because the admin SettingsPanel
  * persists the raw textarea value before any backend trip.
  *

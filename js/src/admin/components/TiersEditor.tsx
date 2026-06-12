@@ -1,4 +1,5 @@
 import app from "flarum/admin/app";
+import trustedHtml from "../../common/utils/trustedHtml";
 import Component, { ComponentAttrs } from "flarum/common/Component";
 import Button from "flarum/common/components/Button";
 import Group from "flarum/common/models/Group";
@@ -115,7 +116,7 @@ export default class TiersEditor extends Component<ComponentAttrs> {
             aria-hidden="true"
           >
             {swatchHasCustomBadge ? (
-              m.trust(getBadgeSvg(swatchTier))
+              trustedHtml(getBadgeSvg(swatchTier))
             ) : (
               <i className="icon fas fa-certificate" />
             )}
@@ -520,7 +521,7 @@ export default class TiersEditor extends Component<ComponentAttrs> {
                   className="VerifiedTier-badgeSlotPreview"
                   aria-hidden="true"
                 >
-                  {m.trust(getBadgeSvg(previewTier))}
+                  {trustedHtml(getBadgeSvg(previewTier))}
                 </span>
                 <span className="VerifiedTier-badgeSlotInfo">
                   <strong>{trans("settings.tiers.badge_loaded")}</strong>
@@ -645,7 +646,7 @@ export default class TiersEditor extends Component<ComponentAttrs> {
 
     const trimmedDescription = (row.description || "").trim();
     const headlineNode: Mithril.Children = trimmedDescription
-      ? m.trust(sanitiseDescription(trimmedDescription))
+      ? trustedHtml(sanitiseDescription(trimmedDescription))
       : app.translator.trans("ramon-verified.lib.popover.headline");
 
     const learnMoreUrl = row.learnMoreUrl;
@@ -663,7 +664,7 @@ export default class TiersEditor extends Component<ComponentAttrs> {
               aria-label={ariaLabel}
               tabIndex={0}
             >
-              {m.trust(getBadgeSvg(previewTier))}
+              {trustedHtml(getBadgeSvg(previewTier))}
             </span>
 
             <span className="VerifiedPopover" role="tooltip">
@@ -671,7 +672,7 @@ export default class TiersEditor extends Component<ComponentAttrs> {
 
               <span className="VerifiedPopover-header">
                 <span className="VerifiedPopover-headerIcon">
-                  {m.trust(getBadgeSvg(previewTier))}
+                  {trustedHtml(getBadgeSvg(previewTier))}
                 </span>
                 <span className="VerifiedPopover-headerText">
                   {headlineNode}

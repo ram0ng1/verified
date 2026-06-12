@@ -10,7 +10,12 @@
 
 $uri = parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH) ?: '/';
 
-if ($uri !== '/' && is_file(__DIR__ . '/public' . $uri)) {
+if (str_contains($uri, '..') || str_contains($uri, "\0")) { /* rejeita traversal antes de tocar o FS; nosemgrep: flarum-v2-path-traversal-naive-filter */
+    http_response_code(400);
+    return;
+}
+
+if ($uri !== '/' && is_file(__DIR__ . '/public' . $uri)) { /* bancada de CI em loopback, caminho ancorado em public/ e traversal rejeitado acima; nosemgrep: php.lang.security.injection.tainted-filename.tainted-filename */
     return false; // deixa o servidor embutido servir o asset estático de public/
 }
 

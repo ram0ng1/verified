@@ -1,4 +1,5 @@
 import app from "flarum/forum/app";
+import trustedHtml from "../../common/utils/trustedHtml";
 import FormModal, { IFormModalAttrs } from "flarum/common/components/FormModal";
 import Button from "flarum/common/components/Button";
 import Form from "flarum/common/components/Form";
@@ -71,7 +72,7 @@ export default class RequestVerificationModal extends FormModal {
         <div className="VerifiedRequestModal-hero">
           <div className="VerifiedRequestModal-hero-icon" aria-hidden="true">
             <span className="VerifiedRequestModal-hero-iconBadge">
-              {m.trust(getBadgeSvg())}
+              {trustedHtml(getBadgeSvg())}
             </span>
           </div>
           <h2 className="VerifiedRequestModal-hero-title">

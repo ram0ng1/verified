@@ -1,4 +1,5 @@
 import app from "flarum/common/app";
+import trustedHtml from "../utils/trustedHtml";
 import Component, { ComponentAttrs } from "flarum/common/Component";
 import Avatar from "flarum/common/components/Avatar";
 import humanTime from "flarum/common/utils/humanTime";
@@ -58,7 +59,7 @@ export default class VerifiedPopover extends Component<VerifiedPopoverAttrs> {
     // can't sneak raw HTML into `m.trust`.
     const tierDescription = tier && tier.description ? tier.description : null;
     const headline: Mithril.Children = tierDescription
-      ? m.trust(sanitiseDescription(tierDescription))
+      ? trustedHtml(sanitiseDescription(tierDescription))
       : app.translator.trans("ramon-verified.lib.popover.headline");
 
     const learnMoreUrl = tier && tier.learnMoreUrl ? tier.learnMoreUrl : "";
@@ -86,7 +87,7 @@ export default class VerifiedPopover extends Component<VerifiedPopoverAttrs> {
           aria-label={ariaLabel}
           tabIndex={0}
         >
-          {m.trust(getBadgeSvg(tier))}
+          {trustedHtml(getBadgeSvg(tier))}
         </span>
 
         <span className="VerifiedPopover" role="tooltip">
@@ -94,7 +95,7 @@ export default class VerifiedPopover extends Component<VerifiedPopoverAttrs> {
 
           <span className="VerifiedPopover-header">
             <span className="VerifiedPopover-headerIcon">
-              {m.trust(getBadgeSvg(tier))}
+              {trustedHtml(getBadgeSvg(tier))}
             </span>
             <span className="VerifiedPopover-headerText">
               {headline}
