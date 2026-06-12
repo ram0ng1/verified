@@ -15,7 +15,7 @@ if (str_contains($uri, '..') || str_contains($uri, "\0")) {
     return;
 }
 
-if ($uri !== '/' && is_file(__DIR__ . '/public' . $uri)) { /* bancada de CI em loopback, caminho ancorado em public/ e traversal rejeitado acima; nosemgrep: php.lang.security.injection.tainted-filename.tainted-filename */
+if ($uri !== '/' && is_file(__DIR__ . '/public' . $uri)) {
     return false; // deixa o servidor embutido servir o asset estático de public/
 }
 
