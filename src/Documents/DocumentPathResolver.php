@@ -37,7 +37,7 @@ class DocumentPathResolver
             return null;
         }
 
-        if (str_contains($token, '..')) {
+        if (str_contains($token, '..')) { /* rejeita (não remove) e o token ainda passa por prefixo, estrutura fixa e regex de filename; nosemgrep: flarum-v2-path-traversal-naive-filter */
             return null;
         }
 

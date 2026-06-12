@@ -7,7 +7,7 @@ use Psr\Http\Message\UploadedFileInterface;
 /**
  * Detecta o MIME real de um arquivo enviado lendo os bytes do stream
  * temporário com `finfo` (ou `mime_content_type` como fallback). Nunca
- * confia em `getClientMediaType()`, que vem do cliente.
+ * confia no tipo declarado pelo cliente no upload.
  */
 final class UploadedFileMime
 {

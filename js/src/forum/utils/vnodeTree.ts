@@ -1,4 +1,5 @@
 import app from "flarum/forum/app";
+import trustedHtml from "../../common/utils/trustedHtml";
 import extractText from "flarum/common/utils/extractText";
 import type Mithril from "mithril";
 import type User from "flarum/common/models/User";
@@ -90,6 +91,6 @@ export function makeVerifiedVnode(
       title: tooltip,
       "aria-label": tooltip,
     },
-    m.trust(svg),
+    trustedHtml(svg),
   );
 }

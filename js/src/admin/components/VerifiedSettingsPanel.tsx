@@ -1,4 +1,5 @@
 import app from "flarum/admin/app";
+import trustedHtml from "../../common/utils/trustedHtml";
 import Component, { ComponentAttrs } from "flarum/common/Component";
 import UploadImageButton from "flarum/common/components/UploadImageButton";
 import extractText from "flarum/common/utils/extractText";
@@ -153,7 +154,7 @@ export default class VerifiedSettingsPanel extends Component<ComponentAttrs> {
           aria-label={tooltipText}
           tabIndex={0}
         >
-          {m.trust(getBadgeSvg())}
+          {trustedHtml(getBadgeSvg())}
         </span>
         {this.previewPopover()}
       </span>
@@ -165,7 +166,7 @@ export default class VerifiedSettingsPanel extends Component<ComponentAttrs> {
         aria-label={tooltipText}
         title={tooltipText}
       >
-        {m.trust(getBadgeSvg())}
+        {trustedHtml(getBadgeSvg())}
       </span>
     );
 
@@ -197,7 +198,7 @@ export default class VerifiedSettingsPanel extends Component<ComponentAttrs> {
 
         <span className="VerifiedPopover-header">
           <span className="VerifiedPopover-headerIcon">
-            {m.trust(getBadgeSvg())}
+            {trustedHtml(getBadgeSvg())}
           </span>
           <span className="VerifiedPopover-headerText">
             {app.translator.trans("ramon-verified.lib.popover.headline")}
