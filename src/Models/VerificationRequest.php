@@ -53,8 +53,12 @@ class VerificationRequest extends AbstractModel
      * Centraliza o pattern `query()->getConnection()->transaction()` para
      * evitar duplicação entre controller, resource e listener — e mantém
      * a resolução de connection junto do model que define a tabela.
+     *
+     * @template T
+     * @param  \Closure(): T  $cb
+     * @return T
      */
-    public static function runInTransaction(callable $cb): mixed
+    public static function runInTransaction(\Closure $cb): mixed
     {
         return self::query()->getConnection()->transaction($cb);
     }
