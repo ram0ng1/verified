@@ -17,9 +17,7 @@ export default class UserVerifiedNotification extends Notification {
     // Notification.subject() returns a generic Model — for user-verified we
     // know it's the verified User and route.user() needs that concrete type.
     const subject = this.attrs.notification.subject() as
-      | User
-      | null
-      | undefined;
+      User | null | undefined;
     return subject ? app.route.user(subject) : "";
   }
 
