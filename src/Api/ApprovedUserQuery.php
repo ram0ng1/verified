@@ -144,14 +144,21 @@ class ApprovedUserQuery
      * predicado booleano em ORDER BY como 0/1, PostgreSQL não — `IS NULL
      * ASC` produz a mesma ordem nos dois dialetos e em SQLite.
      *
+     * A coluna do `orderByRaw` passa pelo `grammar->wrap()` para herdar o
+     * prefixo de tabela do install (§39.2): o `leftJoin` já é prefixado
+     * pelo builder, mas SQL cru escreveria `user_verification` literal e
+     * quebraria em installs prefixados (`no such column`).
+     *
      * @return \Illuminate\Database\Eloquent\Collection<int, \Flarum\User\User>
      */
     private function orderByPresenceAndPaginate($query, ApprovedUserCriteria $criteria)
     {
+        $companionUserId = $query->getQuery()->getGrammar()->wrap('user_verification.user_id');
+
         return $query
             ->leftJoin('user_verification', 'user_verification.user_id', '=', 'users.id')
             ->select('users.*')
-            ->orderByRaw('user_verification.user_id IS NULL ASC')
+            ->orderByRaw("$companionUserId IS NULL ASC")
             ->orderByDesc('user_verification.verified_at')
             ->orderBy('users.username', 'asc')
             ->skip($criteria->offset)

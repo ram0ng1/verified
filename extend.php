@@ -27,8 +27,10 @@ use Ramon\Verified\Api\Controller\VerifyUserController;
 use Ramon\Verified\Api\Resource\VerificationRequestResource;
 use Ramon\Verified\Api\Throttler\VerifiedActionsThrottler;
 use Ramon\Verified\Api\UserResourceFields;
+use Ramon\Verified\Audit\RecordVerificationActivity;
 use Ramon\Verified\Console\PurgeDocumentsCommand;
 use Ramon\Verified\Documents\DocumentPathResolver;
+use Ramon\Verified\Event\UserUnverified;
 use Ramon\Verified\Event\UserVerified;
 use Ramon\Verified\Listener\EnforceAvatarLock;
 use Ramon\Verified\Listener\PurgeDocumentOnRequestDelete;
@@ -132,6 +134,16 @@ return [
         ->get('/verified/approved-users', 'verified.approved.list', ListApprovedUsersController::class)
         ->get('/verified/encryption/status',            'verified.encryption.status',   EncryptionStatusController::class)
         ->post('/verified/encryption/generate-keypair', 'verified.encryption.generate', GenerateKeypairController::class),
+
+    ...(class_exists(\Ramon\Audit\Extend\ActivityType::class) ? [
+        (new \Ramon\Audit\Extend\ActivityType())
+            ->register('verified.user.verified', ['severity' => 'notice'])
+            ->register('verified.user.unverified', ['severity' => 'notice']),
+
+        (new Extend\Event())
+            ->listen(UserVerified::class, RecordVerificationActivity::class.'@whenVerified')
+            ->listen(UserUnverified::class, RecordVerificationActivity::class.'@whenUnverified'),
+    ] : []),
 
     ...(class_exists(\Flarum\Gdpr\Extend\UserData::class) ? [
         (new \Flarum\Gdpr\Extend\UserData())

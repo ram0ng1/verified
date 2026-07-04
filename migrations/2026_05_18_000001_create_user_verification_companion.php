@@ -82,7 +82,7 @@ return [
 
             if ($indexExists($schema, 'users', 'users_verified_by_foreign')) {
                 $schema->table('users', function (Blueprint $table) {
-                    $table->dropForeign('users_verified_by_foreign');
+                    $table->dropForeign(['verified_by']);
                 });
             }
 
