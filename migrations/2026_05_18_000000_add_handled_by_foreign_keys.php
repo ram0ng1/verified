@@ -62,7 +62,7 @@ return [
             && $fkExists($schema, 'verification_requests', 'verification_requests_handled_by_foreign')
         ) {
             $schema->table('verification_requests', function (Blueprint $table) {
-                $table->dropForeign('verification_requests_handled_by_foreign');
+                $table->dropForeign(['handled_by']);
             });
         }
     },

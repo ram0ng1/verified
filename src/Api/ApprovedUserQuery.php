@@ -144,6 +144,11 @@ class ApprovedUserQuery
      * predicado booleano em ORDER BY como 0/1, PostgreSQL não — `IS NULL
      * ASC` produz a mesma ordem nos dois dialetos e em SQLite.
      *
+     * A ordenação por presença usa `user_id` sem qualificador de tabela: a
+     * coluna só existe em `user_verification` (a `users` do core não tem
+     * `user_id`), então resolve sem ambiguidade e sem depender do prefixo do
+     * install — string constante, sem interpolação em SQL cru (§10).
+     *
      * @return \Illuminate\Database\Eloquent\Collection<int, \Flarum\User\User>
      */
     private function orderByPresenceAndPaginate($query, ApprovedUserCriteria $criteria)
@@ -151,7 +156,7 @@ class ApprovedUserQuery
         return $query
             ->leftJoin('user_verification', 'user_verification.user_id', '=', 'users.id')
             ->select('users.*')
-            ->orderByRaw('user_verification.user_id IS NULL ASC')
+            ->orderByRaw('user_id IS NULL ASC')
             ->orderByDesc('user_verification.verified_at')
             ->orderBy('users.username', 'asc')
             ->skip($criteria->offset)

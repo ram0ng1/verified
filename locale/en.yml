@@ -313,3 +313,13 @@ ramon-verified:
       bad_extension: "The uploaded file must have an .svg extension."
       bad_mime: "Unsupported MIME type for SVG upload."
       too_large: "The SVG file is too large (256 KB maximum)."
+
+# Labels for the ramon/audit activity log (merged into its namespace when
+# that extension is installed). The `verified` origin label already ships
+# with the audit extension; these add the per-type labels.
+ramon-audit:
+  admin:
+    activity:
+      types:
+        verified.user.verified: User verified
+        verified.user.unverified: Verification revoked

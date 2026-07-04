@@ -9,6 +9,10 @@ parameters:
     paths:
         - src
         - extend.php
+    # Declara as classes da integração opcional ramon/audit (não é dependência
+    # composer, então a CI não a autoloada). Só símbolos, não é analisado.
+    scanFiles:
+        - stubs/ramon-audit.php
     # A CI resolve flarum/core via `composer update`, então um achado
     # baselinado pode não reproduzir em toda célula. Não falhe quando uma
     # entrada congelada ficar sem uso.

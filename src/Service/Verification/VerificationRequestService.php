@@ -12,6 +12,7 @@ use Illuminate\Contracts\Events\Dispatcher;
 use Illuminate\Contracts\Filesystem\Factory as FilesystemFactory;
 use Ramon\Verified\Documents\DocumentPathResolver;
 use Ramon\Verified\Documents\DocumentRetention;
+use Ramon\Verified\Event\UserUnverified;
 use Ramon\Verified\Event\UserVerified;
 use Ramon\Verified\Models\VerificationRequest;
 use Ramon\Verified\TierResolver;
@@ -262,6 +263,8 @@ class VerificationRequestService
                 $this->verifiedStatus->markAutoRevoked($target, $now);
             }
         });
+
+        $this->events->dispatch(new UserUnverified($target, $actor));
     }
 
     /**
@@ -312,6 +315,7 @@ class VerificationRequestService
 
         /** @var User|null $user */
         $user = User::query()->find($request->user_id);
+        $wasVerified = $user !== null && $this->verifiedStatus->isVerified($user);
 
         $now = Carbon::now();
         $note = $this->extractNote(
@@ -333,6 +337,10 @@ class VerificationRequestService
 
             $this->retention->onRequestHandled($request);
         });
+
+        if ($user !== null && $wasVerified) {
+            $this->events->dispatch(new UserUnverified($user, $actor));
+        }
 
         return $request;
     }
