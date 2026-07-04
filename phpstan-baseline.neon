@@ -1,0 +1,343 @@
+parameters:
+	ignoreErrors:
+		-
+			message: '#^Call to an undefined method Illuminate\\Database\\Query\\Builder\:\:with\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: src/Api/ApprovedUserQuery.php
+
+		-
+			message: '#^Call to an undefined method Illuminate\\Support\\Collection\<int, stdClass\>\:\:load\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: src/Api/ApprovedUserQuery.php
+
+		-
+			message: '#^Method Ramon\\Verified\\Api\\ApprovedUserQuery\:\:applySearch\(\) has parameter \$query with generic class Illuminate\\Database\\Eloquent\\Builder but does not specify its types\: TModel$#'
+			identifier: missingType.generics
+			count: 1
+			path: src/Api/ApprovedUserQuery.php
+
+		-
+			message: '#^Method Ramon\\Verified\\Api\\ApprovedUserQuery\:\:baseApprovedQuery\(\) return type with generic class Illuminate\\Database\\Eloquent\\Builder does not specify its types\: TModel$#'
+			identifier: missingType.generics
+			count: 1
+			path: src/Api/ApprovedUserQuery.php
+
+		-
+			message: '#^Method Ramon\\Verified\\Api\\ApprovedUserQuery\:\:manualTierQuery\(\) return type with generic class Illuminate\\Database\\Eloquent\\Builder does not specify its types\: TModel$#'
+			identifier: missingType.generics
+			count: 1
+			path: src/Api/ApprovedUserQuery.php
+
+		-
+			message: '#^Method Ramon\\Verified\\Api\\ApprovedUserQuery\:\:manualTierQuery\(\) should return Illuminate\\Database\\Eloquent\\Builder but returns Illuminate\\Database\\Query\\Builder\.$#'
+			identifier: return.type
+			count: 1
+			path: src/Api/ApprovedUserQuery.php
+
+		-
+			message: '#^Method Ramon\\Verified\\Api\\ApprovedUserQuery\:\:orderByPresenceAndPaginate\(\) has parameter \$query with no type specified\.$#'
+			identifier: missingType.parameter
+			count: 1
+			path: src/Api/ApprovedUserQuery.php
+
+		-
+			message: '#^Parameter \#1 \$query of method Ramon\\Verified\\Api\\ApprovedUserQuery\:\:applySearch\(\) expects Illuminate\\Database\\Eloquent\\Builder, Illuminate\\Database\\Query\\Builder given\.$#'
+			identifier: argument.type
+			count: 2
+			path: src/Api/ApprovedUserQuery.php
+
+		-
+			message: '#^Parameter \#1 \$user of method Ramon\\Verified\\TierResolver\:\:resolveTierId\(\) expects Flarum\\User\\User, stdClass given\.$#'
+			identifier: argument.type
+			count: 1
+			path: src/Api/ApprovedUserQuery.php
+
+		-
+			message: '#^Access to an undefined property Flarum\\User\\User\:\:\$nickname\.$#'
+			identifier: property.notFound
+			count: 1
+			path: src/Api/Controller/ListApprovedUsersController.php
+
+		-
+			message: '#^Method Ramon\\Verified\\Api\\Controller\\ListApprovedUsersController\:\:buildAttributes\(\) has parameter \$approvedRequests with no type specified\.$#'
+			identifier: missingType.parameter
+			count: 1
+			path: src/Api/Controller/ListApprovedUsersController.php
+
+		-
+			message: '#^Method Ramon\\Verified\\Api\\Controller\\ListApprovedUsersController\:\:buildAttributes\(\) has parameter \$handlers with no type specified\.$#'
+			identifier: missingType.parameter
+			count: 1
+			path: src/Api/Controller/ListApprovedUsersController.php
+
+		-
+			message: '#^Method Ramon\\Verified\\Api\\Controller\\ListApprovedUsersController\:\:buildAttributes\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: src/Api/Controller/ListApprovedUsersController.php
+
+		-
+			message: '#^Method Ramon\\Verified\\Api\\Controller\\ListApprovedUsersController\:\:buildData\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: src/Api/Controller/ListApprovedUsersController.php
+
+		-
+			message: '#^Method Ramon\\Verified\\Api\\Controller\\ListApprovedUsersController\:\:buildMeta\(\) has parameter \$tiers with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: src/Api/Controller/ListApprovedUsersController.php
+
+		-
+			message: '#^Method Ramon\\Verified\\Api\\Controller\\ListApprovedUsersController\:\:buildMeta\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: src/Api/Controller/ListApprovedUsersController.php
+
+		-
+			message: '#^Method Ramon\\Verified\\Api\\Controller\\ListApprovedUsersController\:\:buildRequestBlock\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: src/Api/Controller/ListApprovedUsersController.php
+
+		-
+			message: '#^Parameter \#4 \$autoVerifiedGroupSet of method Ramon\\Verified\\Api\\Controller\\ListApprovedUsersController\:\:buildAttributes\(\) expects array\<int, true\>, array\<int, \(int\|string\)\> given\.$#'
+			identifier: argument.type
+			count: 1
+			path: src/Api/Controller/ListApprovedUsersController.php
+
+		-
+			message: '#^Method Ramon\\Verified\\Api\\ForumResourceFields\:\:__invoke\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: src/Api/ForumResourceFields.php
+
+		-
+			message: '#^Method Ramon\\Verified\\Api\\Resource\\VerificationRequestResource\:\:endpoints\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: src/Api/Resource/VerificationRequestResource.php
+
+		-
+			message: '#^Method Ramon\\Verified\\Api\\Resource\\VerificationRequestResource\:\:sorts\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: src/Api/Resource/VerificationRequestResource.php
+
+		-
+			message: '#^Method Ramon\\Verified\\Api\\UserResourceFields\:\:__invoke\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: src/Api/UserResourceFields.php
+
+		-
+			message: '#^Call to function is_string\(\) with string will always evaluate to true\.$#'
+			identifier: function.alreadyNarrowedType
+			count: 1
+			path: src/Crypto/DocumentCipher.php
+
+		-
+			message: '#^Method Ramon\\Verified\\Crypto\\DocumentCipher\:\:status\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: src/Crypto/DocumentCipher.php
+
+		-
+			message: '#^Call to an undefined method Illuminate\\Contracts\\Filesystem\\Filesystem\:\:directoryExists\(\)\.$#'
+			identifier: method.notFound
+			count: 2
+			path: src/Documents/DocumentRetention.php
+
+		-
+			message: '#^Parameter \#1 \$request of method Ramon\\Verified\\Documents\\DocumentRetention\:\:purgeRequest\(\) expects Ramon\\Verified\\Models\\VerificationRequest, stdClass given\.$#'
+			identifier: argument.type
+			count: 1
+			path: src/Documents/DocumentRetention.php
+
+		-
+			message: '#^Call to an undefined method Illuminate\\Contracts\\Filesystem\\Filesystem\:\:directoryExists\(\)\.$#'
+			identifier: method.notFound
+			count: 2
+			path: src/Gdpr/VerifiedDocuments.php
+
+		-
+			message: '#^Call to an undefined method Illuminate\\Support\\Optional\:\:toRfc3339String\(\)\.$#'
+			identifier: method.notFound
+			count: 4
+			path: src/Gdpr/VerifiedDocuments.php
+
+		-
+			message: '#^Method Ramon\\Verified\\Gdpr\\VerifiedDocuments\:\:collectDocumentFiles\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: src/Gdpr/VerifiedDocuments.php
+
+		-
+			message: '#^Cannot call method save\(\) on stdClass\.$#'
+			identifier: method.nonObject
+			count: 1
+			path: src/Job/PurgeOrphanedDocumentsJob.php
+
+		-
+			message: '#^Negated boolean expression is always false\.$#'
+			identifier: booleanNot.alwaysFalse
+			count: 1
+			path: src/Job/PurgeOrphanedDocumentsJob.php
+
+		-
+			message: '#^Method Ramon\\Verified\\Models\\UserVerification\:\:user\(\) return type with generic class Illuminate\\Database\\Eloquent\\Relations\\BelongsTo does not specify its types\: TRelatedModel, TDeclaringModel$#'
+			identifier: missingType.generics
+			count: 1
+			path: src/Models/UserVerification.php
+
+		-
+			message: '#^Property Ramon\\Verified\\Models\\UserVerification\:\:\$casts type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: src/Models/UserVerification.php
+
+		-
+			message: '#^Method Ramon\\Verified\\Models\\VerificationRequest\:\:handler\(\) return type with generic class Illuminate\\Database\\Eloquent\\Relations\\BelongsTo does not specify its types\: TRelatedModel, TDeclaringModel$#'
+			identifier: missingType.generics
+			count: 1
+			path: src/Models/VerificationRequest.php
+
+		-
+			message: '#^Method Ramon\\Verified\\Models\\VerificationRequest\:\:user\(\) return type with generic class Illuminate\\Database\\Eloquent\\Relations\\BelongsTo does not specify its types\: TRelatedModel, TDeclaringModel$#'
+			identifier: missingType.generics
+			count: 1
+			path: src/Models/VerificationRequest.php
+
+		-
+			message: '#^Property Ramon\\Verified\\Models\\VerificationRequest\:\:\$casts type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: src/Models/VerificationRequest.php
+
+		-
+			message: '#^Method Ramon\\Verified\\Notification\\UserVerifiedBlueprint\:\:getData\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: src/Notification/UserVerifiedBlueprint.php
+
+		-
+			message: '#^Parameter \#5 \$handledRequests of method Ramon\\Verified\\Service\\Verification\\VerificationRequestService\:\:finalizeApproval\(\) expects iterable\<Ramon\\Verified\\Models\\VerificationRequest\>, Illuminate\\Support\\Collection\<int, stdClass\> given\.$#'
+			identifier: argument.type
+			count: 1
+			path: src/Service/Verification/VerificationRequestService.php
+
+		-
+			message: '#^Method Ramon\\Verified\\TierConfig\:\:autoTierFor\(\) has parameter \$tiers with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: src/TierConfig.php
+
+		-
+			message: '#^Method Ramon\\Verified\\TierConfig\:\:autoTierFor\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: src/TierConfig.php
+
+		-
+			message: '#^Method Ramon\\Verified\\TierConfig\:\:doParse\(\) has parameter \$raw with no type specified\.$#'
+			identifier: missingType.parameter
+			count: 1
+			path: src/TierConfig.php
+
+		-
+			message: '#^Method Ramon\\Verified\\TierConfig\:\:doParse\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: src/TierConfig.php
+
+		-
+			message: '#^Method Ramon\\Verified\\TierConfig\:\:findById\(\) has parameter \$tiers with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: src/TierConfig.php
+
+		-
+			message: '#^Method Ramon\\Verified\\TierConfig\:\:findById\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: src/TierConfig.php
+
+		-
+			message: '#^Method Ramon\\Verified\\TierConfig\:\:fromSettings\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: src/TierConfig.php
+
+		-
+			message: '#^Method Ramon\\Verified\\TierConfig\:\:parse\(\) has parameter \$raw with no type specified\.$#'
+			identifier: missingType.parameter
+			count: 1
+			path: src/TierConfig.php
+
+		-
+			message: '#^Method Ramon\\Verified\\TierConfig\:\:parseAutoGroups\(\) has parameter \$row with no type specified\.$#'
+			identifier: missingType.parameter
+			count: 1
+			path: src/TierConfig.php
+
+		-
+			message: '#^Method Ramon\\Verified\\TierConfig\:\:parseBadge\(\) has parameter \$row with no type specified\.$#'
+			identifier: missingType.parameter
+			count: 1
+			path: src/TierConfig.php
+
+		-
+			message: '#^Method Ramon\\Verified\\TierConfig\:\:parseColor\(\) has parameter \$row with no type specified\.$#'
+			identifier: missingType.parameter
+			count: 1
+			path: src/TierConfig.php
+
+		-
+			message: '#^Method Ramon\\Verified\\TierConfig\:\:parseDescription\(\) has parameter \$row with no type specified\.$#'
+			identifier: missingType.parameter
+			count: 1
+			path: src/TierConfig.php
+
+		-
+			message: '#^Method Ramon\\Verified\\TierConfig\:\:parseForFrontend\(\) has parameter \$raw with no type specified\.$#'
+			identifier: missingType.parameter
+			count: 1
+			path: src/TierConfig.php
+
+		-
+			message: '#^Method Ramon\\Verified\\TierConfig\:\:parseForFrontend\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: src/TierConfig.php
+
+		-
+			message: '#^Method Ramon\\Verified\\TierConfig\:\:parseLearnMoreUrl\(\) has parameter \$row with no type specified\.$#'
+			identifier: missingType.parameter
+			count: 1
+			path: src/TierConfig.php
+
+		-
+			message: '#^Method Ramon\\Verified\\TierConfig\:\:parseTierRow\(\) has parameter \$row with no type specified\.$#'
+			identifier: missingType.parameter
+			count: 1
+			path: src/TierConfig.php
+
+		-
+			message: '#^Property Ramon\\Verified\\TierConfig\:\:\$parseCache type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: src/TierConfig.php
+
+		-
+			message: '#^Method Ramon\\Verified\\TierResolver\:\:tiers\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: src/TierResolver.php
+
+		-
+			message: '#^Property Ramon\\Verified\\TierResolver\:\:\$tiers type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: src/TierResolver.php

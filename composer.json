@@ -1,6 +1,6 @@
 {
     "name": "ramon/verified",
-    "description": "User verification for Flarum, with a X (Twitter)-style verified badge and admin-managed verification requests.",
+    "description": "Verified user badges with admin reviewed requests for Flarum 2",
     "keywords": [
         "flarum",
         "verified",
@@ -20,6 +20,12 @@
     "require": {
         "php": "^8.3",
         "flarum/core": "^2.0.0"
+    },
+    "require-dev": {
+        "roave/security-advisories": "dev-latest",
+        "phpstan/phpstan": "^2.0",
+        "flarum/gdpr": "^2.0",
+        "vimeo/psalm": "^6.0"
     },
     "suggest": {
         "flarum/gdpr": "Required for data-export, anonymization and erasure integration (^2.0)."
@@ -41,5 +47,8 @@
         }
     },
     "minimum-stability": "dev",
-    "prefer-stable": true
+    "prefer-stable": true,
+    "scripts": {
+        "analyse": "phpstan analyse"
+    }
 }
