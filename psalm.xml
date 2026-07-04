@@ -14,4 +14,10 @@
             <directory name="vendor" />
         </ignoreFiles>
     </projectFiles>
+    <!-- Classes da integracao opcional ramon/audit (nao e dependencia composer;
+         acionada sob class_exists no extend.php). Declaradas aqui para o Psalm
+         resolver sem exigir o pacote. Mesmo stub usado pelo PHPStan. -->
+    <stubs>
+        <file name="stubs/ramon-audit.php" />
+    </stubs>
 </psalm>
