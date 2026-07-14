@@ -166,13 +166,16 @@ function wrapCardView(
           findVnodeByClass(tree, "AvocadoSearch-threadMeta");
 
         if (meta && Array.isArray(meta.children)) {
+          // The author anchor is a direct child in PostCard, but ThreadCard
+          // wraps it inside avocado's UserHoverCard trigger (an intermediate
+          // component vnode). Match the meta child whose SUBTREE contains the
+          // author anchor so the badge lands right after the name in either
+          // shape — a direct-child scan misses the wrapped case and drops the
+          // badge on the home/tag lists.
           const authorIdx = meta.children.findIndex(
             (c: any) =>
-              c &&
-              c.attrs &&
-              typeof c.attrs.className === "string" &&
-              (c.attrs.className.indexOf("AvocadoHome-threadAuthor") !== -1 ||
-                c.attrs.className.indexOf("AvocadoSearch-threadAuthor") !== -1),
+              findVnodeByClass(c, "AvocadoHome-threadAuthor") ||
+              findVnodeByClass(c, "AvocadoSearch-threadAuthor"),
           );
           if (authorIdx !== -1) {
             const badge = makeVerifiedVnode(user, "");
