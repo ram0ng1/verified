@@ -217,8 +217,8 @@ export default class VerifiedSettingsPanel extends Component<ComponentAttrs> {
               )}
             </span>
             <span className="VerifiedPopover-userText">
-              <span className="VerifiedPopover-username">{username}</span>
               <span className="VerifiedPopover-displayName">{displayName}</span>
+              <span className="VerifiedPopover-username">{username}</span>
             </span>
           </span>
         </span>

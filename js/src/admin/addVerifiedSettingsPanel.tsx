@@ -1,6 +1,6 @@
 import app from "flarum/admin/app";
 
-import VerifiedSettingsPanel from "./components/VerifiedSettingsPanel";
+import LazyVerifiedSettingsPanel from "./components/LazyVerifiedSettingsPanel";
 
 const EXT_ID = "ramon-verified";
 
@@ -16,7 +16,7 @@ export default function addVerifiedSettingsPanel(): void {
   app.registry
     .for(EXT_ID)
     .registerSetting(
-      () => <VerifiedSettingsPanel />,
+      () => <LazyVerifiedSettingsPanel />,
       100,
       "ramon-verified.panel",
     )

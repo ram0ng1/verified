@@ -32,6 +32,23 @@ export const BADGE_SVG_MAX = 8 * 1024;
  * - Forum app: `app.forum.attribute('ramonVerifiedTiers')` (already parsed).
  * - Admin app: `app.data.settings['ramon-verified.tiers']` (raw JSON string).
  */
+let memoRaw: unknown = undefined;
+let memoTiers: VerifiedTier[] = [];
+
+/**
+ * Normaliza uma vez por valor bruto. O array do payload do fórum mantém a
+ * mesma referência durante a sessão e a string do admin só muda ao salvar,
+ * então cada badge renderizado reaproveita o resultado em vez de refazer
+ * regex e sanitização de todos os tiers a cada redraw.
+ */
+function memoised(raw: unknown, compute: () => VerifiedTier[]): VerifiedTier[] {
+  if (raw !== memoRaw) {
+    memoTiers = compute();
+    memoRaw = raw;
+  }
+  return memoTiers;
+}
+
 export function getConfiguredTiers(): VerifiedTier[] {
   try {
     if (typeof app !== "undefined") {
@@ -39,7 +56,10 @@ export function getConfiguredTiers(): VerifiedTier[] {
       if (app.forum && typeof app.forum.attribute === "function") {
         const v = app.forum.attribute("ramonVerifiedTiers");
         if (Array.isArray(v)) {
-          return v.map(normalise).filter(Boolean) as VerifiedTier[];
+          return memoised(
+            v,
+            () => v.map(normalise).filter(Boolean) as VerifiedTier[],
+          );
         }
       }
 
@@ -50,14 +70,17 @@ export function getConfiguredTiers(): VerifiedTier[] {
       const raw =
         data && data.settings && data.settings["ramon-verified.tiers"];
       if (typeof raw === "string" && raw.trim()) {
-        try {
-          const parsed = JSON.parse(raw);
-          if (Array.isArray(parsed)) {
-            return parsed.map(normalise).filter(Boolean) as VerifiedTier[];
+        return memoised(raw, () => {
+          try {
+            const parsed = JSON.parse(raw);
+            if (Array.isArray(parsed)) {
+              return parsed.map(normalise).filter(Boolean) as VerifiedTier[];
+            }
+          } catch (e) {
+            warnDev("tier config JSON parse failed", e);
           }
-        } catch (e) {
-          warnDev("tier config JSON parse failed", e);
-        }
+          return [];
+        });
       }
     }
   } catch (e) {

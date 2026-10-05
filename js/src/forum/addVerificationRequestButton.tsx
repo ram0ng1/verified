@@ -6,7 +6,6 @@ import type Mithril from "mithril";
 import type ItemList from "flarum/common/utils/ItemList";
 
 import VerifiedBadge from "../common/components/VerifiedBadge";
-import RequestVerificationModal from "./components/RequestVerificationModal";
 
 /**
  * Inject either the verified-status pill, the pending pill, or the "request
@@ -73,7 +72,11 @@ export default function addVerificationRequestButton(): void {
             <Button
               className="Button"
               icon="fas fa-certificate"
-              onclick={() => app.modal.show(RequestVerificationModal)}
+              onclick={() =>
+                app.modal.show(
+                  () => import("./components/RequestVerificationModal"),
+                )
+              }
             >
               {app.translator.trans(
                 "ramon-verified.forum.settings.request_button",

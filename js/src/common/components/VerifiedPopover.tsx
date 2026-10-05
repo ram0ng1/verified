@@ -127,11 +127,11 @@ export default class VerifiedPopover extends Component<VerifiedPopoverAttrs> {
                 <Avatar user={user} />
               </span>
               <span className="VerifiedPopover-userText">
-                <span className="VerifiedPopover-username">
-                  {user.username()}
-                </span>
                 <span className="VerifiedPopover-displayName">
                   {user.displayName()}
+                </span>
+                <span className="VerifiedPopover-username">
+                  {user.username()}
                 </span>
               </span>
             </span>

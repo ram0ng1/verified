@@ -2,9 +2,7 @@ import app from "flarum/common/app";
 
 import type Mithril from "mithril";
 
-import VerificationPromptModal, {
-  VerificationPromptResult,
-} from "../components/VerificationPromptModal";
+import type { VerificationPromptResult } from "../components/VerificationPromptModal";
 
 export interface VerificationPromptOptions {
   /** Modal heading. */
@@ -26,7 +24,7 @@ export default function verificationPrompt(
   opts: VerificationPromptOptions,
 ): Promise<VerificationPromptResult | null> {
   return new Promise((resolve) => {
-    app.modal.show(VerificationPromptModal, {
+    app.modal.show(() => import("../components/VerificationPromptModal"), {
       promptTitle: opts.title,
       noteLabel: opts.noteLabel,
       confirmLabel: opts.confirmLabel,
