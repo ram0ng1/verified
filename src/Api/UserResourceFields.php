@@ -4,6 +4,7 @@ namespace Ramon\Verified\Api;
 
 use Flarum\Api\Context;
 use Flarum\Api\Schema;
+use Flarum\Extension\ExtensionManager;
 use Flarum\Settings\SettingsRepositoryInterface;
 use Flarum\User\User;
 use Ramon\Verified\Models\VerificationRequest;
@@ -44,25 +45,78 @@ class UserResourceFields
      */
     protected array $individualPendingChecks = [];
 
+    protected ?bool $nicknamesEnabled = null;
+
     public function __construct(
         protected SettingsRepositoryInterface $settings,
         protected TierResolver $tiers,
-        protected VerifiedStatus $verifiedStatus
+        protected VerifiedStatus $verifiedStatus,
+        protected ExtensionManager $extensions
     ) {
+    }
+
+    /**
+     * A coluna `nickname` sobrevive à desativação do flarum/nicknames, então
+     * o nickname só é exposto com a extensão ativa.
+     */
+    protected function nicknamesEnabled(): bool
+    {
+        return $this->nicknamesEnabled ??= $this->extensions->isEnabled('flarum-nicknames');
     }
 
     public function __invoke(): array
     {
         return [
+            // Enfileira na fase síncrona e resolve adiado: quando o valor é lido,
+            // todos os usuários do documento já estão na fila e a relação
+            // `verification` sai numa consulta só (antes, uma por usuário).
             Schema\Boolean::make('isVerified')
-                ->get(fn (User $user) => $this->tiers->isVerified($user)),
+                ->get(function (User $user) {
+                    $this->tiers->defer($user);
+
+                    return fn () => $this->tiers->isVerified($user);
+                }),
 
             Schema\DateTime::make('verifiedAt')
-                ->get(fn (User $user) => $this->verifiedStatus->verifiedAt($user))
+                ->get(function (User $user) {
+                    $this->tiers->defer($user);
+
+                    return function () use ($user) {
+                        $this->tiers->ensureLoaded($user);
+
+                        return $this->verifiedStatus->verifiedAt($user);
+                    };
+                })
                 ->nullable(),
 
             Schema\Str::make('verifiedTier')
-                ->get(fn (User $user) => $this->tiers->resolveTierId($user))
+                ->get(function (User $user) {
+                    $this->tiers->defer($user);
+
+                    return fn () => $this->tiers->resolveTierId($user);
+                })
+                ->nullable(),
+
+            /*
+             * Nickname do flarum/nicknames para a segunda linha do popover
+             * quando o driver de exibição é o username. O valor já é público
+             * com o driver `nickname`; só sai para usuários verificados e
+             * quando difere do username.
+             */
+            Schema\Str::make('verifiedNickname')
+                ->visible(fn () => $this->nicknamesEnabled())
+                ->get(function (User $user) {
+                    $this->tiers->defer($user);
+
+                    return function () use ($user) {
+                        $nickname = $user->getAttribute('nickname');
+                        if (! is_string($nickname) || trim($nickname) === '' || $nickname === $user->username) {
+                            return null;
+                        }
+
+                        return $this->tiers->isVerified($user) ? $nickname : null;
+                    };
+                })
                 ->nullable(),
 
             Schema\Boolean::make('canRequestVerification')

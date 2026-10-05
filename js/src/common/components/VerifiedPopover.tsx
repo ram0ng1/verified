@@ -7,6 +7,7 @@ import extractText from "flarum/common/utils/extractText";
 import type Mithril from "mithril";
 import type User from "flarum/common/models/User";
 import getBadgeSvg, { getBadgeSize } from "../utils/getBadgeSvg";
+import secondaryName from "../utils/secondaryName";
 import {
   resolveTierForUser,
   getTierColor,
@@ -27,6 +28,33 @@ export interface VerifiedPopoverAttrs extends ComponentAttrs {
  * popover panel can centre on it cleanly.
  */
 export default class VerifiedPopover extends Component<VerifiedPopoverAttrs> {
+  /**
+   * O cartão só é montado no primeiro hover/foco, via `m.render` num nó
+   * próprio: antes disso cada badge carregava avatar, data e SVGs escondidos
+   * em todo redraw. Não depende do redraw do pai porque `CommentPost` retém
+   * a subárvore do post e ignoraria a mudança de estado.
+   */
+  private activated = false;
+  private host: Element | null = null;
+  private content: () => Mithril.Children = () => null;
+
+  private activate = (e: Event & { redraw?: boolean }) => {
+    e.redraw = false;
+    if (this.activated || !this.host) return;
+    this.activated = true;
+    m.render(this.host, this.content());
+  };
+
+  onupdate(vnode: Mithril.VnodeDOM<VerifiedPopoverAttrs, this>) {
+    super.onupdate(vnode);
+    if (this.activated && this.host) m.render(this.host, this.content());
+  }
+
+  onremove(vnode: Mithril.VnodeDOM<VerifiedPopoverAttrs, this>) {
+    super.onremove(vnode);
+    if (this.host) m.render(this.host, null);
+  }
+
   view(): Mithril.Children {
     const { user } = this.attrs;
     if (!user || !user.isVerified || !user.isVerified()) return null;
@@ -74,11 +102,16 @@ export default class VerifiedPopover extends Component<VerifiedPopoverAttrs> {
     const popoverStyle: Record<string, string> = {};
     if (color) popoverStyle["--tier-color"] = color;
 
+    this.content = () =>
+      this.popover(user, tier, color, verifiedAt, headline, learnMoreUrl);
+
     return (
       <span
         className="VerifiedPopover-anchor"
         data-tier={tier ? tier.id : undefined}
         style={popoverStyle}
+        onmouseenter={this.activate}
+        onfocusin={this.activate}
       >
         <span
           className={"VerifiedBadge VerifiedBadge--inAnchor " + tierClass}
@@ -90,64 +123,79 @@ export default class VerifiedPopover extends Component<VerifiedPopoverAttrs> {
           {trustedHtml(getBadgeSvg(tier))}
         </span>
 
-        <span className="VerifiedPopover" role="tooltip">
-          <span className="VerifiedPopover-arrow" aria-hidden="true" />
+        <span
+          className="VerifiedPopover-host"
+          oncreate={(v: Mithril.VnodeDOM) => (this.host = v.dom)}
+        />
+      </span>
+    );
+  }
 
-          <span className="VerifiedPopover-header">
-            <span className="VerifiedPopover-headerIcon">
-              {trustedHtml(getBadgeSvg(tier))}
+  private popover(
+    user: User,
+    tier: ReturnType<typeof resolveTierForUser>,
+    color: string | null,
+    verifiedAt: Date | null | undefined,
+    headline: Mithril.Children,
+    learnMoreUrl: string,
+  ): Mithril.Children {
+    return (
+      <span className="VerifiedPopover" role="tooltip">
+        <span className="VerifiedPopover-arrow" aria-hidden="true" />
+
+        <span className="VerifiedPopover-header">
+          <span className="VerifiedPopover-headerIcon">
+            {trustedHtml(getBadgeSvg(tier))}
+          </span>
+          <span className="VerifiedPopover-headerText">
+            {headline}
+            {learnMoreUrl && (
+              <>
+                {" "}
+                <a
+                  className="VerifiedPopover-learnMore"
+                  href={learnMoreUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  // Inline color as a final tiebreaker against Flarum
+                  // core's generic `a` rules which can win on specificity
+                  // in some chrome contexts (post bodies, etc).
+                  style={color ? { color } : undefined}
+                >
+                  {app.translator.trans(
+                    "ramon-verified.lib.popover.learn_more",
+                  )}
+                </a>
+              </>
+            )}
+          </span>
+        </span>
+
+        <span className="VerifiedPopover-body">
+          <span className="VerifiedPopover-user">
+            <span className="VerifiedPopover-avatar">
+              <Avatar user={user} />
             </span>
-            <span className="VerifiedPopover-headerText">
-              {headline}
-              {learnMoreUrl && (
-                <>
-                  {" "}
-                  <a
-                    className="VerifiedPopover-learnMore"
-                    href={learnMoreUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    // Inline color as a final tiebreaker against Flarum
-                    // core's generic `a` rules which can win on specificity
-                    // in some chrome contexts (post bodies, etc).
-                    style={color ? { color } : undefined}
-                  >
-                    {app.translator.trans(
-                      "ramon-verified.lib.popover.learn_more",
-                    )}
-                  </a>
-                </>
+            <span className="VerifiedPopover-userText">
+              <span className="VerifiedPopover-displayName">
+                {user.displayName()}
+              </span>
+              {secondaryName(user) && (
+                <span className="VerifiedPopover-username">
+                  {secondaryName(user)}
+                </span>
               )}
             </span>
           </span>
 
-          <span className="VerifiedPopover-body">
-            <span className="VerifiedPopover-user">
-              <span className="VerifiedPopover-avatar">
-                <Avatar user={user} />
-              </span>
-              <span className="VerifiedPopover-userText">
-                <span className="VerifiedPopover-username">
-                  {user.username()}
-                </span>
-                <span className="VerifiedPopover-displayName">
-                  {user.displayName()}
-                </span>
-              </span>
-            </span>
-
-            <span className="VerifiedPopover-meta">
-              {verifiedAt
-                ? app.translator.trans(
-                    "ramon-verified.lib.popover.verified_on",
-                    {
-                      date: extractText(humanTime(verifiedAt)),
-                    },
-                  )
-                : app.translator.trans(
-                    "ramon-verified.lib.popover.verified_no_date",
-                  )}
-            </span>
+          <span className="VerifiedPopover-meta">
+            {verifiedAt
+              ? app.translator.trans("ramon-verified.lib.popover.verified_on", {
+                  date: extractText(humanTime(verifiedAt)),
+                })
+              : app.translator.trans(
+                  "ramon-verified.lib.popover.verified_no_date",
+                )}
           </span>
         </span>
       </span>
