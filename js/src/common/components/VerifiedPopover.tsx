@@ -29,19 +29,31 @@ export interface VerifiedPopoverAttrs extends ComponentAttrs {
  */
 export default class VerifiedPopover extends Component<VerifiedPopoverAttrs> {
   /**
-   * O cartão só é montado no primeiro hover/foco. Antes disso cada badge da
-   * página carregava avatar, data e SVGs escondidos em todo redraw; depois
-   * fica montado para os hovers seguintes abrirem sem redesenhar a app.
+   * O cartão só é montado no primeiro hover/foco, via `m.render` num nó
+   * próprio: antes disso cada badge carregava avatar, data e SVGs escondidos
+   * em todo redraw. Não depende do redraw do pai porque `CommentPost` retém
+   * a subárvore do post e ignoraria a mudança de estado.
    */
   private activated = false;
+  private host: Element | null = null;
+  private content: () => Mithril.Children = () => null;
 
   private activate = (e: Event & { redraw?: boolean }) => {
-    if (this.activated) {
-      e.redraw = false;
-      return;
-    }
+    e.redraw = false;
+    if (this.activated || !this.host) return;
     this.activated = true;
+    m.render(this.host, this.content());
   };
+
+  onupdate(vnode: Mithril.VnodeDOM<VerifiedPopoverAttrs, this>) {
+    super.onupdate(vnode);
+    if (this.activated && this.host) m.render(this.host, this.content());
+  }
+
+  onremove(vnode: Mithril.VnodeDOM<VerifiedPopoverAttrs, this>) {
+    super.onremove(vnode);
+    if (this.host) m.render(this.host, null);
+  }
 
   view(): Mithril.Children {
     const { user } = this.attrs;
@@ -90,6 +102,9 @@ export default class VerifiedPopover extends Component<VerifiedPopoverAttrs> {
     const popoverStyle: Record<string, string> = {};
     if (color) popoverStyle["--tier-color"] = color;
 
+    this.content = () =>
+      this.popover(user, tier, color, verifiedAt, headline, learnMoreUrl);
+
     return (
       <span
         className="VerifiedPopover-anchor"
@@ -108,8 +123,10 @@ export default class VerifiedPopover extends Component<VerifiedPopoverAttrs> {
           {trustedHtml(getBadgeSvg(tier))}
         </span>
 
-        {this.activated &&
-          this.popover(user, tier, color, verifiedAt, headline, learnMoreUrl)}
+        <span
+          className="VerifiedPopover-host"
+          oncreate={(v: Mithril.VnodeDOM) => (this.host = v.dom)}
+        />
       </span>
     );
   }
