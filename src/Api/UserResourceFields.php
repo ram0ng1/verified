@@ -4,6 +4,7 @@ namespace Ramon\Verified\Api;
 
 use Flarum\Api\Context;
 use Flarum\Api\Schema;
+use Flarum\Extension\ExtensionManager;
 use Flarum\Settings\SettingsRepositoryInterface;
 use Flarum\User\User;
 use Ramon\Verified\Models\VerificationRequest;
@@ -44,11 +45,23 @@ class UserResourceFields
      */
     protected array $individualPendingChecks = [];
 
+    protected ?bool $nicknamesEnabled = null;
+
     public function __construct(
         protected SettingsRepositoryInterface $settings,
         protected TierResolver $tiers,
-        protected VerifiedStatus $verifiedStatus
+        protected VerifiedStatus $verifiedStatus,
+        protected ExtensionManager $extensions
     ) {
+    }
+
+    /**
+     * A coluna `nickname` sobrevive à desativação do flarum/nicknames, então
+     * o nickname só é exposto com a extensão ativa.
+     */
+    protected function nicknamesEnabled(): bool
+    {
+        return $this->nicknamesEnabled ??= $this->extensions->isEnabled('flarum-nicknames');
     }
 
     public function __invoke(): array
@@ -81,6 +94,31 @@ class UserResourceFields
                     $this->tiers->defer($user);
 
                     return fn () => $this->tiers->resolveTierId($user);
+                })
+                ->nullable(),
+
+            /*
+             * Nickname do flarum/nicknames para a segunda linha do popover
+             * quando o driver de exibição é o username. O valor já é público
+             * com o driver `nickname`; só sai para usuários verificados e
+             * quando difere do username.
+             */
+            Schema\Str::make('verifiedNickname')
+                ->get(function (User $user) {
+                    if (! $this->nicknamesEnabled()) {
+                        return null;
+                    }
+
+                    $this->tiers->defer($user);
+
+                    return function () use ($user) {
+                        $nickname = $user->getAttribute('nickname');
+                        if (! is_string($nickname) || trim($nickname) === '' || $nickname === $user->username) {
+                            return null;
+                        }
+
+                        return $this->tiers->isVerified($user) ? $nickname : null;
+                    };
                 })
                 ->nullable(),
 

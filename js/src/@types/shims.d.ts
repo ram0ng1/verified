@@ -17,6 +17,7 @@ declare module "flarum/common/models/User" {
     isVerified(): boolean | undefined;
     verifiedAt(): Date | null | undefined;
     verifiedTier(): string | null | undefined;
+    verifiedNickname(): string | null | undefined;
     canRequestVerification(): boolean | undefined;
     hasPendingVerificationRequest(): boolean | undefined;
     isAvatarLocked(): boolean | undefined;

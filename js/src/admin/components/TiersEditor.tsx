@@ -17,6 +17,7 @@ import TiersEditorState, {
   TierRow,
 } from "../states/TiersEditorState";
 import { wrapTextareaSelection } from "../utils/textareaMarkup";
+import secondaryName from "../../common/utils/secondaryName";
 
 const trans = (key: string) =>
   app.translator.trans(`ramon-verified.admin.${key}`);
@@ -714,7 +715,11 @@ export default class TiersEditor extends Component<ComponentAttrs> {
                     <span className="VerifiedPopover-displayName">
                       {displayName}
                     </span>
-                    <span className="VerifiedPopover-username">{username}</span>
+                    {secondaryName(u) && (
+                      <span className="VerifiedPopover-username">
+                        {secondaryName(u)}
+                      </span>
+                    )}
                   </span>
                 </span>
 

@@ -13,6 +13,7 @@ import DocumentTypesEditor from "./DocumentTypesEditor";
 import EncryptionCard from "./EncryptionCard";
 import TiersEditor from "./TiersEditor";
 import VerificationRequestsSection from "./VerificationRequestsSection";
+import secondaryName from "../../common/utils/secondaryName";
 
 const trans = (key: string) =>
   app.translator.trans(`ramon-verified.admin.${key}`);
@@ -218,7 +219,11 @@ export default class VerifiedSettingsPanel extends Component<ComponentAttrs> {
             </span>
             <span className="VerifiedPopover-userText">
               <span className="VerifiedPopover-displayName">{displayName}</span>
-              <span className="VerifiedPopover-username">{username}</span>
+              {secondaryName(u) && (
+                <span className="VerifiedPopover-username">
+                  {secondaryName(u)}
+                </span>
+              )}
             </span>
           </span>
         </span>

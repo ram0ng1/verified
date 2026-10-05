@@ -16,6 +16,7 @@ export default [
       val ? new Date(val) : null,
     )
     .attribute<string | null>("verifiedTier")
+    .attribute<string | null>("verifiedNickname")
     .attribute<boolean>("canRequestVerification")
     .attribute<boolean>("hasPendingVerificationRequest")
     .attribute<boolean>("isAvatarLocked"),
