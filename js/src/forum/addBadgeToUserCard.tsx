@@ -29,8 +29,7 @@ export default function addBadgeToUserCard(): void {
       if (!items.has("identity")) return;
 
       const identityItem = items.get("identity") as
-        | Mithril.Vnode<{ className?: string }>
-        | undefined;
+        Mithril.Vnode<{ className?: string }> | undefined;
       if (!identityItem) return;
 
       const badge = (
