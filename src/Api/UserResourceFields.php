@@ -104,11 +104,8 @@ class UserResourceFields
              * quando difere do username.
              */
             Schema\Str::make('verifiedNickname')
+                ->visible(fn () => $this->nicknamesEnabled())
                 ->get(function (User $user) {
-                    if (! $this->nicknamesEnabled()) {
-                        return null;
-                    }
-
                     $this->tiers->defer($user);
 
                     return function () use ($user) {
