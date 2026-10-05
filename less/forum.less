@@ -74,6 +74,13 @@
   margin-left: 0;
 }
 
+// Live reply preview: core's header there is `.PostUser` with no
+// `li.item-user` around it, so the 10px the real post gets from that <li>'s
+// margin-right goes on our <ul> instead (addBadgeToCommentPost.tsx).
+.CommentPost.editing .Post-header > .PostUser + ul {
+  margin-left: 10px;
+}
+
 // Avocado thread cards: `.AvocadoHome-threadMeta` and
 // `.AvocadoSearch-threadMeta` are flex containers with `gap: 6px`, so the
 // flex `gap` already produces equal spacing between every child. Zero our

@@ -18,6 +18,16 @@ class TierResolver
     /** @var array<int, array>|null */
     protected ?array $tiers = null;
 
+    /**
+     * Usuários do documento JSON:API à espera da relação `verification`.
+     * O getter enfileira na fase síncrona da serialização; a primeira leitura
+     * carrega a fila inteira numa consulta só (o mesmo padrão do
+     * `EloquentBuffer` do core) em vez de um SELECT por usuário.
+     *
+     * @var array<int, User>
+     */
+    private array $pending = [];
+
     public function __construct(
         protected SettingsRepositoryInterface $settings
     ) {
@@ -117,6 +127,20 @@ class TierResolver
     /**
      * @return array<int, array>
      */
+    /** Garante a relação `verification` carregada (esvaziando a fila em lote). */
+    public function ensureLoaded(User $user): void
+    {
+        $this->loadVerification($user);
+    }
+
+    /** Enfileira o usuário para o carregamento em lote de `verification`. */
+    public function defer(User $user): void
+    {
+        if ($user->exists && ! $user->relationLoaded('verification')) {
+            $this->pending[spl_object_id($user)] = $user;
+        }
+    }
+
     public function tiers(): array
     {
         return $this->tiers ??= TierConfig::fromSettings($this->settings);
@@ -130,6 +154,12 @@ class TierResolver
      */
     private function loadVerification(User $user): ?UserVerification
     {
+        if (! $user->relationLoaded('verification') && $this->pending !== []) {
+            $batch = array_values($this->pending);
+            $this->pending = [];
+            $user->newCollection($batch)->load('verification');
+        }
+
         if ($user->relationLoaded('verification')) {
             $loaded = $user->getRelation('verification');
             return $loaded instanceof UserVerification ? $loaded : null;

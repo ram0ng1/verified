@@ -54,15 +54,34 @@ class UserResourceFields
     public function __invoke(): array
     {
         return [
+            // Enfileira na fase síncrona e resolve adiado: quando o valor é lido,
+            // todos os usuários do documento já estão na fila e a relação
+            // `verification` sai numa consulta só (antes, uma por usuário).
             Schema\Boolean::make('isVerified')
-                ->get(fn (User $user) => $this->tiers->isVerified($user)),
+                ->get(function (User $user) {
+                    $this->tiers->defer($user);
+
+                    return fn () => $this->tiers->isVerified($user);
+                }),
 
             Schema\DateTime::make('verifiedAt')
-                ->get(fn (User $user) => $this->verifiedStatus->verifiedAt($user))
+                ->get(function (User $user) {
+                    $this->tiers->defer($user);
+
+                    return function () use ($user) {
+                        $this->tiers->ensureLoaded($user);
+
+                        return $this->verifiedStatus->verifiedAt($user);
+                    };
+                })
                 ->nullable(),
 
             Schema\Str::make('verifiedTier')
-                ->get(fn (User $user) => $this->tiers->resolveTierId($user))
+                ->get(function (User $user) {
+                    $this->tiers->defer($user);
+
+                    return fn () => $this->tiers->resolveTierId($user);
+                })
                 ->nullable(),
 
             Schema\Boolean::make('canRequestVerification')
