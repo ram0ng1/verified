@@ -15,16 +15,8 @@ import secondaryName from '../../common/utils/secondaryName';
 
 const trans = (key: string) => app.translator.trans(`ramon-verified.admin.${key}`);
 
-/**
- * Editor for the multi-tier badge config.
- *
- * UI shape: a vertical list of compact tier cards. Click a card's header to
- * expand/collapse the full editor inline. This keeps the page short when you
- * have several tiers and lets the eye scan label/color/id quickly.
- *
- * Auto-grant groups use chip-style toggles (not Flarum's PermissionDropdown)
- * because Flarum's standard control hides admin from the togglable list.
- */
+// Grupos usam chips em vez do PermissionDropdown porque o controle do Flarum
+// não deixa marcar o grupo admin.
 export default class TiersEditor extends Component<ComponentAttrs> {
   protected tiers!: TiersEditorState;
 
@@ -316,11 +308,8 @@ export default class TiersEditor extends Component<ComponentAttrs> {
     );
   }
 
-  /**
-   * Constrói a `VerifiedTier` virtual a partir da row em edição para que o
-   * preview e os consumidores de `getBadgeSvg(tier)` reflitam o estado
-   * presente da textarea (sem precisar recarregar a página).
-   */
+  // Tier montado a partir da edição em curso, para o preview refletir o que
+  // ainda não foi salvo.
   protected rowAsTier(row: TierRow): VerifiedTier {
     const trimmedSvg = (row.badgeSvg || '').trim();
     const badgeEnabled = row.badgeEnabled && trimmedSvg.length > 0;
@@ -337,13 +326,6 @@ export default class TiersEditor extends Component<ComponentAttrs> {
     };
   }
 
-  /**
-   * Seção opt-in para SVG customizado por tier. UI minimal: toggle, drop
-   * zone com preview do badge ativo (herdando a cor do tier via
-   * `currentColor`), botão "Substituir" + "Remover". O conteúdo bruto do
-   * SVG fica armazenado em estado mas nunca exposto como textarea — o
-   * admin trabalha com arquivos, não markup.
-   */
   renderBadgeSection(row: TierRow, idx: number): Mithril.Children {
     const fileInputId = `verified-tier-badge-file-${idx}`;
     const trimmedSvg = (row.badgeSvg || '').trim();
@@ -428,13 +410,8 @@ export default class TiersEditor extends Component<ComponentAttrs> {
     );
   }
 
-  /**
-   * Lê o SVG do file picker, valida tamanho, descarta input se acima do
-   * cap antes mesmo de tocar no estado. Sanitização real acontece no
-   * `TierConfig::parse` server-side; o mirror cliente em
-   * `tiers.ts`/`sanitizeSvg` reescreve `fill` para `currentColor` para o
-   * preview herdar a cor do tier.
-   */
+  // A sanitização que vale é a do servidor (TierConfig::parse); aqui só se
+  // barra o tamanho antes de tocar no estado.
   protected handleBadgeFile(e: Event, idx: number): void {
     const input = e.target as HTMLInputElement;
     const file = input.files && input.files[0];
@@ -459,12 +436,7 @@ export default class TiersEditor extends Component<ComponentAttrs> {
     input.value = '';
   }
 
-  /**
-   * Toolbar action: find the field's textarea via the click target's closest
-   * ancestor, wrap its selection in `<tag>` markup, and push the new value
-   * into the row state. The DOM round-trip is needed because we want to
-   * preserve the caret position right after the inserted markup.
-   */
+  // Passa pelo DOM para preservar a seleção e a posição do cursor.
   wrapDescription(e: Event, idx: number, tag: 'strong' | 'em'): void {
     e.preventDefault();
 
@@ -477,14 +449,8 @@ export default class TiersEditor extends Component<ComponentAttrs> {
     this.tiers.update(idx, { description: next });
   }
 
-  /**
-   * Live preview banner rendered at the top of the expanded body. Renders
-   * the SAME markup the forum-side `VerifiedPopover` uses (.VerifiedPopover-*
-   * classes) but wired to the in-progress tier values instead of a real user
-   * tier — so the admin can hover the badge and see exactly the popover the
-   * tier will produce in production, with the real size, color, headline,
-   * and Saiba mais link.
-   */
+  // Repete o markup do VerifiedPopover do fórum para o preview ser fiel ao
+  // que o usuário verá.
   renderPreviewBanner(row: TierRow): Mithril.Children {
     const color = /^#[0-9a-f]{3,8}$/i.test(row.color) ? row.color : null;
     const size = getBadgeSize();

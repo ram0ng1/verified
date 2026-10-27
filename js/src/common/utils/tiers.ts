@@ -1,15 +1,3 @@
-/**
- * Multi-tier badge config — frontend-side accessors.
- *
- * Reads the parsed tier list from the forum payload (`ramonVerifiedTiers`,
- * serialised by `TierConfig::parseForFrontend` on the server) on the forum
- * side, or directly from `app.data.settings['ramon-verified.tiers']` on the
- * admin side.
- *
- * Resolution rules mirror the backend in `TierConfig` so a user's badge looks
- * the same in every frontend code path.
- */
-
 import app from 'flarum/common/app';
 import type User from 'flarum/common/models/User';
 
@@ -28,20 +16,11 @@ export const DEFAULT_TIER_ID = 'blue';
 
 export const BADGE_SVG_MAX = 8 * 1024;
 
-/**
- * Read the configured tiers in a context-agnostic way:
- * - Forum app: `app.forum.attribute('ramonVerifiedTiers')` (already parsed).
- * - Admin app: `app.data.settings['ramon-verified.tiers']` (raw JSON string).
- */
 let memoRaw: unknown = undefined;
 let memoTiers: VerifiedTier[] = [];
 
-/**
- * Normaliza uma vez por valor bruto. O array do payload do fórum mantém a
- * mesma referência durante a sessão e a string do admin só muda ao salvar,
- * então cada badge renderizado reaproveita o resultado em vez de refazer
- * regex e sanitização de todos os tiers a cada redraw.
- */
+// O valor bruto mantém a referência até o próximo save, então cada badge
+// reaproveita a normalização em vez de refazê-la a cada redraw.
 function memoised(raw: unknown, compute: () => VerifiedTier[]): VerifiedTier[] {
   if (raw !== memoRaw) {
     memoTiers = compute();
@@ -52,9 +31,8 @@ function memoised(raw: unknown, compute: () => VerifiedTier[]): VerifiedTier[] {
 
 export function getConfiguredTiers(): VerifiedTier[] {
   try {
-    // Admin: as settings ao vivo (o JSON cru). Têm de vir antes do payload do
-    // fórum, que o admin também recebe e que só reflete o carregamento da
-    // página: editar os tiers não mudava a lista do modal de aprovação.
+    // As settings vêm antes do payload do fórum: o admin também recebe o
+    // payload, mas ele só reflete o carregamento da página.
     const settings = (app as unknown as { data?: { settings?: Record<string, unknown> } }).data?.settings;
     const raw = settings?.['ramon-verified.tiers'];
     if (typeof raw === 'string' && raw.trim()) {
@@ -83,37 +61,21 @@ export function getConfiguredTiers(): VerifiedTier[] {
   return [];
 }
 
-/**
- * `console.warn` apenas em desenvolvimento — silencioso em produção (§40.2).
- * Tier config corrompida é raro e útil pro admin ver durante debug; em
- * produção, falhar para `[]` mantém o forum funcional sem encher console.
- */
 function warnDev(msg: string, err: unknown): void {
-  // O webpack troca `process.env.NODE_ENV` no build; o `typeof process` de
-  // antes virava `"undefined" != typeof process` e o aviso saía em produção.
+  // Sem `typeof process`: o webpack substitui só a expressão completa.
   if (process.env.NODE_ENV === 'production') return;
 
   console.warn('[verified] ' + msg, err);
 }
 
-/**
- * Allow only `<strong>` and `<em>` in the tier description so admins can
- * highlight key words. Everything else is escaped so the description is safe
- * to render as trusted markup. Mirrors `TierConfig::sanitiseDescription`
- * server-side — we re-run it client-side because the admin SettingsPanel
- * persists the raw textarea value before any backend trip.
- *
- * Exported so the admin tier-preview can sanitise an in-progress description
- * without round-tripping through the backend.
- */
+// Espelha TierConfig::sanitiseDescription: só <strong> e <em> sobrevivem, o
+// resto é escapado. O preview do admin usa o texto ainda não salvo.
 export function sanitiseDescription(raw: string): string {
   const text = (raw || '').trim();
   if (!text) return '';
 
-  // Idempotent: an `&` that already starts one of the entities produced
-  // here is left alone. The forum gets the description already escaped by
-  // the server, and the popover runs this again before `m.trust` — escaping
-  // `&` unconditionally turned "A & B" into the literal text "A &amp;amp; B".
+  // Idempotente: o texto do fórum já chega escapado pelo servidor e passa por
+  // aqui de novo, então `&` que já inicia uma entidade fica como está.
   const escaped = text
     .replace(/&(?!(?:amp|lt|gt|quot|#0?39);)/g, '&amp;')
     .replace(/</g, '&lt;')
@@ -176,15 +138,8 @@ function normalise(row: unknown): VerifiedTier | null {
   };
 }
 
-/**
- * Resolve which tier applies to a given user.
- *
- * Order:
- *   1. The `verifiedTier` attribute the backend already computed (manual
- *      assignment beats group auto-grant — same as the server logic).
- *   2. Default tier (`blue`) when the user is verified but no tier matches.
- *   3. null when the user isn't verified.
- */
+// O servidor já resolveu `verifiedTier` (atribuição manual vence a dos grupos);
+// aqui só se cai no tier padrão quando ele falta ou não existe mais.
 export function resolveTierForUser(user: User | null | undefined): VerifiedTier | null {
   if (!user || !user.isVerified || !user.isVerified()) return null;
 
@@ -202,10 +157,7 @@ export function resolveTierForUser(user: User | null | undefined): VerifiedTier 
   return tiers.find((t) => t.id === DEFAULT_TIER_ID) || tiers[0];
 }
 
-/**
- * Effective badge color for a user. Returns the tier color when set;
- * null lets CSS pick the theme primary.
- */
+// null deixa o CSS usar a cor primária do tema.
 export function getTierColor(tier: VerifiedTier | null): string | null {
   return (tier && tier.color) || null;
 }

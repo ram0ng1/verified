@@ -7,12 +7,6 @@ import DocumentTypesState from '../states/DocumentTypesState';
 
 const trans = (key: string) => app.translator.trans(`ramon-verified.admin.${key}`);
 
-/**
- * Editor for the configurable list of accepted document types.
- *
- * Each row is an `{ id, label }` pair (id used by the backend, label shown
- * to users). Saves are debounced via the bound state.
- */
 export default class DocumentTypesEditor extends Component<ComponentAttrs> {
   protected types!: DocumentTypesState;
 

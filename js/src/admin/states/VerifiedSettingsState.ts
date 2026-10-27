@@ -9,20 +9,12 @@ const RETENTION_KEY = 'ramon-verified.document_retention';
 const RETENTION_MODES = ['keep', 'delete_immediate', 'delete_after_days'] as const;
 export type RetentionMode = (typeof RETENTION_MODES)[number];
 
-/**
- * Owns the debounced auto-save for the inline numeric controls
- * (badge size slider, retention-days input) and exposes a single helper
- * for switching the categorical retention mode (saved immediately).
- */
 export default class VerifiedSettingsState {
   private _sizeTimer: ReturnType<typeof setTimeout> | null = null;
   private _retentionDaysTimer: ReturnType<typeof setTimeout> | null = null;
 
-  /**
-   * Update the badge size with optimistic UI feedback. Mutates the live
-   * `--verified-size` CSS custom property so the preview card reflects the
-   * change instantly, then debounces the API write.
-   */
+  // A variável CSS muda na hora para o preview acompanhar o slider; só o
+  // save espera o debounce.
   queueSize(value: string): void {
     const num = parseFloat(value);
     if (!Number.isFinite(num)) return;

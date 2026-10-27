@@ -8,10 +8,7 @@ export interface DocumentType {
 
 const FALLBACK_IDS = ['rg', 'cpf', 'passport', 'driver', 'other'];
 
-/**
- * Lista usada só quando o admin esvaziou a configuração: os mesmos ids de
- * sempre, com rótulos traduzidos.
- */
+// Usada só quando o admin esvaziou a configuração.
 function fallback(): DocumentType[] {
   return FALLBACK_IDS.map((id) => ({
     id,
@@ -19,10 +16,7 @@ function fallback(): DocumentType[] {
   }));
 }
 
-/**
- * Os tipos de documento aceitos. No admin vêm das settings ao vivo (o JSON
- * cru); no fórum, do payload.
- */
+// No admin vale a setting ao vivo; o payload do fórum é o do carregamento da página.
 export function getDocumentTypes(): DocumentType[] {
   const settings = (app as unknown as { data?: { settings?: Record<string, unknown> } }).data?.settings;
   const raw = settings?.['ramon-verified.document_types'];

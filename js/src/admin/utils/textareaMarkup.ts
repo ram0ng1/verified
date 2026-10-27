@@ -1,13 +1,5 @@
-/**
- * Wrap the textarea's current selection in `<tag>...</tag>` and return the
- * resulting string. If nothing is selected, the empty tag pair is inserted
- * at the caret so the user can type inside.
- *
- * Mutates the textarea in place: focuses it and restores the caret position
- * right after the inserted markup so typing keeps flowing. Returns the new
- * value so the caller can mirror it back into reactive state and Mithril
- * doesn't fight the redraw.
- */
+// Altera a textarea direto para manter o cursor; o valor devolvido deve ir
+// para o estado, senão o redraw do Mithril o desfaz.
 export function wrapTextareaSelection(textarea: HTMLTextAreaElement, tag: 'strong' | 'em'): string {
   const start = textarea.selectionStart ?? 0;
   const end = textarea.selectionEnd ?? 0;

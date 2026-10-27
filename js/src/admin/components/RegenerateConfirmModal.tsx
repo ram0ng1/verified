@@ -5,7 +5,7 @@ import Button from 'flarum/common/components/Button';
 const trans = (key: string) => app.translator.trans(`ramon-verified.admin.encryption.${key}`);
 
 export interface IRegenerateConfirmAttrs extends IInternalModalAttrs {
-  /** Resolves to `false` when the operation failed (modal stays open). */
+  // `false` quando a operação falha; o modal continua aberto.
   onConfirm: () => Promise<boolean | unknown>;
 }
 
@@ -59,8 +59,7 @@ export default class RegenerateConfirmModal extends Modal<IRegenerateConfirmAttr
     m.redraw();
     try {
       const ok = await this.attrs.onConfirm();
-      // onConfirm returns false (or throws) when the request fails — keep
-      // the modal open so the admin can retry without re-acknowledging.
+      // Fica aberto para tentar de novo sem marcar a confirmação outra vez.
       if (ok === false) {
         this.submitting = false;
         m.redraw();
@@ -68,8 +67,7 @@ export default class RegenerateConfirmModal extends Modal<IRegenerateConfirmAttr
       }
       this.hide();
     } catch (e) {
-      // Parent already surfaced an error alert via apiCall. Leave the modal
-      // open so the admin can retry.
+      // O apiCall já mostrou o alerta de erro.
       this.submitting = false;
       m.redraw();
     }

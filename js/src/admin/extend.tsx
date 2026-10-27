@@ -4,8 +4,8 @@ import Extend from 'flarum/common/extenders';
 import commonExtend from '../common/extend';
 import LazyVerifiedSettingsPanel from './components/LazyVerifiedSettingsPanel';
 
-// O auto-verificado não tem permissão própria: cada tier escolhe, em
-// Admin → Tiers, os grupos que recebem o selo sem pedido.
+// Auto-verificação não tem permissão própria: cada tier escolhe os grupos
+// que recebem o selo sem pedido.
 export default [
   ...commonExtend,
 

@@ -13,25 +13,10 @@ export interface VerifiedBadgeAttrs extends ComponentAttrs {
   user: User;
   size?: string;
   className?: string;
-  /**
-   * If true, render a bare badge without the rich popover (used when the
-   * caller is itself inside a popover).
-   */
+  // Sem popover, para quando o badge já está dentro de um.
   plain?: boolean;
 }
 
-/**
- * Verified badge — displayed beside a username when the user has been
- * verified by an admin.
- *
- * If the admin has enabled the rich tooltip (`ramon-verified.show_tooltip`,
- * default on), the badge is wrapped in a {@link VerifiedPopover} that opens
- * a GitHub-style detail card on hover. Otherwise, a bare badge is rendered
- * with a simple title tooltip.
- *
- * The tier resolved for the user picks the badge color and the popover label
- * / description / "Learn more" link.
- */
 export default class VerifiedBadge extends Component<VerifiedBadgeAttrs> {
   view(): Mithril.Children {
     const user = this.attrs.user;

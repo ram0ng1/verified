@@ -1,11 +1,7 @@
 import type User from 'flarum/common/models/User';
 
-/**
- * Segunda linha do popover, abaixo do nome exibido. Com o driver `username`
- * e um nickname disponível (flarum/nicknames ativo), mostra o nickname sem
- * prefixo; em todos os outros casos mostra o username como handle
- * (`@username`), inclusive quando ele repete o nome de cima.
- */
+// Com o driver `username` o nome exibido é o próprio username, então o
+// nickname (flarum/nicknames) ocupa a segunda linha no lugar do @handle.
 export default function secondaryName(user: User | null | undefined): string | null {
   if (!user) return null;
 

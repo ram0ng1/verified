@@ -11,33 +11,22 @@ import type MithrilStream from 'mithril/stream';
 import { getConfiguredTiers, DEFAULT_TIER_ID, VerifiedTier } from '../utils/tiers';
 
 export interface VerificationPromptResult {
-  /** Selected tier id, or null when the prompt did not ask for a tier. */
+  // null quando o prompt não pediu tier.
   tier: string | null;
-  /** Trimmed audit-log note. May be an empty string. */
   note: string;
 }
 
 export interface IVerificationPromptModalAttrs extends IInternalModalAttrs {
-  /** Modal heading. */
   promptTitle: Mithril.Children;
-  /** Field label describing what the note is for. */
   noteLabel: Mithril.Children;
-  /** Primary button label. */
   confirmLabel: Mithril.Children;
-  /** When true, show a tier selector and return its value. */
   withTier: boolean;
-  /** Settled exactly once: the result on confirm, null on any dismissal. */
+  // Chamado uma única vez: com o resultado ao confirmar, null ao dispensar.
   resolve: (result: VerificationPromptResult | null) => void;
 }
 
 const trans = (key: string) => app.translator.trans(`ramon-verified.lib.verification_prompt.${key}`);
 
-/**
- * Coleta uma nota de auditoria e, opcionalmente, o tier — substitui os
- * `window.prompt` dos fluxos de verify/approve/revoke por uma UI consistente
- * com o resto da extensão. Resolve a promise do caller via `attrs.resolve`:
- * o resultado no confirm, `null` em qualquer cancelamento (X, Esc, backdrop).
- */
 export default class VerificationPromptModal extends Modal<IVerificationPromptModalAttrs> {
   protected note!: MithrilStream<string>;
   protected tierId!: MithrilStream<string>;
@@ -103,10 +92,7 @@ export default class VerificationPromptModal extends Modal<IVerificationPromptMo
     this.hide();
   }
 
-  /**
-   * Todo caminho de dismissal (X, Esc, clique no backdrop) remove o vnode e
-   * cai aqui — quando o modal não foi confirmado, o caller recebe `null`.
-   */
+  // X, Esc e clique no backdrop passam todos por aqui.
   onremove(_vnode: Mithril.VnodeDOM<IVerificationPromptModalAttrs, this>): void {
     this.settle(null);
   }

@@ -10,11 +10,7 @@ export interface IAdminToggleAttrs extends ComponentAttrs {
   help?: Mithril.Children;
 }
 
-/**
- * A boolean settings toggle that auto-saves on change. Mutates the live
- * `app.data.settings` map so other components reading the same key reflect
- * the new value before the API roundtrip resolves.
- */
+// Altera app.data.settings na hora para quem lê a mesma chave não esperar a API.
 export default class AdminToggle extends Component<IAdminToggleAttrs> {
   view(): Mithril.Children {
     const { settingKey, label, help } = this.attrs;
@@ -28,8 +24,8 @@ export default class AdminToggle extends Component<IAdminToggleAttrs> {
             const previous = settings()[settingKey];
             settings()[settingKey] = checked;
             m.redraw();
-            // If the save fails the switch goes back: the panel must never
-            // show as on something the server did not store.
+            // Se o save falhar o switch volta: o painel nunca mostra ligado
+            // algo que o servidor não gravou.
             saveSetting({ [settingKey]: checked ? '1' : '0' }).catch(() => {
               settings()[settingKey] = previous;
               m.redraw();

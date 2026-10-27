@@ -32,16 +32,8 @@ interface TabState {
 
 export const REQUESTS_PAGE_SIZE = 25;
 
-/**
- * Owns the pending and rejected verification request tabs. Each tab is loaded
- * independently from the server with `filter[status]=<tab>` so pagination
- * stays correct above 100 rows — the previous "load 100 once, filter
- * client-side" shape silently hid every record past the cap.
- *
- * The approved tab is handled by {@link ApprovedUsersState}; coordination
- * between this state and that one (refresh both on approve/revoke) is the
- * responsibility of `VerificationRequestsSection`.
- */
+// Cada aba é paginada no servidor; filtrar no cliente esconderia o que
+// passasse do limite da página. A aba de aprovados fica em ApprovedUsersState.
 export default class VerificationRequestsState {
   busy: Record<string, boolean> = {};
 
@@ -91,11 +83,6 @@ export default class VerificationRequestsState {
     return Math.max(0, state.total - state.requests.length - state.offset);
   }
 
-  /**
-   * Carrega a página atual de uma aba. `offset` é o índice 0-based dentro
-   * do conjunto filtrado pelo status; `total` vem do `meta.page.total` do
-   * JSON:API e dirige paginação no UI.
-   */
   async load(tab: 'pending' | 'rejected', offset: number = 0): Promise<void> {
     const state = this.tabs[tab];
     state.loading = true;
@@ -103,17 +90,8 @@ export default class VerificationRequestsState {
     m.redraw();
 
     try {
-      // `app.request` em vez de `app.store.find` porque o backend lê
-      // `byStatus=...` como query param custom — duas regras do
-      // Flarum 2 / json-api-server tornam isso necessário:
-      //   1. `AbstractDatabaseResource::filters()` é `final` e lança "use
-      //      a model searcher" sempre que o JSON:API server detecta um
-      //      `filter[]` no request.
-      //   2. `JsonApi::validateQueryParameters` rejeita query params
-      //      cujo nome seja só `[a-z]` minúsculo (`status` falha;
-      //      `byStatus` passa). Por isso o camelCase obrigatório.
-      // Integração com o store via `pushPayload`, preservando cache em
-      // memória e hidratação das relações `user`/`handler`.
+      // Não dá para usar filter[]: o json-api-server exige um searcher para
+      // isso. E params só com [a-z] minúsculo são rejeitados, daí `byStatus`.
       const params = new URLSearchParams();
       params.set('sort', '-createdAt');
       params.set('byStatus', tab);
@@ -151,10 +129,6 @@ export default class VerificationRequestsState {
     }
   }
 
-  /**
-   * Carrega ambas as abas — útil no boot para já ter os contadores prontos.
-   * Roda em paralelo; falha em uma aba não impede a outra.
-   */
   async loadAll(): Promise<void> {
     await Promise.all([this.load('pending', 0), this.load('rejected', 0)]);
   }
@@ -163,16 +137,11 @@ export default class VerificationRequestsState {
     this.load(tab, offset);
   }
 
-  /**
-   * Approve, reject, or revoke a request. Returns true on success.
-   * Callers should refresh the approved-users state when the action is
-   * `approve` or `revoke`.
-   */
+  // Em approve e revoke, quem chama também recarrega os aprovados.
   async act(req: VerificationRequest, action: RequestAction): Promise<boolean> {
     const withTier = action === 'approve';
 
-    // Preserve the previous "no tiers configured" guard — approval needs a
-    // tier, and picking from an empty list would be a dead end.
+    // Aprovar exige um tier; escolher numa lista vazia seria um beco sem saída.
     if (withTier && getConfiguredTiers().length === 0) {
       app.alerts.show({ type: 'error' }, app.translator.trans('ramon-verified.lib.tier_prompt.no_tiers'));
       return false;

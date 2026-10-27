@@ -128,8 +128,6 @@ export default class VerificationRequestsSection extends Component<ComponentAttr
     );
   }
 
-  // ── Approved tab ─────────────────────────────────────────────────────────
-
   renderApprovedTab(): Mithril.Children {
     const { loading, rows, total, offset, query, tiers, tierFilter } = this.approved;
     const placeholder = extractText(trans('search_placeholder'));
@@ -348,8 +346,6 @@ export default class VerificationRequestsSection extends Component<ComponentAttr
     );
   }
 
-  // ── Tab control + cross-state coordination ─────────────────────────────
-
   switchTab(status: RequestTab): void {
     if (this.tab === status) return;
     this.tab = status;
@@ -365,10 +361,7 @@ export default class VerificationRequestsSection extends Component<ComponentAttr
     m.redraw();
   }
 
-  /**
-   * Wrap requests.act() so that approve/revoke also refreshes the approved
-   * users state — those actions move users between the two lists.
-   */
+  // Aprovar e revogar movem o usuário entre as duas listas.
   async actOnRequest(req: VerificationRequest, action: RequestAction): Promise<void> {
     const ok = await this.requests.act(req, action);
     if (ok && (action === 'approve' || action === 'revoke')) {
@@ -376,10 +369,7 @@ export default class VerificationRequestsSection extends Component<ComponentAttr
     }
   }
 
-  /**
-   * Wrap approved.revokeUser() so the requests list also refreshes — the
-   * underlying request row flips status.
-   */
+  // O pedido correspondente muda de status junto.
   async revokeApprovedUser(row: ApprovedUserRow): Promise<void> {
     const ok = await this.approved.revokeUser(row);
     if (ok) this.requests.loadAll();

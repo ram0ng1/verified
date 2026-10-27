@@ -87,8 +87,7 @@ export default class EncryptionCard extends Component<ComponentAttrs> {
           </div>
         )}
 
-        {/* Keys mismatch — both halves are present but they are not from
-            the same pair. Existing encrypted documents are unreadable. */}
+        {/* Chaves de pares diferentes: os documentos já cifrados ficam ilegíveis. */}
         {s.has_public_key && s.private_key_present && s.keys_match === false && (
           <div className="Alert Alert--error EncryptionCard-msg">
             <strong>{trans('status.mismatch_title')}</strong>
@@ -99,7 +98,6 @@ export default class EncryptionCard extends Component<ComponentAttrs> {
           </div>
         )}
 
-        {/* Private key absent. */}
         {s.has_public_key && !s.private_key_present && (
           <div className="Alert Alert--error EncryptionCard-msg">
             <strong>{trans('status.private_missing_title')}</strong>

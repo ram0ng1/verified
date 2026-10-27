@@ -40,33 +40,27 @@ export interface TierMeta {
   color: string;
 }
 
-/** One JSON:API resource object as returned by `/verified/approved-users`. */
 interface ApprovedUserResource {
   type: string;
   id: string;
   attributes: Omit<ApprovedUserRow, 'id'>;
 }
 
-/**
- * Owns the paginated, searchable, tier-filterable list of approved /
- * auto-verified users. Talks to the `/verified/approved-users` endpoint.
- * These rows are a virtual aggregate with no model of their own, so the
- * endpoint is a classic controller — but its payload follows the JSON:API
- * envelope (`data` is `{type, id, attributes}[]`, `meta` carries the rest).
- */
+// As linhas são um agregado sem model próprio, então não passam pelo store:
+// o payload só segue o envelope JSON:API.
 export default class ApprovedUsersState {
   loading: boolean = false;
   rows: ApprovedUserRow[] = [];
   total: number = 0;
   offset: number = 0;
   query: string = '';
-  /** Empty string = no filter. Otherwise the tier id. */
+  // Vazio significa sem filtro.
   tierFilter: string = '';
   tiers: TierMeta[] = [];
   busy: Record<string, boolean> = {};
 
   private _searchTimer: ReturnType<typeof setTimeout> | null = null;
-  /** Sequence of `load()` calls: a slower, older response must not win. */
+  // Uma resposta mais antiga e mais lenta não pode sobrescrever a atual.
   private _loadSeq = 0;
 
   async load(): Promise<void> {
@@ -107,10 +101,6 @@ export default class ApprovedUsersState {
     m.redraw();
   }
 
-  /**
-   * Update the search query and debounce a reload. Resets pagination so the
-   * user always sees results from the first page on a new search.
-   */
   setSearch(value: string): void {
     this.query = value;
     this.offset = 0;
@@ -138,11 +128,7 @@ export default class ApprovedUsersState {
     return this.tiers.find((t) => t.id === tierId) || null;
   }
 
-  /**
-   * Revoke a user's verification from the approved-users tab. Returns true
-   * on success — callers should also refresh the requests state, since the
-   * matching request row's status flips alongside.
-   */
+  // Quem chama também recarrega os pedidos: o pedido correspondente muda de status.
   async revokeUser(row: ApprovedUserRow): Promise<boolean> {
     const result = await verificationPrompt({
       title: trans('revoke_button'),

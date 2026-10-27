@@ -8,11 +8,6 @@ export interface DocumentTypeRow {
   label: string;
 }
 
-/**
- * Owns the configurable list of accepted document types
- * (stored as a JSON-encoded array under the `ramon-verified.document_types`
- * setting key).
- */
 export default class DocumentTypesState {
   types: DocumentTypeRow[] = [];
 

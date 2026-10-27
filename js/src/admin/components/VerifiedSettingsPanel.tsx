@@ -31,13 +31,6 @@ const TAB_DEFS: Array<{ id: PanelTab; icon: string; trans: string }> = [
   { id: 'requests', icon: 'fas fa-inbox', trans: 'tabs.requests' },
 ];
 
-/**
- * Single-column, card-based admin panel for the Verified extension.
- *
- * Holds three tabs (general / tiers / requests) and delegates the inputs to
- * dedicated sub-components — every textbox and toggle on the page auto-saves
- * to the standard `/api/settings` endpoint, so there's no submit button.
- */
 export default class VerifiedSettingsPanel extends Component<ComponentAttrs> {
   protected currentTab: PanelTab = 'general';
   protected settingsState!: VerifiedSettingsState;
@@ -96,7 +89,6 @@ export default class VerifiedSettingsPanel extends Component<ComponentAttrs> {
       return <div className="VerifiedAdmin-tabContent">{this.requestsCard()}</div>;
     }
 
-    // General tab
     const requireDoc = getBool('ramon-verified.require_document');
     return (
       <div className="VerifiedAdmin-tabContent">
@@ -117,8 +109,6 @@ export default class VerifiedSettingsPanel extends Component<ComponentAttrs> {
       </header>
     );
   }
-
-  // ---- Preview card ------------------------------------------------------
 
   previewCard(): Mithril.Children {
     const sizeRaw = parseFloat(getStr('ramon-verified.badge_size'));
@@ -195,14 +185,8 @@ export default class VerifiedSettingsPanel extends Component<ComponentAttrs> {
     );
   }
 
-  // ---- Appearance card ---------------------------------------------------
-
   appearanceCard(): Mithril.Children {
     const path = getStr('ramon-verified.badge_svg_path');
-
-    // The "custom color" toggle and color-picker were removed — colors live
-    // per-tier now (Admin → Tiers → [tier] → Color), so a global color
-    // override would just compete with whatever each tier's user has chosen.
 
     return (
       <section className="VerifiedAdmin-card">
@@ -248,8 +232,6 @@ export default class VerifiedSettingsPanel extends Component<ComponentAttrs> {
       </div>
     );
   }
-
-  // ---- Behaviour card ----------------------------------------------------
 
   behaviourCard(): Mithril.Children {
     return (
@@ -323,8 +305,6 @@ export default class VerifiedSettingsPanel extends Component<ComponentAttrs> {
     );
   }
 
-  // ---- Document types card ----------------------------------------------
-
   documentTypesCard(): Mithril.Children {
     return (
       <section className="VerifiedAdmin-card">
@@ -337,8 +317,6 @@ export default class VerifiedSettingsPanel extends Component<ComponentAttrs> {
       </section>
     );
   }
-
-  // ---- Requests card -----------------------------------------------------
 
   requestsCard(): Mithril.Children {
     return (

@@ -4,11 +4,9 @@ import LoadingIndicator from 'flarum/common/components/LoadingIndicator';
 import type Mithril from 'mithril';
 
 export interface DocumentPreviewModalAttrs extends IInternalModalAttrs {
-  /** Download URL: `/api/verified/documents/{id}` */
   url: string;
-  /** Original filename or stored token (used to detect type). */
+  // O tipo do arquivo é deduzido daqui quando existe.
   filename?: string | null;
-  /** Human-readable document type label. */
   typeLabel?: string | null;
 }
 
@@ -24,11 +22,6 @@ function detectExtension(url: string | undefined, filename: string | undefined |
   return stripped.slice(dotIdx + 1).toLowerCase();
 }
 
-/**
- * Inline preview for a verification document (image or PDF). Replaces the
- * old "open in new tab" link with a contained modal so reviewing happens
- * in-place without context-switching the admin's tabs.
- */
 export default class DocumentPreviewModal extends Modal<DocumentPreviewModalAttrs> {
   protected imageLoaded: boolean = false;
   protected imageError: boolean = false;

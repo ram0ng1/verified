@@ -1,21 +1,3 @@
-/**
- * Verified-badge SVG resolution.
- *
- * Order de prioridade:
- *  1. Tier customizado: quando o tier do usuário tem `badgeEnabled=true`
- *     com um `badgeSvg` válido, o SVG do tier vence todos os fallbacks.
- *     Sanitização foi feita server-side em `TierConfig::parse`; aqui
- *     ainda revalidamos antes do `m.trust` (defesa em profundidade).
- *  2. Custom SVG global em `ramonVerifiedBadgeSvgContent`. Inlined se
- *     pequeno (cap em `UploadBadgeSvgController::INLINE_SVG_THRESHOLD`).
- *  3. Custom SVG global em `ramonVerifiedBadgeSvgPath` — fetch assíncrono
- *     com cache em sessionStorage para SVGs maiores.
- *  4. Default Twitter-style verified mark.
- *
- * O fill é reescrito para `currentColor`, então a cor do CSS sobre o
- * elemento pai pilota o resultado visual.
- */
-
 import app from 'flarum/common/app';
 
 import type { VerifiedTier } from './tiers';
@@ -33,13 +15,8 @@ const DEFAULT_VERIFIED_SVG: string =
 let cachedCustomSvg: string | null = null;
 let cachedFromAttribute: string | null = null;
 
-/**
- * LRU bounded em ~32 entradas. No forum o map estaciona em ≤ N_tiers
- * (configurado pelo admin, na prática 3-8). No painel admin do TiersEditor
- * cada redraw alimenta o cache com SVG cru não-persistido — sem o cap, a
- * sessão admin de horas cresceria sem teto. 32 é folga
- * confortável para qualquer setup razoável.
- */
+// No fórum bastam poucas entradas, mas no TiersEditor cada edição gera um SVG
+// novo e o cache cresceria sem limite.
 const TIER_BADGE_CACHE_LIMIT = 32;
 const tierBadgeCache = new Map<string, string | null>();
 
@@ -53,7 +30,6 @@ function rememberTierBadge(raw: string, clean: string | null): void {
   tierBadgeCache.set(raw, clean);
 }
 
-// State for the async URL-fetch path.
 let cachedFetchedSvg: string | null = null;
 let cachedFetchedFromUrl: string | null = null;
 let inflightFetchUrl: string | null = null;
@@ -83,12 +59,8 @@ export function resolveAssetUrl(assetPath: string | null | undefined): string | 
   return base.replace(/\/+$/, '') + '/' + normalisePath(assetPath);
 }
 
-/**
- * Aplica cada regex em loop até a string parar de mudar. Necessário porque
- * uma única passada pode deixar fragmentos que se recombinam (ex.:
- * `<<!--!-->!--X-->` vira `<!--X-->` após a primeira remoção). Loop até
- * fixed-point garante remoção completa.
- */
+// Uma passada só pode deixar pedaços que se recombinam:
+// `<<!--!-->!--X-->` vira `<!--X-->`.
 function stripUntilStable(input: string, patterns: RegExp[]): string {
   let previous: string;
   let current = input;
@@ -101,18 +73,9 @@ function stripUntilStable(input: string, patterns: RegExp[]): string {
   return current;
 }
 
-/**
- * Defensive sanitiser. The backend already strips scripts and event
- * handlers on upload, but we re-validate before injecting via `m.trust`
- * so a tampered settings row can't smuggle XSS through the frontend.
- *
- * `<!DOCTYPE>` e `<!ENTITY>` são removidos via regex antes do parse —
- * SVGs reais (Inkscape/Illustrator) sempre carregam DOCTYPE no header.
- * Rejeitar quebraria 90 % dos uploads. Como o DOMParser não expande
- * entidades externas e não pedimos `LIBXML_NOENT` no servidor, removê-las
- * inteiramente é equivalente a "rejeitar tudo que tenta abrir entidade"
- * sem o falso positivo.
- */
+// O servidor já sanitiza no upload; repetir antes do m.trust impede que uma
+// setting adulterada leve XSS ao frontend. DOCTYPE e ENTITY são removidos em
+// vez de rejeitados porque quase todo SVG exportado traz DOCTYPE.
 export function sanitizeSvg(raw: unknown): string | null {
   if (typeof raw !== 'string') return null;
   let trimmed = raw.trim();
@@ -125,11 +88,10 @@ export function sanitizeSvg(raw: unknown): string | null {
 
   if (!/^<svg[\s>]/i.test(trimmed)) return null;
   if (/<\s*script\b/i.test(trimmed)) return null;
-  // Processing instructions have no place in a badge. Inserted through
-  // innerHTML, `<?x >` becomes a bogus comment that ends at the first `>`,
-  // so whatever follows it escapes SVG foreign content.
+  // Via innerHTML, `<?x >` vira um comentário que termina no primeiro `>`,
+  // e o que vem depois escapa do conteúdo SVG.
   if (/<\?/.test(trimmed)) return null;
-  // `/` separates attributes as well as whitespace does (`<img/onerror=…>`).
+  // `/` separa atributos tanto quanto o espaço (`<img/onerror=…>`).
   if (/[\s/]on\w+\s*=/i.test(trimmed)) return null;
   if (/javascript:/i.test(trimmed)) return null;
 
@@ -161,16 +123,15 @@ export function sanitizeSvg(raw: unknown): string | null {
       'symbol',
     ]);
 
-    // SHOW_ALL, not SHOW_ELEMENT: processing instructions, comments and
-    // CDATA sections must be visited too, or XMLSerializer writes them back
-    // out untouched.
+    // SHOW_ALL, não SHOW_ELEMENT: senão o XMLSerializer devolve intactos
+    // comentários, CDATA e processing instructions.
     const walker = doc.createTreeWalker(root, 0xffffffff);
     const toRemove: Node[] = [];
     let node: Node | null = walker.currentNode;
     while (node) {
       const name = node.nodeName.toLowerCase();
       if (node.nodeType === 3) {
-        // Text is fine.
+        // Texto é inofensivo.
       } else if (node.nodeType !== 1 || !ALLOWED.has(name)) {
         toRemove.push(node);
       } else {
@@ -180,8 +141,7 @@ export function sanitizeSvg(raw: unknown): string | null {
           if (an.startsWith('on')) {
             el.removeAttribute(attr.name);
           } else if (an === 'href' || an.endsWith(':href')) {
-            // Only same-document references (`#id`): a badge never needs
-            // to load anything from elsewhere.
+            // Só referências internas (`#id`): um badge nunca carrega nada de fora.
             if (!/^#[\w.:-]*$/.test(attr.value.trim())) {
               el.removeAttributeNode(attr);
             }
@@ -200,12 +160,8 @@ export function sanitizeSvg(raw: unknown): string | null {
   }
 }
 
-/**
- * Espelha `UploadBadgeSvgController::replaceFillsWithCurrentColor` no
- * cliente: reescreve `fill` (exceto `none`/`transparent`/branco-ish) para
- * `currentColor` e remove `fill:` de `style` inline. Sem isso, o preview
- * do admin não herda a cor do tier antes do save.
- */
+// Espelha UploadBadgeSvgController::replaceFillsWithCurrentColor; sem isso o
+// preview do admin não herda a cor do tier antes do save.
 function rewriteFillToCurrentColor(el: Element): void {
   if (el.hasAttribute('fill')) {
     const v = (el.getAttribute('fill') || '').trim().toLowerCase();
@@ -230,15 +186,9 @@ function rewriteFillToCurrentColor(el: Element): void {
   }
 }
 
-/**
- * Read a setting in a context-agnostic way:
- * - Forum context: settings serialised via `Extend\Settings::serializeToForum`
- *   live on `app.forum.attribute(<camelCaseAlias>)`.
- * - Admin context: every setting is exposed as `app.data.settings[<dottedKey>]`.
- */
 function readSetting(forumAttr: string, adminKey: string): unknown {
-  // Admin primeiro: o payload do fórum também existe no admin, mas é o do
-  // carregamento da página e não acompanha o que se acabou de salvar.
+  // Admin primeiro: o payload do fórum também existe no admin, mas não
+  // acompanha o que acabou de ser salvo.
   const settings = (app as unknown as { data?: { settings?: Record<string, unknown> } }).data?.settings;
   if (settings && adminKey in settings) return settings[adminKey];
 
@@ -246,11 +196,6 @@ function readSetting(forumAttr: string, adminKey: string): unknown {
   return v ?? undefined;
 }
 
-/**
- * Hydrate the URL-fetch cache from sessionStorage on first call. This
- * means a forum-wide navigation reusing the same custom SVG only pays
- * the fetch on the very first page load of the session.
- */
 function loadSessionCache(): void {
   if (cachedFetchedSvg !== null || cachedFetchedFromUrl !== null) return;
   try {
@@ -263,7 +208,7 @@ function loadSessionCache(): void {
       cachedFetchedSvg = parsed.svg;
     }
   } catch (e) {
-    // ignore
+    // ignorado
   }
 }
 
@@ -272,17 +217,10 @@ function saveSessionCache(url: string, svg: string): void {
     if (typeof sessionStorage === 'undefined') return;
     sessionStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify({ url, svg }));
   } catch (e) {
-    // QuotaExceededError, private mode, etc — silent fail; in-memory
-    // cache still works for the rest of the session.
+    // Cota cheia ou modo privado: o cache em memória continua valendo.
   }
 }
 
-/**
- * Kick off an async fetch of the custom SVG at `url`. Resolves the
- * cached, sanitised content into module state and triggers a Mithril
- * redraw so live components pick it up. Idempotent — concurrent calls
- * for the same URL coalesce.
- */
 function fetchCustomSvg(url: string): void {
   if (cachedFetchedFromUrl === url && cachedFetchedSvg !== null) return;
   if (inflightFetchUrl === url) return;
@@ -304,16 +242,14 @@ function fetchCustomSvg(url: string): void {
     .then((response) => {
       if (!response.ok) return null;
       const contentLength = response.headers.get('Content-Length');
-      // 256 KB ceiling matches the server-side upload cap. A misbehaving
-      // asset URL handing back a megabyte stream gets short-circuited
-      // BEFORE we buffer the body.
+      // Mesmo limite do upload no servidor, checado antes de ler o corpo.
       if (contentLength && parseInt(contentLength, 10) > 256 * 1024) return null;
       return response.text();
     })
     .then((raw) => {
       inflightFetchUrl = null;
       if (raw === null) return;
-      // Hard cap on body size even when Content-Length is missing.
+      // Content-Length pode faltar.
       if (raw.length > 256 * 1024) return;
       const clean = sanitizeSvg(raw);
       if (!clean) return;
@@ -325,7 +261,7 @@ function fetchCustomSvg(url: string): void {
           m.redraw();
         }
       } catch (e) {
-        // ignore
+        // ignorado
       }
     })
     .catch(() => {
@@ -333,11 +269,6 @@ function fetchCustomSvg(url: string): void {
     });
 }
 
-/**
- * SVG do tier quando o tier tem badge customizado opt-in. O cache keyado
- * pelo SVG cru evita re-sanitizar a cada render — relevante em listagens
- * com muitos avatares verificados.
- */
 function getTierBadgeSvg(tier: VerifiedTier | null | undefined): string | null {
   if (!tier || !tier.badgeEnabled) return null;
   const raw = tier.badgeSvg;
@@ -354,11 +285,7 @@ function getTierBadgeSvg(tier: VerifiedTier | null | undefined): string | null {
   return clean;
 }
 
-/**
- * SVG do badge para render imediato. Aceita um tier opcional — quando o
- * tier tem badge customizado, vence o resolvedor global; sem isso,
- * resolve via setting global → URL → default.
- */
+// Prioridade: SVG do tier, SVG global inline, SVG global por URL, padrão.
 export default function getBadgeSvg(tier?: VerifiedTier | null | undefined): string {
   const tierSvg = getTierBadgeSvg(tier);
   if (tierSvg) return tierSvg;
@@ -376,10 +303,7 @@ export default function getBadgeSvg(tier?: VerifiedTier | null | undefined): str
       cachedFromAttribute = null;
     }
 
-    // No inline content available — try the URL-fetched cache. This
-    // covers the audit H-SVG case where a large custom SVG was uploaded
-    // but stripped from the forum payload; the file URL is still
-    // serialised via `ramonVerifiedBadgeSvgPath`.
+    // SVG grande demais não vai inline no payload, só a URL do arquivo.
     const pathRaw = readSetting('ramonVerifiedBadgeSvgPath', 'ramon-verified.badge_svg_path');
     if (typeof pathRaw === 'string' && pathRaw.trim()) {
       const url = resolveAssetUrl(pathRaw);
@@ -388,12 +312,11 @@ export default function getBadgeSvg(tier?: VerifiedTier | null | undefined): str
         if (cachedFetchedFromUrl === url && cachedFetchedSvg) {
           return cachedFetchedSvg;
         }
-        // Trigger a background fetch on the first render that needs it.
         fetchCustomSvg(url);
       }
     }
   } catch (e) {
-    // ignore
+    // ignorado
   }
 
   return DEFAULT_VERIFIED_SVG;
@@ -408,7 +331,7 @@ export function getBadgeSize(): string {
       return clamped.toFixed(2) + 'em';
     }
   } catch (e) {
-    // ignore
+    // ignorado
   }
   return '1.2em';
 }

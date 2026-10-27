@@ -36,16 +36,10 @@ function emptyRow(): TierRow {
   };
 }
 
-/**
- * Owns the tier-list state for the admin Tiers tab. Handles parsing the
- * stored JSON setting, debounced auto-save, and the row-level mutations
- * (add / remove / update / toggle group). The component is purely
- * presentational against this state.
- */
 export default class TiersEditorState {
   rows: TierRow[] = [];
   expandedIdx: number | null = null;
-  /** Cached, sorted, non-guest group list. Read once in the constructor — admin groups don't change while the panel is mounted. */
+  // Lido uma vez: os grupos não mudam enquanto o painel está aberto.
   readonly groups: Group[];
 
   private _flushTimer: ReturnType<typeof setTimeout> | null = null;
@@ -104,18 +98,13 @@ export default class TiersEditorState {
     );
   }
 
-  /**
-   * Trim and auto-prepend `https://` when the admin types a URL without a
-   * protocol. The backend `TierConfig` regex only accepts http/https URLs,
-   * so silently dropping bare hostnames was a sharp edge — admins typed
-   * `policy.example.com` and the link disappeared on save with no feedback.
-   */
+  // O servidor só aceita http/https e descartaria em silêncio um domínio
+  // digitado sem protocolo.
   normaliseUrl(raw: string): string {
     const trimmed = (raw || '').trim();
     if (!trimmed) return '';
     if (/^https?:\/\//i.test(trimmed)) return trimmed;
-    // If it already has another scheme (mailto:, ftp:, …) leave it alone —
-    // it'll be rejected server-side, but we shouldn't silently rewrite it.
+    // Outro esquema (mailto:, ftp:) o servidor rejeita; não é reescrito aqui.
     if (/^[a-z][a-z0-9+.-]*:/i.test(trimmed)) return trimmed;
     return 'https://' + trimmed;
   }
