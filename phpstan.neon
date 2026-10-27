@@ -1,20 +1,18 @@
 includes:
-    # Achados pré-existentes (relações/estáticos mágicos do Flarum) ficam
-    # congelados aqui para a CI ficar verde e o código NOVO continuar sendo
-    # cobrado no nível 6. Aperte o baseline com o tempo.
-    - phpstan-baseline.neon
+    - vendor/flarum/phpstan/extension.neon
 
 parameters:
     level: 6
     paths:
-        - src
         - extend.php
+        - src
+        - migrations
+    excludePaths:
+        analyse:
+            - *.blade.php
     # Declara as classes da integração opcional ramon/audit (não é dependência
     # composer, então a CI não a autoloada). Só símbolos, não é analisado.
     scanFiles:
         - stubs/ramon-audit.php
-    # A CI resolve flarum/core via `composer update`, então um achado
-    # baselinado pode não reproduzir em toda célula. Não falhe quando uma
-    # entrada congelada ficar sem uso.
-    reportUnmatchedIgnoredErrors: false
+    databaseMigrationsPath: ['migrations']
     treatPhpDocTypesAsCertain: false

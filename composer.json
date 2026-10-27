@@ -9,6 +9,7 @@
     ],
     "type": "flarum-extension",
     "license": "MIT",
+    "homepage": "https://github.com/ram0ng1/verified",
     "authors": [
         {
             "name": "Ramon Guilherme",
@@ -17,18 +18,35 @@
             "role": "Developer"
         }
     ],
+    "support": {
+        "issues": "https://github.com/ram0ng1/verified/issues",
+        "source": "https://github.com/ram0ng1/verified"
+    },
+    "funding": [
+        {
+            "type": "website",
+            "url": "https://donate.stripe.com/fZe5o66nebkf39S28a"
+        }
+    ],
     "require": {
         "php": "^8.3",
+        "ext-dom": "*",
+        "ext-fileinfo": "*",
         "flarum/core": "^2.0.0"
     },
     "require-dev": {
-        "roave/security-advisories": "dev-latest",
-        "phpstan/phpstan": "^2.0",
         "flarum/gdpr": "^2.0",
+        "flarum/phpstan": "^2.0",
+        "flarum/testing": "^2.0",
+        "phpstan/phpstan": "^2.1",
+        "phpunit/phpunit": "^11.5 || ^12.5.22 || ^13.2.0",
+        "roave/security-advisories": "dev-latest",
         "vimeo/psalm": "^6.0"
     },
     "suggest": {
-        "flarum/gdpr": "Required for data-export, anonymization and erasure integration (^2.0)."
+        "ext-sodium": "Required to encrypt identity documents at rest (Admin → Document encryption).",
+        "flarum/gdpr": "Data export, anonymization and erasure of verification documents.",
+        "flarum/nicknames": "Shows the nickname next to the username in the verified popover."
     },
     "autoload": {
         "psr-4": {
@@ -43,12 +61,51 @@
                 "image": "icon.svg",
                 "backgroundColor": "#fff",
                 "color": "#fff"
+            },
+            "optional-dependencies": [
+                "flarum/gdpr",
+                "flarum/nicknames"
+            ]
+        },
+        "flarum-cli": {
+            "modules": {
+                "admin": true,
+                "forum": true,
+                "js": true,
+                "jsCommon": true,
+                "css": true,
+                "locale": true,
+                "typescript": true,
+                "backendTesting": true
             }
         }
     },
-    "minimum-stability": "dev",
-    "prefer-stable": true,
     "scripts": {
-        "analyse": "phpstan analyse"
-    }
+        "analyse:phpstan": "phpstan analyse --memory-limit=2G",
+        "clear-cache:phpstan": "phpstan clear-result-cache",
+        "test": [
+            "@test:unit",
+            "@test:integration"
+        ],
+        "test:unit": "phpunit -c tests/phpunit.unit.xml",
+        "test:integration": [
+            "Composer\\Config::disableProcessTimeout",
+            "phpunit -c tests/phpunit.integration.xml"
+        ],
+        "test:setup": "@php tests/integration/setup.php"
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "Ramon\\Verified\\Tests\\": "tests/"
+        }
+    },
+    "scripts-descriptions": {
+        "analyse:phpstan": "Run static analysis",
+        "test": "Runs all tests.",
+        "test:unit": "Runs all unit tests.",
+        "test:integration": "Runs all integration tests.",
+        "test:setup": "Sets up a database for use with integration tests. Execute this only once."
+    },
+    "minimum-stability": "dev",
+    "prefer-stable": true
 }
