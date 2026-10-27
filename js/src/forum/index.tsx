@@ -1,6 +1,5 @@
 import app from "flarum/forum/app";
 
-import installGlobalErrorHandler from "../common/utils/installGlobalErrorHandler";
 import addBadgeToUserCard from "./addBadgeToUserCard";
 import addBadgeToCommentPost from "./addBadgeToCommentPost";
 import addVerificationRequestButton from "./addVerificationRequestButton";
@@ -17,8 +16,6 @@ export { default as extend } from "./extend";
 app.initializers.add(
   "ramon-verified",
   () => {
-    installGlobalErrorHandler();
-
     addBadgeToUserCard();
     addBadgeToCommentPost();
     addVerificationRequestButton();

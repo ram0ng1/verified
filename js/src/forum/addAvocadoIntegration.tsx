@@ -24,6 +24,10 @@ import { findVnodeByClass, makeVerifiedVnode } from "./utils/vnodeTree";
  *                          core UserPage (avocado leaves these alone)
  */
 export default function addAvocadoIntegration(): void {
+  // Sem o tema, nada disto existe; evita varrer a árvore do UserPage a cada
+  // redesenho procurando o hero do Avocado.
+  if (!("ramon-avocado" in flarum.extensions)) return;
+
   // ── Profile hero on core-derived UserPage subclasses (Settings, Security) ──
   override(
     "flarum/forum/components/UserPage",

@@ -128,6 +128,7 @@ export default class VerificationRequestsState {
           app.forum.attribute("apiUrl") +
           "/verification-requests?" +
           params.toString(),
+        errorHandler: () => {},
       });
 
       app.store.pushPayload(payload);

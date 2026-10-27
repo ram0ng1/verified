@@ -10,6 +10,7 @@
  * the same in every frontend code path.
  */
 
+import app from "flarum/common/app";
 import type User from "flarum/common/models/User";
 
 export interface VerifiedTier {
@@ -51,37 +52,34 @@ function memoised(raw: unknown, compute: () => VerifiedTier[]): VerifiedTier[] {
 
 export function getConfiguredTiers(): VerifiedTier[] {
   try {
-    if (typeof app !== "undefined") {
-      // Forum side: parsed list comes through as an array.
-      if (app.forum && typeof app.forum.attribute === "function") {
-        const v = app.forum.attribute("ramonVerifiedTiers");
-        if (Array.isArray(v)) {
-          return memoised(
-            v,
-            () => v.map(normalise).filter(Boolean) as VerifiedTier[],
-          );
-        }
-      }
-
-      // Admin side: settings hold the raw JSON string.
-      const data = (
-        app as unknown as { data?: { settings?: Record<string, unknown> } }
-      ).data;
-      const raw =
-        data && data.settings && data.settings["ramon-verified.tiers"];
-      if (typeof raw === "string" && raw.trim()) {
-        return memoised(raw, () => {
-          try {
-            const parsed = JSON.parse(raw);
-            if (Array.isArray(parsed)) {
-              return parsed.map(normalise).filter(Boolean) as VerifiedTier[];
-            }
-          } catch (e) {
-            warnDev("tier config JSON parse failed", e);
+    // Admin: as settings ao vivo (o JSON cru). Têm de vir antes do payload do
+    // fórum, que o admin também recebe e que só reflete o carregamento da
+    // página: editar os tiers não mudava a lista do modal de aprovação.
+    const settings = (
+      app as unknown as { data?: { settings?: Record<string, unknown> } }
+    ).data?.settings;
+    const raw = settings?.["ramon-verified.tiers"];
+    if (typeof raw === "string" && raw.trim()) {
+      return memoised(raw, () => {
+        try {
+          const parsed = JSON.parse(raw);
+          if (Array.isArray(parsed)) {
+            return parsed.map(normalise).filter(Boolean) as VerifiedTier[];
           }
-          return [];
-        });
-      }
+        } catch (e) {
+          warnDev("tier config JSON parse failed", e);
+        }
+        return [];
+      });
+    }
+
+    // Fórum: a lista já vem parseada no payload.
+    const v = app.forum?.attribute("ramonVerifiedTiers");
+    if (Array.isArray(v)) {
+      return memoised(
+        v,
+        () => v.map(normalise).filter(Boolean) as VerifiedTier[],
+      );
     }
   } catch (e) {
     warnDev("tier config read failed", e);
@@ -96,20 +94,11 @@ export function getConfiguredTiers(): VerifiedTier[] {
  * produção, falhar para `[]` mantém o forum funcional sem encher console.
  */
 function warnDev(msg: string, err: unknown): void {
-  try {
-    if (
-      typeof process !== "undefined" &&
-      process.env &&
-      process.env.NODE_ENV === "production"
-    ) {
-      return;
-    }
-  } catch (_e) {
-    /* `process` undefined em browser puro — segue pro console.warn */
-  }
-  if (typeof console !== "undefined" && console.warn) {
-    console.warn("[verified] " + msg, err);
-  }
+  // O webpack troca `process.env.NODE_ENV` no build; o `typeof process` de
+  // antes virava `"undefined" != typeof process` e o aviso saía em produção.
+  if (process.env.NODE_ENV === "production") return;
+
+  console.warn("[verified] " + msg, err);
 }
 
 /**

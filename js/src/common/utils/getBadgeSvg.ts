@@ -16,6 +16,8 @@
  * elemento pai pilota o resultado visual.
  */
 
+import app from "flarum/common/app";
+
 import type { VerifiedTier } from "./tiers";
 
 const SEAL_PATH =
@@ -243,23 +245,15 @@ function rewriteFillToCurrentColor(el: Element): void {
  * - Admin context: every setting is exposed as `app.data.settings[<dottedKey>]`.
  */
 function readSetting(forumAttr: string, adminKey: string): unknown {
-  try {
-    if (typeof app !== "undefined") {
-      if (app.forum && typeof app.forum.attribute === "function") {
-        const v = app.forum.attribute(forumAttr);
-        if (v !== undefined && v !== null) return v;
-      }
-      const data = (
-        app as unknown as { data?: { settings?: Record<string, unknown> } }
-      ).data;
-      if (data && data.settings && adminKey in data.settings) {
-        return data.settings[adminKey];
-      }
-    }
-  } catch (e) {
-    // ignore
-  }
-  return undefined;
+  // Admin primeiro: o payload do fórum também existe no admin, mas é o do
+  // carregamento da página e não acompanha o que se acabou de salvar.
+  const settings = (
+    app as unknown as { data?: { settings?: Record<string, unknown> } }
+  ).data?.settings;
+  if (settings && adminKey in settings) return settings[adminKey];
+
+  const v = app.forum?.attribute(forumAttr);
+  return v ?? undefined;
 }
 
 /**

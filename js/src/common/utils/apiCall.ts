@@ -36,7 +36,8 @@ export default async function apiCall<T = unknown>(
   opts: ApiCallOptions = {},
 ): Promise<T | null> {
   try {
-    return await app.request<T>(options);
+    // O alerta é deste wrapper; sem o `errorHandler`, o core mostraria outro.
+    return await app.request<T>({ errorHandler: () => {}, ...options });
   } catch (raw) {
     const err = raw as FlarumApiError;
 

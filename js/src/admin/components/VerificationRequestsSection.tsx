@@ -19,6 +19,7 @@ import ApprovedUsersState, {
   ApprovedRequestSummary,
   ApprovedUserRow,
 } from "../states/ApprovedUsersState";
+import { documentTypeLabel } from "../../common/utils/documentTypes";
 import DocumentPreviewModal from "./DocumentPreviewModal";
 
 const TABS: RequestTab[] = ["pending", "approved", "rejected"];
@@ -495,22 +496,7 @@ export default class VerificationRequestsSection extends Component<ComponentAttr
   }
 
   formatDocType(type: string | null | undefined): string {
-    if (!type) return "";
-    const configured = app.forum.attribute<
-      Array<{ id: string; label: string }>
-    >("ramonVerifiedDocumentTypes");
-    if (Array.isArray(configured)) {
-      const match = configured.find((t) => t && t.id === type);
-      if (match) return match.label;
-    }
-    const fallback: Record<string, string> = {
-      rg: "RG",
-      cpf: "CPF",
-      passport: "Passport",
-      driver: "Driver's license",
-      other: "Other",
-    };
-    return fallback[type] || type;
+    return documentTypeLabel(type);
   }
 
   renderItem(req: VerificationRequest): Mithril.Children {

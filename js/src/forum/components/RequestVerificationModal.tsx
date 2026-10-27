@@ -8,30 +8,7 @@ import extractText from "flarum/common/utils/extractText";
 import type Mithril from "mithril";
 import type MithrilStream from "mithril/stream";
 import getBadgeSvg from "../../common/utils/getBadgeSvg";
-
-interface DocumentType {
-  id: string;
-  label: string;
-}
-
-// Fallback list used only when the admin has cleared the configured list
-// or the forum payload doesn't carry one. Mirrors the historical hardcoded
-// defaults so existing forums see no behavioural change.
-const FALLBACK_DOCUMENT_TYPES: DocumentType[] = [
-  { id: "rg", label: "RG" },
-  { id: "cpf", label: "CPF" },
-  { id: "passport", label: "Passport" },
-  { id: "driver", label: "Driver's license" },
-  { id: "other", label: "Other" },
-];
-
-function getDocumentTypes(): DocumentType[] {
-  const fromForum = app.forum.attribute<DocumentType[]>(
-    "ramonVerifiedDocumentTypes",
-  );
-  if (Array.isArray(fromForum) && fromForum.length > 0) return fromForum;
-  return FALLBACK_DOCUMENT_TYPES;
-}
+import { getDocumentTypes } from "../../common/utils/documentTypes";
 
 export default class RequestVerificationModal extends FormModal {
   protected reason!: MithrilStream<string>;
@@ -319,6 +296,8 @@ export default class RequestVerificationModal extends FormModal {
         url: app.forum.attribute("apiUrl") + "/verified/documents",
         serialize: (raw: unknown) => raw,
         body,
+        // O erro aparece no próprio modal.
+        errorHandler: () => {},
       })
       .then((res) => {
         this.uploading = false;

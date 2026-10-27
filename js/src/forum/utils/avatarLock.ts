@@ -46,6 +46,7 @@ export function requestAvatarChange(user: User | null | undefined): void {
         user.id() +
         "/verify",
       body: {},
+      errorHandler: () => {},
     })
     .then((res) => {
       if (res && res.data && res.data.attributes) {

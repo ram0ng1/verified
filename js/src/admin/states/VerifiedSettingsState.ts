@@ -42,7 +42,7 @@ export default class VerifiedSettingsState {
 
     if (this._sizeTimer) clearTimeout(this._sizeTimer);
     this._sizeTimer = setTimeout(
-      () => saveSetting({ [SIZE_KEY]: clamped }),
+      () => saveSetting({ [SIZE_KEY]: clamped }).catch(() => {}),
       FLUSH_DEBOUNCE_MS,
     );
 
@@ -58,7 +58,8 @@ export default class VerifiedSettingsState {
 
     if (this._retentionDaysTimer) clearTimeout(this._retentionDaysTimer);
     this._retentionDaysTimer = setTimeout(
-      () => saveSetting({ [RETENTION_DAYS_KEY]: String(clamped) }),
+      () =>
+        saveSetting({ [RETENTION_DAYS_KEY]: String(clamped) }).catch(() => {}),
       FLUSH_DEBOUNCE_MS,
     );
 
@@ -71,8 +72,12 @@ export default class VerifiedSettingsState {
     )
       ? (mode as RetentionMode)
       : "keep";
+    const previous = settings()[RETENTION_KEY];
     settings()[RETENTION_KEY] = next;
-    saveSetting({ [RETENTION_KEY]: next });
+    saveSetting({ [RETENTION_KEY]: next }).catch(() => {
+      settings()[RETENTION_KEY] = previous;
+      m.redraw();
+    });
     m.redraw();
   }
 

@@ -133,7 +133,7 @@ export default class TiersEditorState {
   flushNow(): void {
     const raw = this.serialize();
     settings()[SETTING_KEY] = raw;
-    saveSetting({ [SETTING_KEY]: raw });
+    saveSetting({ [SETTING_KEY]: raw }).catch(() => {});
   }
 
   flushSoon(): void {

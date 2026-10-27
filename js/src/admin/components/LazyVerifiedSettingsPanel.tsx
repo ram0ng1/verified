@@ -16,10 +16,15 @@ export default class LazyVerifiedSettingsPanel extends Component {
     super.oninit(vnode);
 
     if (!Panel && !pending) {
-      pending = import("./VerifiedSettingsPanel").then((mod) => {
-        Panel = mod.default;
-        m.redraw();
-      });
+      pending = import("./VerifiedSettingsPanel")
+        .then((mod) => {
+          Panel = mod.default;
+          m.redraw();
+        })
+        .catch(() => {
+          // Chunk que falhou (deploy no meio, rede): a próxima visita tenta de novo.
+          pending = null;
+        });
     }
   }
 
