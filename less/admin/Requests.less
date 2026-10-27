@@ -1,0 +1,538 @@
+// ── Requests panel ──────────────────────────────────────────────────────────
+.VerifiedRequests {
+  > .VerifiedAdmin-cardHeader {
+    padding: 22px 24px 16px;
+    margin-bottom: 0;
+  }
+}
+
+.VerifiedRequests-tabs {
+  display: flex;
+  border-top: 1px solid var(--control-bg);
+  border-bottom: 1px solid var(--control-bg);
+  background: fade(#000, 1.5%);
+}
+
+.VerifiedRequests-tab {
+  flex: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 12px 16px;
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--muted-color);
+  cursor: pointer;
+  transition: color 0.2s ease, border-color 0.2s ease;
+
+  // Color shift only on hover — the tab's strong signal is the active
+  // bottom border, so hover stays muted to keep the row calm.
+  &:hover {
+    color: var(--text-color);
+  }
+
+  &.is-active {
+    color: var(--primary-color);
+    border-bottom-color: var(--primary-color);
+    background: var(--body-bg);
+  }
+}
+
+.VerifiedRequests-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 20px;
+  height: 18px;
+  padding: 0 6px;
+  border-radius: 9px;
+  background: var(--control-bg);
+  color: var(--muted-color);
+  font-size: 11px;
+  font-weight: 600;
+
+  .is-active & {
+    background: fade(#1d9bf0, 12%);
+    color: var(--primary-color);
+  }
+}
+
+.VerifiedRequests-body {
+  min-height: 120px;
+}
+
+.VerifiedRequests-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 40px 20px;
+  color: var(--muted-color);
+
+  > .icon {
+    font-size: 28px;
+    opacity: 0.4;
+  }
+
+  > span {
+    font-size: 13px;
+  }
+}
+
+.VerifiedRequests-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.VerifiedRequest {
+  display: flex;
+  gap: 16px;
+  padding: 18px 24px;
+  border-bottom: 1px solid var(--control-bg);
+
+  &:last-child {
+    border-bottom: none;
+  }
+
+  &-main {
+    flex: 1;
+    min-width: 0;
+  }
+
+  &-user {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 4px;
+
+    .username {
+      font-weight: 600;
+      font-size: 15px;
+    }
+  }
+
+  &-status {
+    display: inline-flex;
+    align-items: center;
+    padding: 2px 8px;
+    border-radius: 999px;
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    line-height: 16px;
+
+    &--pending {
+      background: fade(#f0a500, 14%);
+      color: #b67800;
+    }
+    &--approved {
+      background: fade(#27ae60, 14%);
+      color: #1f8d4d;
+    }
+    &--rejected {
+      background: fade(#e74c3c, 14%);
+      color: #c0392b;
+    }
+  }
+
+  &-meta {
+    margin: 2px 0 0;
+    font-size: 12px;
+  }
+
+  &-reason {
+    margin: 10px 0 6px;
+    padding: 10px 12px;
+    background: fade(#000, 3%);
+    border-left: 3px solid var(--control-bg);
+    border-radius: 0 6px 6px 0;
+    font-size: 13px;
+    line-height: 1.45;
+    white-space: pre-wrap;
+    word-break: break-word;
+    color: var(--text-color);
+  }
+
+  &-document {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 8px;
+    padding: 6px 12px;
+    background: fade(#000, 3%);
+    border-radius: 6px;
+    font-size: 13px;
+
+    > .icon {
+      color: var(--muted-color);
+    }
+  }
+
+  &-docType {
+    font-weight: 600;
+    text-transform: uppercase;
+    font-size: 11px;
+    letter-spacing: 0.04em;
+  }
+
+  &-docLink {
+    // Rendered as a <button> (opens DocumentPreviewModal). Reset native
+    // button styles so it reads as a link.
+    appearance: none;
+    -webkit-appearance: none;
+    border: 0;
+    background: transparent;
+    padding: 0;
+    cursor: pointer;
+    font: inherit;
+    margin-left: auto;
+    color: var(--primary-color);
+    font-weight: 500;
+    text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+
+    &:hover {
+      text-decoration: underline;
+    }
+
+    .icon {
+      font-size: 11px;
+    }
+  }
+
+  &-note {
+    margin-top: 8px;
+    padding: 8px 10px;
+    background: fade(#000, 2%);
+    border-radius: 6px;
+    font-size: 13px;
+    color: var(--muted-color);
+
+    strong {
+      color: var(--text-color);
+    }
+  }
+
+  &-actions {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    flex-shrink: 0;
+
+    .Button {
+      min-width: 110px;
+      padding: 6px 12px;
+      font-size: 13px;
+
+      .icon {
+        margin-right: 4px;
+        font-size: 11px;
+      }
+    }
+
+    .Button--danger {
+      background: transparent;
+      color: #c0392b;
+      border: 1px solid fade(#c0392b, 30%);
+
+      &:hover {
+        background: fade(#c0392b, 8%);
+      }
+    }
+  }
+}
+
+// Stack actions on narrow screens
+@media (max-width: 720px) {
+  .VerifiedRequest {
+    flex-direction: column;
+
+    &-actions {
+      flex-direction: row;
+      flex-wrap: wrap;
+    }
+  }
+
+}
+
+// ── Approved tab — toolbar / search / pagination ───────────────────────────
+.VerifiedRequests-toolbar {
+  padding: 14px 24px;
+  border-bottom: 1px solid var(--control-bg);
+}
+
+// Sub-tabs for filtering approved users by tier. Lives directly under the
+// search bar — its own row of pill chips, each with a colored dot of the
+// tier color. The "all tiers" entry uses a globe icon.
+.VerifiedRequests-tierFilter {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 12px 24px 0;
+  border-bottom: 1px solid var(--control-bg);
+  padding-bottom: 14px;
+}
+
+.VerifiedRequests-tierChip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border: 1px solid var(--control-bg);
+  border-radius: 999px;
+  background: var(--body-bg);
+  color: var(--muted-color);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s ease;
+
+  .icon {
+    font-size: 11px;
+    margin: 0;
+  }
+
+  &:hover {
+    border-color: var(--tier-color, var(--muted-color));
+    color: var(--text-color);
+  }
+
+  &.is-active {
+    background: var(--tier-color, var(--primary-color));
+    border-color: var(--tier-color, var(--primary-color));
+    color: #fff;
+
+    .VerifiedRequests-tierChipDot {
+      background: rgba(255, 255, 255, 0.85);
+    }
+  }
+}
+
+.VerifiedRequests-tierChipDot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--tier-color, var(--muted-color));
+  flex-shrink: 0;
+}
+
+// Small tier chip rendered inline next to a user's name on each row of
+// the approved list, so admins can scan tiers at a glance.
+.VerifiedRequest-tierChip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: fade(#000, 4%);
+  border: 1px solid fade(#000, 6%);
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--tier-color, var(--text-color));
+  white-space: nowrap;
+}
+
+.VerifiedRequest-tierChipDot {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--tier-color, var(--muted-color));
+  flex-shrink: 0;
+}
+
+// Filled-chip search — no border in idle state, soft tinted background.
+// Native search-input affordances (the browser-injected X clear button,
+// search results decoration) are stripped so they don't collide with our
+// own clear button. Focus deepens to a clean white surface with a primary
+// border ring.
+.VerifiedRequests-search {
+  position: relative;
+  display: flex;
+  align-items: center;
+
+  &-icon {
+    position: absolute;
+    left: 14px;
+    top: 50%;
+    transform: translateY(-50%);
+    // Reset Flarum's `.icon` margin-right (default 5px) — it'd push the
+    // icon's visual centre rightward against the input text, making them
+    // look glued together.
+    margin: 0;
+    width: 14px;
+    height: 14px;
+    line-height: 1;
+    text-align: center;
+    color: var(--muted-color);
+    font-size: 13px;
+    pointer-events: none;
+    z-index: 1;
+  }
+
+  &-input.FormControl {
+    width: 100%;
+    height: 36px;
+    // Extra breathing room on the left so the icon never overlaps the
+    // placeholder / typed text. 14px (icon-left) + 14px (icon-width)
+    // + 12px (gap) = 40px.
+    padding: 0 36px 0 40px;
+    margin: 0;
+    line-height: 36px;
+    border: 1px solid transparent;
+    border-radius: 8px;
+    background: fade(#000, 4.5%);
+    font-size: 13px;
+    color: var(--text-color);
+    box-shadow: none;
+    transition: background 0.18s ease, border-color 0.18s ease;
+    appearance: textfield;
+    -webkit-appearance: textfield;
+
+    // Kill native search artifacts (Chrome/Safari ship their own X).
+    &::-webkit-search-cancel-button,
+    &::-webkit-search-decoration,
+    &::-webkit-search-results-button,
+    &::-webkit-search-results-decoration {
+      -webkit-appearance: none;
+      display: none;
+    }
+
+    &::placeholder {
+      color: var(--muted-color);
+      opacity: 1;
+    }
+
+    &:hover:not(:focus) {
+      background: fade(#000, 6%);
+    }
+
+    &:focus {
+      outline: none;
+      background: var(--body-bg);
+      border-color: fade(#1d9bf0, 50%);
+      box-shadow: 0 0 0 3px fade(#1d9bf0, 12%);
+    }
+  }
+
+  &-clear {
+    position: absolute;
+    right: 6px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 24px;
+    height: 24px;
+    padding: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: transparent;
+    border: 0;
+    border-radius: 4px;
+    color: var(--muted-color);
+    cursor: pointer;
+    z-index: 1;
+    transition: background 0.18s ease, color 0.18s ease;
+
+    &:hover, &:focus {
+      background: fade(#000, 8%);
+      color: var(--text-color);
+    }
+
+    .icon {
+      font-size: 11px;
+      margin: 0;
+    }
+  }
+}
+
+.VerifiedRequests-list.is-refreshing {
+  opacity: 0.6;
+  pointer-events: none;
+  transition: opacity 0.12s;
+}
+
+.VerifiedRequests-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 24px;
+  border-top: 1px solid var(--control-bg);
+
+  &-info {
+    font-size: 12px;
+    color: var(--muted-color);
+    text-align: center;
+    flex: 1;
+  }
+
+  &-btn.Button {
+    min-width: 0;
+    padding: 6px 10px;
+    font-size: 13px;
+    color: var(--muted-color);
+    background: transparent;
+    border: 0;
+    transition: color 0.2s ease, background 0.2s ease;
+
+    // Color shift only — no fill bump.
+    &:hover:not(:disabled) {
+      color: var(--text-color);
+      background: transparent;
+    }
+
+    &:disabled {
+      color: var(--muted-color);
+      opacity: 0.4;
+    }
+
+    .icon {
+      font-size: 11px;
+      margin: 0 4px;
+    }
+  }
+}
+
+// ── Auto-verified user row ─────────────────────────────────────────────────
+.VerifiedRequest-status--auto {
+  background: fade(#1d9bf0, 12%);
+  color: var(--primary-color);
+}
+
+.VerifiedRequest-autoNotice {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 6px;
+  padding: 6px 10px;
+  background: fade(#000, 2.5%);
+  border-radius: 6px;
+  font-size: 12px;
+  color: var(--muted-color);
+
+  > .icon {
+    font-size: 11px;
+    color: var(--primary-color);
+  }
+}
+
+.VerifiedRequest-autoHint {
+  font-size: 12px;
+  font-style: italic;
+  color: var(--muted-color);
+  text-align: right;
+  max-width: 140px;
+  align-self: center;
+}

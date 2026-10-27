@@ -1,8 +1,8 @@
 name: CI
 
 # Mesmo CI do tema Canela, ajustado ao Verified: PHP (testes unitários, lint,
-# PHPStan, auditoria) numa matriz de versões e do flarum/core, JS (Prettier,
-# TypeScript, build) e paridade das traduções. Os testes de integração (MySQL,
+# PHPStan, auditoria) numa matriz de versões e do flarum/core, auditoria do
+# npm e paridade das traduções. Os testes de integração (MySQL,
 # MariaDB, PostgreSQL e SQLite) ficam no backend.yml, o workflow do core/FoF.
 on:
   push:
@@ -109,8 +109,10 @@ jobs:
         if: matrix.php == '8.3' && matrix.flarum-core == '^2.0.0'
         run: composer analyse:phpstan
 
+  # Formatação, tipos e build ficam no frontend.yml (o workflow do core);
+  # aqui só a auditoria das dependências JS.
   js:
-    name: JS (formatação, tipos, build)
+    name: npm audit
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -123,46 +125,12 @@ jobs:
       - name: Checkout
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7.0.0
 
-      # O tsconfig lê os typings do core em ../vendor/flarum/core/js/dist-typings.
-      - name: Setup PHP
-        uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240  # v2
-        with:
-          php-version: '8.3'
-          coverage: none
-          tools: composer:v2
-
-      - name: Cache do composer
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
-        with:
-          path: ~/.cache/composer
-          key: composer-${{ runner.os }}-${{ hashFiles('composer.json') }}
-          restore-keys: composer-${{ runner.os }}-
-
-      - name: Dependências PHP (para os typings do core)
-        run: composer update --no-interaction --no-progress --prefer-dist --no-scripts
-
       - name: Setup Node.js
         uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e  # v6.4.0
         with:
           node-version: 20
           cache: 'npm'
           cache-dependency-path: js/package-lock.json
-
-      - name: Dependências JS
-        working-directory: js
-        run: npm ci
-
-      - name: Formatação (Prettier)
-        working-directory: js
-        run: npm run format-check
-
-      - name: Tipos (TypeScript)
-        working-directory: js
-        run: npm run check-typings
-
-      - name: Build (webpack production)
-        working-directory: js
-        run: node_modules/.bin/webpack --mode production
 
       # Todo o node_modules é de build: o pacote publicado é js/dist/*.js.
       # Bloqueia só o que chegaria à produção; o resto fica visível no log.

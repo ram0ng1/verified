@@ -1,0 +1,746 @@
+// ── Tiers tab ──────────────────────────────────────────────────────────────
+.VerifiedTiers {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+
+  &-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  &-add {
+    align-self: flex-start;
+    margin-top: 4px;
+
+    .icon {
+      margin-right: 6px;
+    }
+  }
+
+  // Empty state — centered, prominent CTA, no list noise.
+  &--empty {
+    align-items: center;
+    text-align: center;
+    padding: 48px 24px;
+    background: var(--body-bg);
+    border: 1px dashed var(--control-bg);
+    border-radius: 12px;
+  }
+
+  &-emptyIcon {
+    width: 56px;
+    height: 56px;
+    border-radius: 50%;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--control-bg);
+    color: var(--muted-color);
+    margin-bottom: 14px;
+
+    .icon {
+      font-size: 22px;
+      margin: 0;
+    }
+  }
+
+  &-emptyTitle {
+    margin: 0 0 6px;
+    font-size: 16px;
+    font-weight: 600;
+  }
+
+  &-emptyText {
+    margin: 0 0 18px;
+    color: var(--muted-color);
+    font-size: 13px;
+    max-width: 380px;
+  }
+}
+
+// ── Single tier card ───────────────────────────────────────────────────────
+//
+// Compact when collapsed: swatch | title block | chevron. Expanding adds the
+// edit form below. The accent line on the left is tinted with --tier-color
+// so the eye picks the right tier instantly.
+.VerifiedTier {
+  position: relative;
+  background: var(--body-bg);
+  border: 1px solid var(--control-bg);
+  border-radius: 10px;
+  // Default to overflow:hidden so the colored accent strip on the left
+  // follows the rounded corners of the card. We flip it to `visible` once
+  // the card is expanded — otherwise the live tier-preview popover at the
+  // top of the body gets clipped when the admin hovers the badge.
+  overflow: hidden;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+
+  &::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: 3px;
+    background: var(--tier-color, var(--primary-color));
+  }
+
+  &--expanded {
+    border-color: var(--tier-color, var(--primary-color));
+    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.06);
+    // Let the live tier-preview popover float above the card boundary.
+    overflow: visible;
+  }
+
+  &-header {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    width: 100%;
+    padding: 14px 16px 14px 22px;
+    border: 0;
+    background: transparent;
+    text-align: left;
+    cursor: pointer;
+    color: var(--text-color);
+
+    &:hover {
+      background: fade(#000, 2%);
+    }
+  }
+
+  &-swatch {
+    flex-shrink: 0;
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--tier-color, var(--primary-color));
+    color: #fff;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
+
+    .icon {
+      font-size: 16px;
+      margin: 0;
+    }
+
+    svg {
+      width: 22px;
+      height: 22px;
+      display: block;
+    }
+
+    &--custom {
+      background: transparent;
+      box-shadow: none;
+      color: var(--tier-color, var(--primary-color));
+    }
+  }
+
+  &-titleBlock {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    min-width: 0;
+  }
+
+  &-label {
+    font-size: 15px;
+    font-weight: 600;
+    line-height: 1.2;
+    color: var(--heading-color);
+  }
+
+  &-meta {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    color: var(--muted-color);
+    font-size: 12px;
+  }
+
+  &-id {
+    font-family: SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 11px;
+    padding: 2px 6px;
+    background: var(--control-bg);
+    border-radius: 4px;
+    color: var(--text-color);
+  }
+
+  &-groupsCount,
+  &-linkChip {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+
+    .icon {
+      font-size: 10px;
+      margin: 0;
+    }
+  }
+
+  &-chevron {
+    flex-shrink: 0;
+    color: var(--muted-color);
+
+    .icon {
+      font-size: 12px;
+      margin: 0;
+    }
+  }
+
+  &-body {
+    border-top: 1px solid var(--control-bg);
+    padding: 0 22px 18px 24px;
+    background: fade(#000, 1.2%);
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+  }
+
+  // ── Live preview banner at top of the body ───────────────────────────────
+  //
+  // Renders a real-size sample of the badge using the same `.VerifiedPopover-*`
+  // markup the forum uses, so hovering reveals the actual production popover
+  // for the tier being edited. The CSS scope here only adds layout — the
+  // popover styling itself comes from `badge.less`.
+  &-preview {
+    margin: 16px 0 4px;
+    padding: 14px 16px;
+    background: var(--body-bg);
+    border: 1px dashed var(--control-bg);
+    border-radius: 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    // Allow the popover to extend above the preview block when hovered.
+    overflow: visible;
+  }
+
+  &-previewLine {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 16px;
+    line-height: 1.2;
+    // Same allowance as the body — the popover is positioned above the
+    // badge anchor and would otherwise be clipped.
+    overflow: visible;
+  }
+
+  &-previewName {
+    font-weight: 700;
+    color: var(--heading-color);
+  }
+
+  &-previewMeta {
+    color: var(--muted-color);
+    font-size: 13px;
+    font-weight: 400;
+  }
+
+  &-previewHint {
+    margin: 0;
+    font-size: 11px;
+    color: var(--muted-color);
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+
+    .icon {
+      font-size: 10px;
+      margin: 0;
+      opacity: 0.8;
+    }
+  }
+
+  // ── Sections inside the body ─────────────────────────────────────────────
+  &-section {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+
+    // dividers between sections — subtle, only on top from #2 onward
+    & + & {
+      padding-top: 18px;
+      border-top: 1px solid var(--control-bg);
+    }
+  }
+
+  &-sectionTitle {
+    margin: 0;
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--muted-color);
+  }
+
+  &-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px 18px;
+
+    @media (max-width: 640px) {
+      grid-template-columns: 1fr;
+    }
+  }
+
+  &-field {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+
+    &--full {
+      grid-column: 1 / -1;
+    }
+
+    .FormControl.is-invalid {
+      border-color: #c0392b;
+    }
+  }
+
+  &-fieldHeader {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 8px;
+  }
+
+  &-fieldLabel {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-color);
+    margin: 0 0 2px;
+  }
+
+  &-fieldHelp {
+    margin: 4px 0 0;
+    color: var(--muted-color);
+    font-size: 12px;
+    line-height: 1.4;
+
+    &--lead {
+      margin: 0 0 6px;
+    }
+  }
+
+  // ── Description toolbar (B / I quick-format buttons) ────────────────────
+  &-descToolbar {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 4px;
+    background: var(--control-bg);
+    border: 1px solid var(--control-bg);
+    border-bottom: 0;
+    border-radius: 6px 6px 0 0;
+  }
+
+  &-descBtn {
+    width: 28px;
+    height: 26px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border: 0;
+    border-radius: 4px;
+    background: transparent;
+    color: var(--text-color);
+    font-size: 13px;
+    cursor: pointer;
+    transition: background 0.15s ease;
+
+    &:hover, &:focus {
+      background: fade(#000, 6%);
+    }
+
+    strong {
+      font-weight: 700;
+    }
+
+    em {
+      font-style: italic;
+    }
+  }
+
+  &-descToolbarHint {
+    margin-left: auto;
+    padding-right: 4px;
+    font-size: 11px;
+    color: var(--muted-color);
+  }
+
+  // Textarea sits flush with the toolbar above (shared border).
+  &-descArea {
+    border-radius: 0 0 6px 6px;
+  }
+
+  // Description char counter — quietly muted, ramps up to warn → max.
+  &-charCount {
+    font-size: 11px;
+    font-weight: 500;
+    font-variant-numeric: tabular-nums;
+    color: var(--muted-color);
+
+    &--warn { color: #e67e22; }
+    &--max  { color: #c0392b; font-weight: 600; }
+  }
+
+  // ── Color picker ─────────────────────────────────────────────────────────
+  &-colorRow {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  &-colorPicker {
+    width: 40px;
+    height: 40px;
+    border: 1px solid var(--control-bg);
+    border-radius: 8px;
+    padding: 2px;
+    background: transparent;
+    cursor: pointer;
+    flex-shrink: 0;
+
+    &::-webkit-color-swatch-wrapper { padding: 0; }
+    &::-webkit-color-swatch { border: none; border-radius: 6px; }
+    &::-moz-color-swatch { border: none; border-radius: 6px; }
+  }
+
+  &-colorHex {
+    flex: 1;
+    font-family: SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 13px;
+  }
+
+  // ── URL field with a trailing "open" button when the URL is valid ────────
+  &-urlRow {
+    position: relative;
+    display: flex;
+    align-items: center;
+
+    .FormControl {
+      // Reserve room on the right for the open-link button so the URL text
+      // never sits underneath it. When the button is hidden (invalid URL),
+      // the extra padding is just whitespace — fine.
+      padding-right: 40px;
+    }
+  }
+
+  &-urlOpen {
+    position: absolute;
+    right: 6px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 30px;
+    height: 30px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 6px;
+    color: var(--muted-color);
+    background: transparent;
+    transition: background 0.15s ease, color 0.15s ease;
+
+    &:hover, &:focus {
+      background: fade(#000, 5%);
+      color: var(--text-color);
+    }
+
+    .icon {
+      font-size: 12px;
+      margin: 0;
+    }
+  }
+
+  // ── Group chips — colored by --tier-color when active ────────────────────
+  &-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-top: 4px;
+  }
+
+  &-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 12px;
+    border: 1px solid var(--control-bg);
+    border-radius: 999px;
+    background: var(--body-bg);
+    color: var(--muted-color);
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.15s ease;
+
+    &:hover {
+      border-color: var(--tier-color, var(--muted-color));
+      color: var(--text-color);
+    }
+
+    &--on {
+      background: var(--tier-color, var(--primary-color));
+      border-color: var(--tier-color, var(--primary-color));
+      color: #fff;
+      box-shadow: 0 1px 4px fade(#000, 12%);
+
+      &:hover {
+        opacity: 0.92;
+        color: #fff;
+      }
+
+      .Badge {
+        // Outline so the group badge stays readable on the colored chip.
+        box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.5);
+      }
+    }
+  }
+
+  &-chipCheck {
+    font-size: 10px;
+    margin: 0 0 0 2px;
+  }
+
+  // ── Footer ───────────────────────────────────────────────────────────────
+  &-footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+    margin-top: 4px;
+    padding-top: 14px;
+    border-top: 1px solid var(--control-bg);
+  }
+
+  &-removeBtn {
+    color: #c0392b;
+    padding: 6px 10px;
+    border-radius: 6px;
+    transition: background 0.15s ease;
+
+    &:hover, &:focus {
+      background: fade(#e74c3c, 8%);
+      color: #c0392b;
+    }
+
+    .icon {
+      margin-right: 6px;
+    }
+  }
+}
+
+// Tier badge upload section — redesigned with switch + dropzone.
+.VerifiedTier-section--badge {
+  .VerifiedTier-sectionHeader {
+    display: flex;
+    align-items: flex-start;
+    gap: 16px;
+    justify-content: space-between;
+  }
+
+  .VerifiedTier-sectionDesc {
+    margin: 4px 0 0;
+    color: var(--muted-color);
+    font-size: 13px;
+    line-height: 1.4;
+    max-width: 460px;
+  }
+}
+
+.VerifiedTier-switch {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+  user-select: none;
+  flex-shrink: 0;
+
+  // Input cobre TODA a label e fica clicável (opacity:0 só esconde o
+  // chrome nativo). Sem `pointer-events:none` — esse modificador em
+  // alguns navegadores deixa o label-toggle inconsistente.
+  input[type="checkbox"] {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    margin: 0;
+    opacity: 0;
+    cursor: pointer;
+
+    &:focus-visible + .VerifiedTier-switchTrack {
+      outline: 2px solid var(--tier-color, var(--primary-color));
+      outline-offset: 2px;
+    }
+  }
+}
+
+.VerifiedTier-switchTrack {
+  position: relative;
+  width: 38px;
+  height: 22px;
+  background: var(--control-bg);
+  border-radius: 999px;
+  transition: background 0.18s ease;
+  flex-shrink: 0;
+}
+
+.VerifiedTier-switchThumb {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 18px;
+  height: 18px;
+  background: #fff;
+  border-radius: 50%;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15);
+  transition: transform 0.18s ease;
+}
+
+.VerifiedTier-switch--on .VerifiedTier-switchTrack {
+  background: var(--tier-color, var(--primary-color));
+}
+
+.VerifiedTier-switch--on .VerifiedTier-switchThumb {
+  transform: translateX(16px);
+}
+
+.VerifiedTier-switchLabel {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-color);
+}
+
+.VerifiedTier-badgePicker {
+  margin-top: 16px;
+}
+
+.VerifiedTier-dropzone {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 16px 18px;
+  background: var(--body-bg);
+  border: 1.5px dashed var(--control-bg);
+  border-radius: 10px;
+  cursor: pointer;
+  transition: border-color 0.15s ease, background 0.15s ease;
+
+  &:hover {
+    border-color: var(--tier-color, var(--primary-color));
+    background: fade(#000, 1.5%);
+  }
+}
+
+.VerifiedTier-dropzoneIcon {
+  flex-shrink: 0;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--control-bg);
+  color: var(--tier-color, var(--primary-color));
+
+  .icon {
+    font-size: 16px;
+    margin: 0;
+  }
+}
+
+.VerifiedTier-dropzoneText {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+
+  strong {
+    font-size: 14px;
+    color: var(--heading-color);
+  }
+
+  span {
+    font-size: 12px;
+    color: var(--muted-color);
+  }
+}
+
+.VerifiedTier-badgeSlot {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 16px;
+  background: var(--body-bg);
+  border: 1px solid var(--control-bg);
+  border-radius: 10px;
+}
+
+.VerifiedTier-badgeSlotPreview {
+  flex-shrink: 0;
+  width: 46px;
+  height: 46px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: fade(#000, 2%);
+  color: var(--tier-color, var(--primary-color));
+
+  svg {
+    width: 28px;
+    height: 28px;
+    display: block;
+  }
+}
+
+.VerifiedTier-badgeSlotInfo {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+
+  strong {
+    font-size: 14px;
+    color: var(--heading-color);
+  }
+}
+
+.VerifiedTier-badgeSlotMeta {
+  font-size: 12px;
+  color: var(--muted-color);
+}
+
+.VerifiedTier-badgeSlotActions {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.VerifiedTier-badgeSlotBtn {
+  font-size: 12px;
+  padding: 6px 10px;
+
+  .icon {
+    font-size: 11px;
+    margin-right: 4px;
+  }
+
+  &--danger {
+    color: var(--alert-error-color, #c0392b);
+  }
+}
