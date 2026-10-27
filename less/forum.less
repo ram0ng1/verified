@@ -1,20 +1,11 @@
-// Verified — forum styles
-//
-// The badge uses CSS `color` so the SVG path filled with `currentColor`
-// inherits the theme primary by default. Tier configs may set a per-tier
-// color, which the JS applies via `style="color: <value>"` (winning over
-// the CSS rules below).
+// O SVG usa `currentColor`; a cor do nível vem inline do JS e vence estas regras.
 
 @import 'badge.less';
 
 @verified-default-color: #1d9bf0;
 
-// The "outer" of the badge is either the bare `.VerifiedBadge` span (when
-// the rich popover is disabled) OR the `.VerifiedPopover-anchor` span that
-// wraps the badge (when enabled). Both should accept the same layout
-// margins so toggling the popover doesn't shift the badge sideways.
-//
-// Mixin used to keep margin/sizing consistent between both modes.
+// O elemento externo é o `.VerifiedBadge` ou o `.VerifiedPopover-anchor`,
+// conforme o popover; mesma margem nos dois para o selo não se deslocar.
 .verified-outer-margin(@val) {
   & > .VerifiedBadge,
   &.VerifiedBadge,
@@ -23,22 +14,14 @@
   }
 }
 
-// Base `.VerifiedBadge` and `.VerifiedPopover-anchor` rules live in
-// `badge.less` (imported above). Below are forum-only contextual
-// overrides — post header, discussion list, profile hero, thread cards
-// — that don't apply to the admin live-preview.
-
-// Tighten margin in the discussion-list item where space is at a premium.
 .DiscussionListItem .VerifiedBadge,
 .DiscussionListItem .VerifiedPopover-anchor {
   margin-left: 4px;
 }
 .DiscussionListItem .VerifiedBadge--inAnchor { margin-left: 0; }
 
-// Profile / hover card heading: scale up so the badge reads as a
-// distinct verified mark, not a small inline glyph. Apply the LARGER
-// margin to BOTH the bare badge AND the popover anchor — this is the
-// fix for the "popover off → extra space on the left in avocado" bug.
+// A margem maior vai no selo e na âncora, senão sobra espaço à esquerda
+// no Avocado com o popover desligado.
 .UserCard-identity .VerifiedBadge,
 .UserCard-identity .VerifiedPopover-anchor,
 .AvocadoUserPage-hero-name .VerifiedBadge,
@@ -65,27 +48,19 @@
   margin-left: 6px;
 }
 
-// In the Post-header <ul> the badge lives as its own <li> sibling of
-// .item-user and .item-meta. The <li>'s `margin-right: 10px` from core
-// already provides the spacing on the right; the badge itself doesn't
-// need an additional margin-left.
+// O `margin-right` do <li> anterior no core já dá o espaçamento.
 .Post-header > ul > .item-verified .VerifiedBadge,
 .Post-header > ul > .item-verified .VerifiedPopover-anchor {
   margin-left: 0;
 }
 
-// Live reply preview: core's header there is `.PostUser` with no
-// `li.item-user` around it, so the 10px the real post gets from that <li>'s
-// margin-right goes on our <ul> instead (addBadgeToCommentPost.tsx).
+// No preview de resposta não há `li.item-user`, então os 10px dele vão no
+// nosso <ul> (addBadgeToCommentPost.tsx).
 .CommentPost.editing .Post-header > .PostUser + ul {
   margin-left: 10px;
 }
 
-// Avocado thread cards: `.AvocadoHome-threadMeta` and
-// `.AvocadoSearch-threadMeta` are flex containers with `gap: 6px`, so the
-// flex `gap` already produces equal spacing between every child. Zero our
-// own margin to avoid stacking it on top of the gap (which would make the
-// space on the LEFT of the badge wider than on the right).
+// O meta dos cards do Avocado já usa `gap`; margem própria somaria a ele.
 .AvocadoHome-threadMeta .VerifiedBadge,
 .AvocadoHome-threadMeta .VerifiedPopover-anchor,
 .AvocadoSearch-threadMeta .VerifiedBadge,
@@ -93,24 +68,15 @@
   margin-left: 0;
 }
 
-// In profile hero contexts (Flarum's UserCard and Avocado's user page hero)
-// the badge sits at the top of the page — opening the popover UPWARD would
-// either be clipped by the header or fall above the viewport. Flip the
-// popover so it opens DOWNWARD: panel below the badge, arrow on top, hover
-// bridge below. Shadow inherits from the base `.VerifiedPopover` rule in
-// `badge.less` so the panel reads as a real card lifted off the hero
-// background, matching the discussion-list hover-card popover.
+// No topo do perfil o popover abriria para fora da tela; abre para baixo.
 .UserCard-identity .VerifiedPopover,
 .AvocadoUserPage-hero-name .VerifiedPopover {
   bottom: auto;
   top: calc(100% + 8px);
 }
 
-// Avocado's hero h1 has `overflow: hidden` for username ellipsis truncation,
-// which would clip our absolutely-positioned popover. Overflow VISIBLE so
-// the popover can escape the heading's bounds. Long usernames lose the
-// ellipsis truncation in this h1 specifically — acceptable trade-off for
-// having a working tooltip.
+// O h1 do hero do Avocado tem `overflow: hidden` e cortaria o popover;
+// nomes longos perdem a reticência aqui.
 .AvocadoUserPage-hero-name {
   overflow: visible !important;
 }
@@ -125,18 +91,14 @@
   border-left: 1px solid var(--control-bg);
 }
 
-// Move the invisible hover-bridge from above the badge to below it, so
-// the cursor can travel from the badge down to the popover without
-// `:hover` disengaging while crossing the 8px gap.
+// A ponte de hover também passa para baixo do selo.
 .UserCard-identity .VerifiedPopover-anchor::before,
 .AvocadoUserPage-hero-name .VerifiedPopover-anchor::before {
   bottom: auto;
   top: 100%;
 }
 
-// Settings page (forum side) — same shape and size as the surrounding
-// "Mudar Senha" / "Mudar E-mail" buttons, but disabled and tinted to show
-// the user's current verification state.
+// Mesmo formato dos botões vizinhos da página de configurações, só que desabilitado.
 .VerifiedSettings-pill {
   cursor: default;
   opacity: 1;
@@ -180,25 +142,12 @@
   }
 }
 
-// ── Verification request modal ─────────────────────────────────────────────
-//
-// Mirrors avocado theme patterns directly:
-//   • Modal-content: explicit body-bg + 20px radius + strong shadow
-//     (avocado .Modal--flat.DetailsModal pattern)
-//   • Title typography: 18px / 800 / DM Sans / letter-spacing -0.2px
-//     (avocado SearchModal h3)
-//   • Pills: 999px radius, 13px / 700 (avocado pill style)
-//   • Surfaces: --avocado-surface-1, --avocado-border-subtle tokens
-//     (graceful neutral fallbacks when avocado isn't installed)
-//   • Submit button uses Flarum's stock primary so theme overrides apply
-//
-// Spacing scale: 4 / 8 / 12 / 16 / 20 / 24 / 28 / 32.
-// Type scale: 11 / 12 / 13 / 14 / 18.
+// Modal de solicitação
 
 @verified-blue: #1d9bf0;
 
 .VerifiedRequestModal {
-  // ── Tokens (avocado-aligned with neutral fallbacks) ─────────────────────
+  // Tokens do Avocado, com fallbacks neutros quando o tema não está instalado.
   --vrm-font:           'DM Sans', Inter, "Segoe UI", Tahoma, sans-serif;
   --vrm-surface:        var(--avocado-surface-1, #f4f4f7);
   --vrm-surface-strong: var(--avocado-surface-2, #efeff3);
@@ -221,12 +170,8 @@
 
   font-family: var(--vrm-font);
 
-  // ── Modal shell ─────────────────────────────────────────────────────────
-  // Mirror avocado's .Modal--flat.DetailsModal pattern: explicit white
-  // background, big rounded corners, strong elevation shadow. Without this,
-  // the modal inherits whatever the surrounding theme paints onto
-  // .Modal-content (often tinted in avocado), producing the "grey body /
-  // white footer split" the screenshot showed.
+  // Fundo explícito: o Avocado tinge o .Modal-content e o corpo ficaria de
+  // outra cor que o rodapé.
   .Modal-content {
     background: var(--body-bg);
     border-radius: var(--vrm-radius-lg);
@@ -238,10 +183,7 @@
 
   &-body { padding: 0; }
 
-  // ── Hero ────────────────────────────────────────────────────────────────
-  // Modeled on avocado's category-icon pattern: 999px circular disc,
-  // accent-tinted bg, primary color icon. Quieter type below, generous
-  // line-height.
+  // Hero
   &-hero {
     display: flex;
     flex-direction: column;
@@ -291,12 +233,11 @@
     font-weight: 500;
   }
 
-  // ── Form ────────────────────────────────────────────────────────────────
+  // Formulário
   &-form {
     padding: 28px 32px 0;
 
-    // Neutralise Flarum core's `.Form-body` / `.Form-group` defaults so
-    // our own margins/sizes are authoritative.
+    // Neutraliza os padrões do core para valerem as nossas margens.
     .Form-body { padding: 0; margin: 0; }
     .Form-group { gap: 0; }
   }
@@ -306,8 +247,7 @@
     &:last-child { margin-bottom: 0; }
   }
 
-  // Avocado-style tiny uppercase label (DetailsModal pattern). Specificity
-  // bump beats Flarum core's `.Form-group > label` (0,1,1).
+  // Especificidade extra para vencer `.Form-group > label` do core.
   .Form-group > &-fieldLabel {
     display: block;
     margin: 0 0 10px;
@@ -327,10 +267,7 @@
     font-weight: 500;
   }
 
-  // ── Textarea (avocado SearchModal-input pattern) ───────────────────────
-  // Filled subtle surface, no visible border idle, primary border + soft
-  // ring on focus. Beats Flarum core's `.FormControl` defaults via class
-  // chain specificity.
+  // Encadeado com .FormControl para vencer os padrões do core.
   &-textarea.FormControl {
     background: var(--vrm-surface);
     border: 1px solid transparent;
@@ -365,7 +302,7 @@
     }
   }
 
-  // ── Pills — avocado pill style (999px radius) ──────────────────────────
+  // Pílulas
   &-pillGroup {
     display: flex;
     flex-wrap: wrap;
@@ -406,10 +343,8 @@
     &:disabled { opacity: 0.5; cursor: not-allowed; }
   }
 
-  // ── File drop (filled surface, matches textarea family) ───────────────
-  // Doubled selector beats Flarum core's `.Form-group > label { display:
-  // block }` (specificity 0,1,1) — without this the icon/title/hint render
-  // INLINE because flex-column loses on equal specificity.
+  // Seletor duplicado para vencer `.Form-group > label { display: block }`
+  // do core; com especificidade igual o conteúdo ficaria em linha.
   &-fileDrop,
   .Form-group > &-fileDrop {
     position: relative;
@@ -445,7 +380,7 @@
   }
 
   &-fileDrop {
-    // Hidden-but-clickable native input.
+    // Input nativo oculto, mas ainda clicável.
     &-input {
       position: absolute;
       inset: 0;
@@ -480,7 +415,7 @@
     }
   }
 
-  // ── File-selected (after a successful upload) ───────────────────────────
+  // Arquivo enviado
   &-fileSelected {
     display: flex;
     align-items: center;
@@ -539,15 +474,13 @@
     }
   }
 
-  // ── Footer (no separator, just whitespace) ─────────────────────────────
+  // Rodapé
   &-footer {
     display: flex;
     justify-content: flex-end;
     padding: 20px 32px 28px;
   }
 
-  // Avocado primary button: 999px pill, font 13px / 700, height 36px.
-  // Apply to the rendered Flarum Button element directly.
   &-submit.Button {
     min-width: 140px;
     height: 38px;
@@ -565,7 +498,7 @@
     font-size: 12px;
   }
 
-  // ── Mobile ─────────────────────────────────────────────────────────────
+  // Mobile
   @media (max-width: 480px) {
     &-hero { padding: 28px 20px 16px; }
     &-hero-icon { width: 44px; height: 44px; }
@@ -582,11 +515,7 @@
   }
 }
 
-// ── Dark mode ─────────────────────────────────────────────────────────────
-// Single override block. Flips every modal token in one place. Flarum 2
-// emits `data-theme="dark"` (and the avocado theme uses `data-theme^=dark`
-// for its own variants), so this matches both. Pure light/dark also flips
-// when the OS prefers dark via `:root[data-theme=auto]` resolved upstream.
+// Modo escuro: `^=` cobre o `dark` do core e as variantes do Avocado.
 [data-theme^=dark] .VerifiedRequestModal {
   --vrm-surface:        rgba(255, 255, 255, 0.05);
   --vrm-surface-strong: rgba(255, 255, 255, 0.08);
@@ -602,22 +531,12 @@
   --vrm-success-bd:     rgba(39, 174, 96, 0.30);
   --vrm-success-fg:     #4ec46a;
 
-  // Modal shell shadow needs higher contrast on dark backdrops.
   .Modal-content {
     box-shadow: 0 20px 60px rgba(0, 0, 0, 0.55);
   }
 }
 
-// All `.VerifiedPopover*` rules live in `badge.less` (imported above).
-// Forum-specific overrides — mobile responsive layout, profile-hero
-// downward variant, post-header zero-margin, etc. — stay below.
-
-// ── Mobile responsive popover ──────────────────────────────────────────────
-//
-// On narrow viewports the 320px-wide popover would overflow the screen,
-// or even worse, anchor to a badge near the right edge and clip half off.
-// Pin the panel to the bottom of the viewport (full-width minus 12px),
-// detach it from the badge centring, and hide the speech-bubble arrow.
+// Em telas estreitas o popover de 320px estouraria a tela; fica fixo no rodapé.
 @media (max-width: 480px) {
   .VerifiedPopover {
     position: fixed;
@@ -639,14 +558,13 @@
     display: none;
   }
 
-  // Stop the open animation from sliding sideways at the new position.
+  // Sem o translateX, a animação deslizaria para o lado.
   @keyframes verified-popover-in {
     from { opacity: 0; transform: translateY(8px); }
     to   { opacity: 1; transform: translateY(0); }
   }
 }
 
-// Replacement dropdown content shown when the avatar is locked.
 .AvatarEditor-lockedNotice {
   display: flex;
   flex-direction: column;

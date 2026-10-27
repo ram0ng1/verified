@@ -34,16 +34,10 @@ const ERROR_KEY: Record<VerificationAction, string> = {
 
 const uc = (key: string) => app.translator.trans('ramon-verified.forum.user_controls.' + key);
 
-/**
- * Run a verify or revoke action against a user. Opens a modal asking for an
- * audit-log note (and, for verify, the tier), then PATCHes the user model in
- * place so any mounted component reflecting the user reactively redraws.
- */
 export async function performVerification(user: User, action: VerificationAction): Promise<void> {
   const withTier = action === 'verify';
 
-  // Preserve the previous "no tiers configured" guard — opening the modal to
-  // pick from an empty list would be a dead end.
+  // Sem níveis configurados o modal seria um beco sem saída.
   if (withTier && getConfiguredTiers().length === 0) {
     app.alerts.show({ type: 'error' }, app.translator.trans('ramon-verified.lib.tier_prompt.no_tiers'));
     return;

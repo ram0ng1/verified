@@ -10,14 +10,8 @@ import type ItemList from 'flarum/common/utils/ItemList';
 import { performVerification } from './utils/verifyUser';
 
 /**
- * Add "Verify" / "Revoke verification" actions to the moderation dropdown.
- *
- * Gating mirrors `VerifyUserController::handle` (§3, §4):
- *  - `canVerifyUsers` (admin/moderation): mostra Verify + Revoke contra
- *    qualquer usuário.
- *  - `canSelfRevokeVerification` sem `canVerifyUsers`: mostra apenas o
- *    Revoke, e somente quando o alvo é o próprio ator (impede o botão de
- *    aparecer no menu do perfil de outro usuário onde a ação seria 403).
+ * Espelha as regras do `VerifyUserController`: quem só pode autorrevogar vê o
+ * botão apenas no próprio perfil, já que em outro usuário a ação daria 403.
  */
 export default function addVerificationUserControls(): void {
   extend(UserControls, 'moderationControls', function (items: ItemList<Mithril.Children>, user: User) {

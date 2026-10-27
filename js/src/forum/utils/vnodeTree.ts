@@ -8,10 +8,6 @@ export type VnodeLike = Mithril.Vnode<any, any> & {
   children?: any;
 };
 
-/**
- * Recursively find the first vnode in `node` whose attrs.className contains
- * the given class. Returns null if no match.
- */
 export function findVnodeByClass(node: unknown, className: string): VnodeLike | null {
   if (!node || typeof node !== 'object') return null;
 
@@ -33,9 +29,6 @@ export function findVnodeByClass(node: unknown, className: string): VnodeLike | 
   return null;
 }
 
-/**
- * O selo, para injetar numa árvore de vnodes do Avocado.
- */
 export function makeVerifiedVnode(user: User | null | undefined, className: string): Mithril.Vnode | null {
   if (!user || !user.isVerified || !user.isVerified()) return null;
 

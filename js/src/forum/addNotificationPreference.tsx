@@ -9,9 +9,6 @@ interface NotificationType {
   label: unknown;
 }
 
-/**
- * Expose the `userVerified` notification toggle in the user's preferences page.
- */
 export default function addNotificationPreference(): void {
   extend('flarum/forum/components/NotificationGrid', 'notificationTypes', function (this: any, items: ItemList<NotificationType>) {
     items.add('userVerified', {

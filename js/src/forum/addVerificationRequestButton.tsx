@@ -7,11 +7,6 @@ import type ItemList from 'flarum/common/utils/ItemList';
 
 import VerifiedBadge from '../common/components/VerifiedBadge';
 
-/**
- * Inject either the verified-status pill, the pending pill, or the "request
- * verification" button into the user's account settings page, depending on
- * the user's current verification state.
- */
 export default function addVerificationRequestButton(): void {
   extend('flarum/forum/components/SettingsPage', 'accountItems', function (this: any, items: ItemList<Mithril.Children>) {
     const user = app.session.user;

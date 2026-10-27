@@ -1,4 +1,4 @@
-// ── Requests panel ──────────────────────────────────────────────────────────
+// Solicitações
 .VerifiedRequests {
   > .VerifiedAdmin-cardHeader {
     padding: 22px 24px 16px;
@@ -30,8 +30,6 @@
   cursor: pointer;
   transition: color 0.2s ease, border-color 0.2s ease;
 
-  // Color shift only on hover — the tab's strong signal is the active
-  // bottom border, so hover stays muted to keep the row calm.
   &:hover {
     color: var(--text-color);
   }
@@ -184,8 +182,7 @@
   }
 
   &-docLink {
-    // Rendered as a <button> (opens DocumentPreviewModal). Reset native
-    // button styles so it reads as a link.
+    // É um <button>; reseta o estilo nativo para parecer link.
     appearance: none;
     -webkit-appearance: none;
     border: 0;
@@ -252,7 +249,6 @@
   }
 }
 
-// Stack actions on narrow screens
 @media (max-width: 720px) {
   .VerifiedRequest {
     flex-direction: column;
@@ -265,15 +261,12 @@
 
 }
 
-// ── Approved tab — toolbar / search / pagination ───────────────────────────
+// Aba de aprovados
 .VerifiedRequests-toolbar {
   padding: 14px 24px;
   border-bottom: 1px solid var(--control-bg);
 }
 
-// Sub-tabs for filtering approved users by tier. Lives directly under the
-// search bar — its own row of pill chips, each with a colored dot of the
-// tier color. The "all tiers" entry uses a globe icon.
 .VerifiedRequests-tierFilter {
   display: flex;
   flex-wrap: wrap;
@@ -327,8 +320,6 @@
   flex-shrink: 0;
 }
 
-// Small tier chip rendered inline next to a user's name on each row of
-// the approved list, so admins can scan tiers at a glance.
 .VerifiedRequest-tierChip {
   display: inline-flex;
   align-items: center;
@@ -352,11 +343,8 @@
   flex-shrink: 0;
 }
 
-// Filled-chip search — no border in idle state, soft tinted background.
-// Native search-input affordances (the browser-injected X clear button,
-// search results decoration) are stripped so they don't collide with our
-// own clear button. Focus deepens to a clean white surface with a primary
-// border ring.
+// Remove os adornos nativos do input de busca para não colidirem com o
+// nosso botão de limpar.
 .VerifiedRequests-search {
   position: relative;
   display: flex;
@@ -367,9 +355,7 @@
     left: 14px;
     top: 50%;
     transform: translateY(-50%);
-    // Reset Flarum's `.icon` margin-right (default 5px) — it'd push the
-    // icon's visual centre rightward against the input text, making them
-    // look glued together.
+    // Zera o margin-right do `.icon` do core, que colaria o ícone no texto.
     margin: 0;
     width: 14px;
     height: 14px;
@@ -384,9 +370,7 @@
   &-input.FormControl {
     width: 100%;
     height: 36px;
-    // Extra breathing room on the left so the icon never overlaps the
-    // placeholder / typed text. 14px (icon-left) + 14px (icon-width)
-    // + 12px (gap) = 40px.
+    // 14px (posição do ícone) + 14px (largura) + 12px (respiro) = 40px.
     padding: 0 36px 0 40px;
     margin: 0;
     line-height: 36px;
@@ -400,7 +384,7 @@
     appearance: textfield;
     -webkit-appearance: textfield;
 
-    // Kill native search artifacts (Chrome/Safari ship their own X).
+    // Chrome e Safari injetam o próprio X.
     &::-webkit-search-cancel-button,
     &::-webkit-search-decoration,
     &::-webkit-search-results-button,
@@ -487,7 +471,6 @@
     border: 0;
     transition: color 0.2s ease, background 0.2s ease;
 
-    // Color shift only — no fill bump.
     &:hover:not(:disabled) {
       color: var(--text-color);
       background: transparent;
@@ -505,7 +488,7 @@
   }
 }
 
-// ── Auto-verified user row ─────────────────────────────────────────────────
+// Usuário verificado automaticamente
 .VerifiedRequest-status--auto {
   background: fade(#1d9bf0, 12%);
   color: var(--primary-color);

@@ -1,9 +1,5 @@
-// Verified badge — visual styles shared by both forum and admin frontends.
-//
-// `Extend\Frontend('admin')->css(...)` only loads `admin.less`, so anything
-// living in `forum.less` is invisible to the admin live-preview. Any rule
-// that needs to apply to BOTH the public forum and the admin preview lives
-// here and is imported from each entry-point.
+// Compartilhado entre forum e admin: o admin só carrega `admin.less`, então
+// o que o preview precisa fica aqui e é importado pelos dois.
 
 @verified-default-color: #1d9bf0;
 
@@ -40,7 +36,7 @@
   margin-left: 5px;
 }
 
-// Hover-bridge above the badge that keeps `:hover` active across the gap.
+// Ponte invisível que mantém o `:hover` ao cruzar o vão até o popover.
 .VerifiedPopover-anchor::before {
   content: "";
   position: absolute;
@@ -106,10 +102,7 @@
   border-bottom: 1px solid var(--control-bg);
 }
 
-// Header icon and the bold <strong> in the headline both follow --tier-color
-// (set on .VerifiedPopover-anchor by VerifiedPopover.tsx). CSS falls back to
-// the theme primary, so a tier with no color or no tier at all still renders
-// in the forum's accent.
+// --tier-color vem do VerifiedPopover.tsx; sem nível cai na cor primária.
 .VerifiedPopover-headerIcon {
   flex-shrink: 0;
   width: 28px;
@@ -186,12 +179,7 @@
   color: var(--muted-color);
 }
 
-// "Saiba mais" link — inline at the end of the headline (X-style). Tinted
-// with the tier color (set as --tier-color on .VerifiedPopover-anchor by
-// VerifiedPopover.tsx). Falls back to --link-color → --primary-color when
-// no tier is configured. Selector is intentionally specific so it beats
-// Flarum core's generic `.Post a` and similar rules that would otherwise
-// override us.
+// Seletor específico de propósito para vencer `.Post a` e afins do core.
 .VerifiedPopover .VerifiedPopover-learnMore,
 a.VerifiedPopover-learnMore {
   font-weight: 600;

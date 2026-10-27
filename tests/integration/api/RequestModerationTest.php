@@ -65,7 +65,7 @@ class RequestModerationTest extends TestCase
         $this->assertEquals('pending', VerificationRequest::query()->find(1)->status);
     }
 
-    /** Revogar uma linha antiga reescrevia quem a tratou e a nota. */
+    /** Revogar uma linha antiga não pode reescrever quem a tratou nem a nota. */
     public function test_revogar_rejeitada_nao_reescreve_historico(): void
     {
         $response = $this->post(2, 'revoke');

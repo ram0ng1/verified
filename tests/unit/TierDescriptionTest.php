@@ -40,7 +40,7 @@ final class TierDescriptionTest extends TestCase
         self::assertSame('&lt;img src=x&gt;', $this->describe('<img src=x>'));
     }
 
-    /** Cortar depois de escapar partia a entidade ao meio (`&am`). */
+    /** Cortar depois de escapar partiria a entidade ao meio (`&am`). */
     public function test_corte_de_320_nao_parte_entidade(): void
     {
         $out = $this->describe(str_repeat('a', 318).'&&&&');

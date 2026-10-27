@@ -10,9 +10,8 @@ import addAvocadoIntegration from './addAvocadoIntegration';
 
 export { default as extend } from './extend';
 
-// Use a low priority (-100) so this initializer runs AFTER avocado's
-// (priority 0). Avocado replaces UserPage.prototype.view with its own
-// hero-rendering view; we need to wrap THAT view to inject our badge.
+// Prioridade -100 para rodar depois do Avocado (0), que substitui
+// UserPage.prototype.view; precisamos envolver a view dele, não a do core.
 app.initializers.add(
   'ramon-verified',
   () => {

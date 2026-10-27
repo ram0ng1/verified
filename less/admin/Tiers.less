@@ -1,4 +1,4 @@
-// ── Tiers tab ──────────────────────────────────────────────────────────────
+// Aba de níveis
 .VerifiedTiers {
   display: flex;
   flex-direction: column;
@@ -22,7 +22,6 @@
     }
   }
 
-  // Empty state — centered, prominent CTA, no list noise.
   &--empty {
     align-items: center;
     text-align: center;
@@ -63,20 +62,14 @@
   }
 }
 
-// ── Single tier card ───────────────────────────────────────────────────────
-//
-// Compact when collapsed: swatch | title block | chevron. Expanding adds the
-// edit form below. The accent line on the left is tinted with --tier-color
-// so the eye picks the right tier instantly.
+// Card de nível
 .VerifiedTier {
   position: relative;
   background: var(--body-bg);
   border: 1px solid var(--control-bg);
   border-radius: 10px;
-  // Default to overflow:hidden so the colored accent strip on the left
-  // follows the rounded corners of the card. We flip it to `visible` once
-  // the card is expanded — otherwise the live tier-preview popover at the
-  // top of the body gets clipped when the admin hovers the badge.
+  // `hidden` para a faixa colorida seguir os cantos arredondados; aberto vira
+  // `visible`, senão o popover da prévia é cortado.
   overflow: hidden;
   transition: border-color 0.15s ease, box-shadow 0.15s ease;
 
@@ -93,7 +86,6 @@
   &--expanded {
     border-color: var(--tier-color, var(--primary-color));
     box-shadow: 0 2px 12px rgba(0, 0, 0, 0.06);
-    // Let the live tier-preview popover float above the card boundary.
     overflow: visible;
   }
 
@@ -207,12 +199,7 @@
     gap: 18px;
   }
 
-  // ── Live preview banner at top of the body ───────────────────────────────
-  //
-  // Renders a real-size sample of the badge using the same `.VerifiedPopover-*`
-  // markup the forum uses, so hovering reveals the actual production popover
-  // for the tier being edited. The CSS scope here only adds layout — the
-  // popover styling itself comes from `badge.less`.
+  // Prévia com o mesmo markup do forum; o visual do popover vem do `badge.less`.
   &-preview {
     margin: 16px 0 4px;
     padding: 14px 16px;
@@ -222,7 +209,6 @@
     display: flex;
     flex-direction: column;
     gap: 6px;
-    // Allow the popover to extend above the preview block when hovered.
     overflow: visible;
   }
 
@@ -232,8 +218,7 @@
     gap: 8px;
     font-size: 16px;
     line-height: 1.2;
-    // Same allowance as the body — the popover is positioned above the
-    // badge anchor and would otherwise be clipped.
+    // O popover abre acima da âncora e seria cortado.
     overflow: visible;
   }
 
@@ -263,13 +248,12 @@
     }
   }
 
-  // ── Sections inside the body ─────────────────────────────────────────────
+  // Seções
   &-section {
     display: flex;
     flex-direction: column;
     gap: 10px;
 
-    // dividers between sections — subtle, only on top from #2 onward
     & + & {
       padding-top: 18px;
       border-top: 1px solid var(--control-bg);
@@ -334,7 +318,7 @@
     }
   }
 
-  // ── Description toolbar (B / I quick-format buttons) ────────────────────
+  // Barra de formatação da descrição
   &-descToolbar {
     display: flex;
     align-items: center;
@@ -380,12 +364,10 @@
     color: var(--muted-color);
   }
 
-  // Textarea sits flush with the toolbar above (shared border).
   &-descArea {
     border-radius: 0 0 6px 6px;
   }
 
-  // Description char counter — quietly muted, ramps up to warn → max.
   &-charCount {
     font-size: 11px;
     font-weight: 500;
@@ -396,7 +378,7 @@
     &--max  { color: #c0392b; font-weight: 600; }
   }
 
-  // ── Color picker ─────────────────────────────────────────────────────────
+  // Seletor de cor
   &-colorRow {
     display: flex;
     align-items: center;
@@ -424,16 +406,14 @@
     font-size: 13px;
   }
 
-  // ── URL field with a trailing "open" button when the URL is valid ────────
+  // Campo de URL
   &-urlRow {
     position: relative;
     display: flex;
     align-items: center;
 
     .FormControl {
-      // Reserve room on the right for the open-link button so the URL text
-      // never sits underneath it. When the button is hidden (invalid URL),
-      // the extra padding is just whitespace — fine.
+      // Espaço para o botão de abrir link não cobrir o texto.
       padding-right: 40px;
     }
   }
@@ -464,7 +444,7 @@
     }
   }
 
-  // ── Group chips — colored by --tier-color when active ────────────────────
+  // Chips de grupo
   &-chips {
     display: flex;
     flex-wrap: wrap;
@@ -503,7 +483,7 @@
       }
 
       .Badge {
-        // Outline so the group badge stays readable on the colored chip.
+        // Contorno para o selo do grupo continuar legível sobre o chip colorido.
         box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.5);
       }
     }
@@ -514,7 +494,7 @@
     margin: 0 0 0 2px;
   }
 
-  // ── Footer ───────────────────────────────────────────────────────────────
+  // Rodapé
   &-footer {
     display: flex;
     justify-content: space-between;
@@ -542,7 +522,7 @@
   }
 }
 
-// Tier badge upload section — redesigned with switch + dropzone.
+// Upload do selo do nível
 .VerifiedTier-section--badge {
   .VerifiedTier-sectionHeader {
     display: flex;
@@ -569,9 +549,8 @@
   user-select: none;
   flex-shrink: 0;
 
-  // Input cobre TODA a label e fica clicável (opacity:0 só esconde o
-  // chrome nativo). Sem `pointer-events:none` — esse modificador em
-  // alguns navegadores deixa o label-toggle inconsistente.
+  // O input cobre toda a label; sem `pointer-events: none`, que deixa o
+  // toggle da label inconsistente em alguns navegadores.
   input[type="checkbox"] {
     position: absolute;
     inset: 0;

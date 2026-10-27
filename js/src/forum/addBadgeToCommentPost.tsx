@@ -8,10 +8,6 @@ import type ItemList from 'flarum/common/utils/ItemList';
 import VerifiedBadge from '../common/components/VerifiedBadge';
 import { findVnodeByClass } from './utils/vnodeTree';
 
-/**
- * Add the verified badge as its own item in the post header item list, and
- * to the live reply preview.
- */
 export default function addBadgeToCommentPost(): void {
   extend('flarum/forum/components/CommentPost', 'headerItems', function (this: any, items: ItemList<Mithril.Children>) {
     const post = this.attrs.post;
@@ -21,9 +17,8 @@ export default function addBadgeToCommentPost(): void {
     items.add('verified', <VerifiedBadge user={user} className="VerifiedBadge--post" />, 95);
   });
 
-  // The live reply preview (core's ReplyPlaceholder, `<article class="Post
-  // CommentPost editing">`) builds its header straight from <PostUser>, so it
-  // never goes through `headerItems` above. Add the badge next to it.
+  // O preview de resposta (ReplyPlaceholder) monta o header direto com <PostUser>
+  // e não passa por `headerItems`, então o selo é injetado aqui.
   extend('flarum/forum/components/ReplyPlaceholder', 'view', function (vnode: Mithril.Vnode<any, any>) {
     if (!vnode || vnode.tag !== 'article') return;
     const user: User | null = app.session.user;
@@ -32,8 +27,7 @@ export default function addBadgeToCommentPost(): void {
     const header = findVnodeByClass(vnode, 'Post-header');
     if (!header || !Array.isArray(header.children)) return;
 
-    // Same wrapper as a real post (`ul > li.item-verified`), so the
-    // header's baseline alignment and the <li> spacing apply unchanged.
+    // Mesmo wrapper de um post real (`ul > li.item-verified`) para herdar o alinhamento.
     header.children = [
       ...header.children,
       <ul>

@@ -9,12 +9,8 @@ import type ItemList from 'flarum/common/utils/ItemList';
 import { isLockedAvatar, requestAvatarChange, showLockedAlert } from './utils/avatarLock';
 
 /**
- * Replace the upload/remove buttons in AvatarEditor with a "locked" notice
- * for verified users, and intercept every imperative upload/remove path so
- * the avatar is truly immutable on the client.
- *
- * The backend EnforceAvatarLock listener is the actual security boundary;
- * these overrides exist purely for UX.
+ * Só UX: a trava de verdade é o listener EnforceAvatarLock no backend. Os
+ * overrides cobrem os caminhos imperativos de upload/remoção além dos botões.
  */
 export default function addAvatarLock(): void {
   extend('flarum/forum/components/AvatarEditor', 'controlItems', function (this: any, items: ItemList<Mithril.Children>) {
@@ -24,9 +20,8 @@ export default function addAvatarLock(): void {
     if (items.has('remove')) items.remove('remove');
 
     const user = this.attrs.user as User | undefined;
-    // The button drops the badge through the self-revoke route: only for
-    // the user's own avatar, and only when they hold `verified.selfRevoke`
-    // (otherwise the server refuses and the button just errors).
+    // O botão usa a rota de autorrevogação: só no próprio avatar e com
+    // `verified.selfRevoke`, senão o servidor recusa.
     const canRequestChange = !!user && user === app.session.user && !!app.forum.attribute('canSelfRevokeVerification');
 
     items.add(

@@ -5,44 +5,27 @@ import type User from 'flarum/common/models/User';
 import { findVnodeByClass, makeVerifiedVnode } from './utils/vnodeTree';
 
 /**
- * Hook into avocado's components to inject the verified badge.
- *
- * Avocado v2 publishes its internal classes through Flarum's module
- * registry: each chunk (eagerly bundled or lazily loaded) calls
- * `flarum.reg.add('ramon-avocado', '<path>', module)` once available, and
- * `flarum.reg.onLoad` fires the callback either immediately (if the module
- * is already registered) or when the chunk later loads. This lets us patch
- * avocado's classes without scanning vnode trees at render time, and it
- * works regardless of whether the route component is eagerly bundled or
- * exposed as an async chunk loader on `app.routes[name].component`.
- *
- * Affected surfaces:
- *  - Profile hero        → AvocadoUserBase.view  (parent of AvocadoUser*Page)
- *  - Thread cards        → AvocadoHome / AvocadoSearch lists
- *  - Post cards          → user profile post tabs, search results
- *  - UserPage subclasses → Settings/Security pages that still derive from
- *                          core UserPage (avocado leaves these alone)
+ * `flarum.reg.onLoad` dispara na hora se o módulo do Avocado já foi registrado
+ * ou quando o chunk carregar depois, então funciona com chunks síncronos e async.
  */
 export default function addAvocadoIntegration(): void {
   // Sem o tema, nada disto existe; evita varrer a árvore do UserPage a cada
   // redesenho procurando o hero do Avocado.
   if (!('ramon-avocado' in flarum.extensions)) return;
 
-  // ── Profile hero on core-derived UserPage subclasses (Settings, Security) ──
+  // Hero nas páginas que ainda herdam do UserPage do core (Settings, Security).
   override('flarum/forum/components/UserPage', 'view', function (this: any, original: Function, ...args: unknown[]) {
     const tree = original ? original.apply(this, args) : null;
     try {
       injectIntoHeroName(tree, this.user);
     } catch {
-      /* defensive */
+      /* ignorado de propósito */
     }
     return tree;
   });
 
-  // ── Profile hero on AvocadoUser*Page ──────────────────────────────────────
-  // Avocado's user pages extend a private `AvocadoUserBase` whose `view()`
-  // does NOT call super, so wrapping core UserPage doesn't reach them. We
-  // grab the parent prototype from any exported subclass and patch its view.
+  // O `AvocadoUserBase` é privado e sua `view()` não chama super; pegamos o
+  // protótipo pai a partir de qualquer subclasse exportada.
   flarum.reg.onLoad('ramon-avocado', 'forum/components/UserProfilePage', (mod: any) => {
     if (!mod) return;
     const sample = mod.AvocadoUserPostsPage || mod.AvocadoUserDiscussionsPage || mod.AvocadoUserLikesPage || mod.AvocadoUserMentionsPage;
@@ -54,7 +37,6 @@ export default function addAvocadoIntegration(): void {
     patchHeroView(baseProto);
   });
 
-  // ── Thread cards on the home / tag / search pages ─────────────────────────
   flarum.reg.onLoad('ramon-avocado', 'forum/components/shared/ThreadCard', (Component: any) => {
     if (!Component || !Component.prototype) return;
     wrapCardView(Component, (inst: any) => {
@@ -63,7 +45,6 @@ export default function addAvocadoIntegration(): void {
     });
   });
 
-  // ── PostCard (user profile / search results) ──────────────────────────────
   flarum.reg.onLoad('ramon-avocado', 'forum/components/shared/PostCard', (Component: any) => {
     if (!Component || !Component.prototype) return;
     wrapCardView(Component, (inst: any) => {
@@ -74,16 +55,11 @@ export default function addAvocadoIntegration(): void {
   });
 }
 
-// ─── Idempotency guards ─────────────────────────────────────────────────────
-// `flarum.reg.add` may fire onLoad more than once when the same module is
-// registered from multiple chunks (e.g. PostCard ships in both UserProfilePage
-// and AvocadoSearchPage chunks). Without these guards we'd double-wrap and
-// render two badges per card.
+// onLoad pode disparar mais de uma vez quando o módulo vem em vários chunks
+// (o PostCard está em dois); sem isto o card ganharia dois selos.
 
 const patchedHeroProtos = new WeakSet<object>();
 const patchedCards = new WeakSet<Function>();
-
-// ─── Hero view patching ─────────────────────────────────────────────────────
 
 function patchHeroView(proto: any): void {
   if (patchedHeroProtos.has(proto)) return;
@@ -92,16 +68,12 @@ function patchHeroView(proto: any): void {
   const originalView = proto.view;
   proto.view = function (this: { user?: User }, ...args: unknown[]) {
     const tree = originalView.apply(this, args);
-    /*
-     * Defensive catch: o tree do Avocado pode mudar de shape entre versões
-     * (Vnode array vs Vnode único, atributos opcionais). Lançar daqui
-     * derrubaria o render inteiro do hero do Avocado, então engole o erro
-     * para preservar a página — esta extensão é integração opcional.
-     */
+    // A árvore do Avocado muda de forma entre versões; um erro aqui derrubaria
+    // o hero inteiro, então é engolido.
     try {
       injectIntoHeroName(tree, this.user);
     } catch {
-      /* swallow on purpose */
+      /* ignorado de propósito */
     }
     return tree;
   };
@@ -122,8 +94,6 @@ function injectIntoHeroName(tree: unknown, user: User | undefined | null): void 
   heroName.children = [...base, badge];
 }
 
-// ─── Card view patching ─────────────────────────────────────────────────────
-
 function wrapCardView(Component: any, getUser: (inst: any) => User | null | undefined): void {
   if (patchedCards.has(Component)) return;
   patchedCards.add(Component);
@@ -137,12 +107,8 @@ function wrapCardView(Component: any, getUser: (inst: any) => User | null | unde
         const meta = findVnodeByClass(tree, 'AvocadoHome-threadMeta') || findVnodeByClass(tree, 'AvocadoSearch-threadMeta');
 
         if (meta && Array.isArray(meta.children)) {
-          // The author anchor is a direct child in PostCard, but ThreadCard
-          // wraps it inside avocado's UserHoverCard trigger (an intermediate
-          // component vnode). Match the meta child whose SUBTREE contains the
-          // author anchor so the badge lands right after the name in either
-          // shape — a direct-child scan misses the wrapped case and drops the
-          // badge on the home/tag lists.
+          // No ThreadCard o autor vem dentro do UserHoverCard, não como filho
+          // direto; por isso a busca é na subárvore de cada filho.
           const authorIdx = meta.children.findIndex(
             (c: any) => findVnodeByClass(c, 'AvocadoHome-threadAuthor') || findVnodeByClass(c, 'AvocadoSearch-threadAuthor')
           );
@@ -155,7 +121,7 @@ function wrapCardView(Component: any, getUser: (inst: any) => User | null | unde
         }
       }
     } catch {
-      // Defensive — never crash card rendering.
+      // Nunca derrubar o render do card.
     }
     return tree;
   };

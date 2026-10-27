@@ -102,7 +102,7 @@ class DocumentUploadTest extends TestCase
         $this->assertStringStartsWith("\x89PNG", $this->storedFile($response));
     }
 
-    /** Uploads sem solicitação têm teto: antes, enchiam o disco sem limite. */
+    /** Uploads sem solicitação têm teto, senão enchem o disco. */
     public function test_limita_uploads_soltos_por_usuario(): void
     {
         for ($i = 0; $i < DocumentRetention::MAX_UNATTACHED_PER_USER; $i++) {

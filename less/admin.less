@@ -1,14 +1,5 @@
-// Verified — admin panel styles
-//
-// Design intent: a single column of well-spaced "cards" with quiet borders,
-// generous whitespace and clear typographic hierarchy. Inspired by the
-// avocado theme's admin layout.
-
-// Shared badge + popover visual styles. The admin live-preview re-uses
-// the same `.VerifiedBadge` / `.VerifiedPopover` markup the forum does,
-// so it needs the same dimensions and layout — without this import the
-// SVG inside the badge expands to fill the page (no width/height
-// constraint inherited from the forum bundle).
+// O preview do admin usa o mesmo markup do selo; sem este import o SVG
+// não tem tamanho e ocupa a página inteira.
 @import 'badge.less';
 @import 'admin/Panel.less';
 @import 'admin/Tiers.less';

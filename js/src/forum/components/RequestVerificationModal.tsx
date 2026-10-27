@@ -24,8 +24,7 @@ export default class RequestVerificationModal extends FormModal {
     const types = getDocumentTypes();
 
     this.reason = Stream('');
-    // Default to the first configured type. Admin may have reordered or
-    // renamed `rg`, so we can't hardcode an id here.
+    // Primeiro tipo configurado: o admin pode ter renomeado ou removido o `rg`.
     this.documentType = Stream(types[0] ? types[0].id : '');
     this.documentPath = Stream('');
     this.fileName = Stream('');
