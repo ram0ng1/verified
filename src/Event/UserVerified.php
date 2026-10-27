@@ -14,12 +14,8 @@ namespace Ramon\Verified\Event;
 use Flarum\User\User;
 
 /**
- * Fired right after an administrator marks a user as verified — either by
- * approving a pending VerificationRequest or by clicking "Verify user"
- * directly from the moderation dropdown.
- *
- * Listeners (notification, email, audit log…) react to this single event
- * regardless of which path the verification came through.
+ * Disparado quando o usuário é verificado, seja aprovando uma solicitação ou
+ * direto pelo moderador.
  */
 class UserVerified
 {

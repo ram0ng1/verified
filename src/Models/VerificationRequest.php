@@ -60,11 +60,6 @@ class VerificationRequest extends AbstractModel
     }
 
     /**
-     * Roda o callback dentro de uma transação do connection deste model.
-     * Centraliza o pattern `query()->getConnection()->transaction()` para
-     * evitar duplicação entre controller, resource e listener — e mantém
-     * a resolução de connection junto do model que define a tabela.
-     *
      * @template T
      * @param  \Closure(): T  $cb
      * @return T

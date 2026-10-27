@@ -29,11 +29,9 @@ use Ramon\Verified\Support\UploadedFileMime;
 use Ramon\Verified\VerifiedStatus;
 
 /**
- * Recebe o upload de um documento de verificação, grava no disco privado
- * `flarum-verified-documents` (fora do webroot público) e devolve o
- * pseudo-path `/assets/verified/{userId}/{filename}` que o usuário anexa
- * à solicitação. A resolução real para o disco privado acontece no
- * endpoint de download, via DocumentPathResolver.
+ * Grava no disco privado `flarum-verified-documents`, fora do webroot, e devolve
+ * o pseudo-path `/assets/verified/{userId}/{filename}`; quem o resolve para o
+ * disco é o endpoint de download.
  */
 class UploadDocumentController implements RequestHandlerInterface
 {
@@ -179,12 +177,9 @@ class UploadDocumentController implements RequestHandlerInterface
     }
 
     /**
-     * Allowlist em duas camadas: cliente-MIME (defesa rápida contra ferramentas
-     * honestas) + detecção server-side via `finfo`/`mime_content_type` (defesa
-     * real contra polyglot / Content-Type forjado). Audit F5 corrigiu o bypass:
-     * quando o temp file não é legível (NFS lenta, FS read-only, file handle
-     * preso em Windows), a detecção retorna null e o fluxo antigo passava
-     * direto. Agora `null` falha o upload, independentemente do motivo.
+     * Se o temp file não puder ser lido (NFS lenta, FS read-only, handle preso no
+     * Windows), a detecção devolve null e o upload falha: nunca confiar só no MIME
+     * do cliente.
      */
     private function validateMimeTypes(UploadedFileInterface $file): void
     {

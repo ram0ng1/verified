@@ -14,9 +14,8 @@ namespace Ramon\Verified\Support;
 use Psr\Http\Message\UploadedFileInterface;
 
 /**
- * Detecta o MIME real de um arquivo enviado lendo os bytes do stream
- * temporário com `finfo` (ou `mime_content_type` como fallback). Nunca
- * confia no tipo declarado pelo cliente no upload.
+ * MIME real a partir dos bytes do arquivo temporário; nunca o tipo declarado
+ * pelo cliente.
  */
 final class UploadedFileMime
 {

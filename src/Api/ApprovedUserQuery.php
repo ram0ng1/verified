@@ -20,42 +20,25 @@ use Ramon\Verified\TierConfig;
 use Ramon\Verified\TierResolver;
 
 /**
- * Constrói as queries de listagem dos "verificados aprovados" para o admin.
- * Une o conjunto manual (`is_verified=1`) com o conjunto auto-verificado
- * (membros de `autoGroups` de algum tier configurado).
+ * Listagem de verificados do admin: manuais (`is_verified=1`) unidos aos
+ * auto-verificados pelos `autoGroups` dos tiers.
  *
- * O caso difícil é o filtro por tier — conjunto virtual sem query SQL única
- * paginável, porque o tier efetivo do ramo auto só se resolve em PHP. A
- * página é montada sem materializar o conjunto inteiro:
- *   - Manual: o tier mora numa coluna (`verified_tier`), então conta por
- *     `COUNT(*)` e busca só a fatia da página por `LIMIT/OFFSET` — nenhum ID
- *     materializado.
- *   - Auto: o `chunkById` percorre só os candidatos (membros dos `autoGroups`
- *     do tier filtrado), conta os que resolvem para o tier-alvo e guarda
- *     apenas os IDs dentro da janela da página — no máximo `limit` IDs, não
- *     o conjunto. O walk para em `TIER_FILTER_AUTO_WALK_CAP`; ao atingi-lo,
- *     `truncated=true` sinaliza ao admin que a busca precisa ser refinada.
+ * O filtro por tier não cabe numa única query paginável, porque o tier efetivo
+ * do ramo auto só se resolve em PHP. Ver `pageWithTierFilter()`.
  */
 class ApprovedUserQuery
 {
     public const TIER_FILTER_CHUNK = 200;
 
     /**
-     * Teto do walk PHP do ramo auto. O tier efetivo de um auto-verificado só
-     * se resolve em PHP (precedência entre tiers + imunidade de admin), então
-     * o ramo auto percorre candidatos em chunks — custo proporcional ao número
-     * percorrido. 1000 = 5 chunks; ao atingi-lo, `truncated=true` pede refino
-     * da busca. O ramo manual NÃO usa este cap: é SQL puro (`COUNT` +
-     * `LIMIT/OFFSET`), exato e barato em qualquer tamanho.
+     * Teto do walk em PHP do ramo auto (5 chunks). Ao atingi-lo, `truncated=true`
+     * pede que o admin refine a busca. O ramo manual é SQL puro e não tem teto.
      */
     public const TIER_FILTER_AUTO_WALK_CAP = 1000;
 
     /**
-     * Cache de instância. Em processos longos (Octane, queue workers) um
-     * `static` no método persistiria entre requests/jobs e poderia ficar
-     * obsoleto após uma migração rodada in-process. O resolver é instanciado
-     * sob demanda por request, então o cache morre junto com a instância —
-     * exatamente o escopo desejado.
+     * Cache de instância, não `static`: em processos longos (Octane, filas) um
+     * static sobreviveria entre requests e ficaria obsoleto após uma migração.
      *
      * @var string[]|null
      */
@@ -68,12 +51,9 @@ class ApprovedUserQuery
     }
 
     /**
-     * Colunas pesquisáveis da tabela `users`. `username` e `email` são core;
-     * `nickname` só entra quando a extensão `flarum/nicknames` está ativa,
-     * detectada pelo `ExtensionManager` em vez de introspecção de schema
-     * (`getSchemaBuilder()->hasColumn()` dispara um SELECT em INFORMATION_SCHEMA
-     * a cada cache frio). `display_name` não é coluna no Flarum 2 — é um driver
-     * de nome computado — então nunca foi candidata a LIKE.
+     * `nickname` só entra com flarum/nicknames ativa. Consultar o `ExtensionManager`
+     * evita o SELECT em INFORMATION_SCHEMA do `hasColumn()`. `display_name` não é
+     * coluna no Flarum 2.
      *
      * @return string[]
      */
@@ -147,16 +127,10 @@ class ApprovedUserQuery
     }
 
     /**
-     * Ordena por presença da linha companion (manuais primeiro, depois
-     * auto-tier), data de verificação e username. Usa `IS NULL ASC` em
-     * vez de `IS NOT NULL DESC` por portabilidade (§39.2): MySQL aceita
-     * predicado booleano em ORDER BY como 0/1, PostgreSQL não — `IS NULL
-     * ASC` produz a mesma ordem nos dois dialetos e em SQLite.
-     *
-     * A ordenação por presença usa `user_id` sem qualificador de tabela: a
-     * coluna só existe em `user_verification` (a `users` do core não tem
-     * `user_id`), então resolve sem ambiguidade e sem depender do prefixo do
-     * install — string constante, sem interpolação em SQL cru (§10).
+     * Manuais primeiro, depois auto-tier, data de verificação e username.
+     * `IS NULL ASC` em vez de `IS NOT NULL DESC`: o PostgreSQL não aceita predicado
+     * booleano em ORDER BY. `user_id` dispensa qualificador porque só existe em
+     * `user_verification`.
      *
      * @param Builder<User> $query
      * @return \Illuminate\Database\Eloquent\Collection<int, \Flarum\User\User>
@@ -175,15 +149,10 @@ class ApprovedUserQuery
     }
 
     /**
-     * Listagem filtrada por tier. O conjunto é virtual (manual unido a auto)
-     * e o tier do ramo auto só se resolve em PHP, então não há query SQL
-     * única paginável. A página é montada sem materializar o conjunto: o
-     * ramo manual conta por `COUNT(*)` e busca a fatia por `LIMIT/OFFSET`
-     * (exato, sem cap); o ramo auto percorre os candidatos uma vez (limitado
-     * por `TIER_FILTER_AUTO_WALK_CAP`), conta os que casam o tier e guarda só
-     * os IDs da janela da página. A janela do ramo auto é calculada em
-     * coordenadas locais — as posições da página que caem depois do bloco
-     * manual, que vem primeiro na união.
+     * O ramo manual conta por `COUNT(*)` e pagina por `LIMIT/OFFSET`. O ramo auto
+     * percorre os candidatos uma vez, até `TIER_FILTER_AUTO_WALK_CAP`, guardando só
+     * os IDs da página. Como o bloco manual vem primeiro na união, a janela do ramo
+     * auto é calculada em coordenadas locais.
      *
      * @return array{users: Collection<int, User>, total: int, truncated: bool}
      */
@@ -273,10 +242,8 @@ class ApprovedUserQuery
     }
 
     /**
-     * Builder do ramo manual do filtro de tier: join na tabela companheira,
-     * `is_verified=1` e casamento do tier (`verified_tier`, ou NULL quando o
-     * tier-alvo é o default azul configurado). Sem ordenação nem limite — o
-     * caller decide se conta (`COUNT`) ou pagina (`LIMIT/OFFSET`).
+     * Sem ordenação nem limite: o caller decide se conta ou pagina. `verified_tier`
+     * NULL casa com o tier default.
      */
     private function manualTierQuery(
         ApprovedUserCriteria $criteria,
@@ -300,12 +267,8 @@ class ApprovedUserQuery
     }
 
     /**
-     * Percorre os candidatos do ramo auto (membros dos `autoGroups` do tier
-     * filtrado), confirma o tier efetivo em PHP via `resolveTierId` e devolve
-     * a contagem total mais os IDs que caem na janela `[windowStart, +len)`.
-     * Guarda no máximo `windowLength` IDs — a contagem segue até `$cap`, mas o
-     * array de página não cresce com o conjunto. `truncated=true` quando o
-     * walk atinge o cap antes de esgotar os candidatos.
+     * Guarda no máximo `windowLength` IDs; a contagem segue até `$cap`, então a
+     * memória não cresce com o conjunto.
      *
      * @param int[] $targetTierGroupIds
      * @return array{count: int, pageIds: int[], truncated: bool}
@@ -379,12 +342,8 @@ class ApprovedUserQuery
     }
 
     /**
-     * Conjunto "aprovado" sem filtro de tier: manuais (`is_verified=1`) unidos
-     * aos auto-verificados por grupo. O ramo auto exclui usuários com tombstone
-     * de opt-out (`user_verification.auto_revoked_at` set) — eles continuam no
-     * `autoGroup` mas pediram para sair, e `TierResolver::resolveTierId` já os
-     * trata como não-verificados; sem este filtro a listagem do admin os
-     * mostraria como aprovados.
+     * O ramo auto exclui quem tem tombstone (`auto_revoked_at`): a pessoa continua
+     * no grupo, mas pediu para sair, e o `TierResolver` já a trata como não verificada.
      *
      * @param int[] $autoVerifiedGroupIds
      */
@@ -426,7 +385,7 @@ class ApprovedUserQuery
     }
 
     /**
-     * LIKE com wildcards do input neutralizados antes de virar pattern.
+     * Escapa os wildcards do input antes de montar o LIKE.
      */
     private function applySearch(Builder $query, string $q): void
     {

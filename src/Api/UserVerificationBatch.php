@@ -21,10 +21,8 @@ use WeakMap;
  * Estado da serialização de usuários de uma requisição: os tiers e a fila de
  * `verification` (no TierResolver) e quem tem solicitação pendente.
  *
- * Os campos do UserResource ficam em cache no resource e vivem tanto quanto o
- * processo, então o estado não pode morar neles: em workers e nos testes de
- * integração vazaria de uma requisição para a outra. Mesmo padrão do
- * `UserBadgeHelper::forRequest()` da fof/badges.
+ * Não pode morar nos campos do UserResource: eles vivem tanto quanto o processo
+ * e vazariam estado entre requisições em workers e testes de integração.
  */
 final class UserVerificationBatch
 {

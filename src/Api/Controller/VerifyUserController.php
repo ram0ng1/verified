@@ -32,10 +32,8 @@ class VerifyUserController extends AbstractDirectVerificationController
     }
 
     /**
-     * Aprovação direta. A mutação (transação + retenção + dispatch do
-     * `UserVerified`) vive em `VerificationRequestService::verifyDirect()`,
-     * compartilhada com o fluxo de aprovação de pedidos — o controller só
-     * monta o envelope JSON da resposta.
+     * A mutação vive em `VerificationRequestService::verifyDirect()`, compartilhada
+     * com a aprovação de pedidos.
      */
     private function verify(User $target, User $actor, ?string $note, ?string $tierId, Carbon $now): JsonResponse
     {

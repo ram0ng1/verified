@@ -12,15 +12,10 @@
 namespace Ramon\Verified\Documents;
 
 /**
- * Resolve tokens armazenados em `document_path` (forma
- * `/assets/verified/{userId}/{filename}`) para paths disco-relativos no
- * `flarum-verified-documents`. Endurecido contra traversal: allowlist de
- * filename, rejeição de null byte / stream wrapper / `..`, casamento estrito
- * do userId.
- *
- * Devolve sempre **path disco-relativo** (ex.: `"42/abc.pdf"`), nunca path
- * absoluto. Callers operam pelo disco; o driver `local` do Flysystem cuida
- * do prefix-confinement.
+ * Converte o `document_path` (`/assets/verified/{userId}/{filename}`) em path
+ * relativo ao disco `flarum-verified-documents`, nunca absoluto. Contra
+ * traversal: allowlist de filename, sem null byte, stream wrapper ou `..`, e o
+ * userId tem de casar exatamente.
  */
 class DocumentPathResolver
 {
@@ -29,7 +24,7 @@ class DocumentPathResolver
     public const PUBLIC_PREFIX = 'assets/verified/';
 
     /**
-     * Disco registrado em `extend.php`. Root é `$paths->storage/verified-documents`.
+     * Raiz em `$paths->storage/verified-documents`.
      */
     public const DISK = 'flarum-verified-documents';
 

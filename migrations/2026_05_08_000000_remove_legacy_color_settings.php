@@ -12,9 +12,8 @@
 use Illuminate\Database\Schema\Builder;
 
 /**
- * Limpa settings legados de cor que foram substituídos pela config multi-tier.
- * Sem helper `Migration::*` para esse caso — alcança a conexão pelo
- * `SchemaBuilder` (único argumento passado pelo migrator do Flarum).
+ * Remove settings de cor substituídos pela config multi-tier. A conexão vem do
+ * `SchemaBuilder`, único argumento que o migrator do Flarum passa.
  */
 return [
     'up' => function (Builder $schema) {

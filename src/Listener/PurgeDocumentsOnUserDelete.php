@@ -17,15 +17,9 @@ use Ramon\Verified\Documents\DocumentRetention;
 use Throwable;
 
 /**
- * Apaga todos os documentos de um usuário sendo hard-deletado. Necessário
- * porque a FK `cascadeOnDelete` em `verification_requests.user_id` remove
- * as linhas no nível de DB e Eloquent não dispara eventos por linha — sem
- * este listener, os arquivos órfão.
- *
- * Registrado em `eloquent.deleting: User::class` apenas — este evento
- * dispara em TODOS os paths (`UserResource::deleting` da API + chamadas
- * diretas `$user->delete()` em tinker/CLI), tornando o domain-event
- * `UserDeleting` redundante.
+ * O `cascadeOnDelete` da FK apaga as solicitações sem disparar eventos Eloquent,
+ * o que deixaria os arquivos órfãos. `eloquent.deleting` cobre tanto a API quanto
+ * um `$user->delete()` direto.
  */
 class PurgeDocumentsOnUserDelete
 {

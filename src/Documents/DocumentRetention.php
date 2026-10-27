@@ -20,16 +20,9 @@ use Ramon\Verified\Models\VerificationRequest;
 use Throwable;
 
 /**
- * Ciclo de vida dos arquivos de documentos no disco
- * `flarum-verified-documents`. Três modos são suportados pela setting
- * `ramon-verified.document_retention`:
- *
- * - `keep`              — não apaga automaticamente; admin retém indefinidamente.
- * - `delete_immediate`  — apaga assim que a solicitação é finalizada.
- * - `delete_after_days` — apaga N dias após a finalização (comando agendado).
- *
- * Único ponto autorizado a deletar arquivos de documentos fora do pipeline
- * GDPR. Toda mutação passa pelo disco — nada de FS nativa.
+ * Retenção dos documentos (`ramon-verified.document_retention`): `keep`,
+ * `delete_immediate` (ao finalizar a solicitação) ou `delete_after_days`
+ * (comando agendado). Fora do pipeline GDPR, só esta classe apaga documentos.
  */
 class DocumentRetention
 {
@@ -38,18 +31,13 @@ class DocumentRetention
     public const MODE_DELETE_AFTER_DAYS = 'delete_after_days';
 
     /**
-     * Janela em que um arquivo recém-enviado mas ainda não submetido fica
-     * imune ao `sweepOrphans`. Suficientemente maior que a latência típica
-     * entre upload e submit, suficientemente menor para que órfãos reais
-     * não acumulem.
+     * Período em que um upload ainda não submetido fica imune ao `sweepOrphans`.
      */
     public const UNREFERENCED_GRACE_SECONDS = 30 * 60;
 
     /**
-     * Quantos arquivos enviados e ainda não anexados a uma solicitação um
-     * usuário pode ter ao mesmo tempo. Sem o teto, um membro enviava 5
-     * arquivos de 8 MB por minuto sem nunca abrir solicitação e o disco
-     * enchia (o sweep só roda no upload seguinte do mesmo usuário).
+     * Sem este teto, um membro podia enviar 5 arquivos de 8 MB por minuto sem
+     * abrir solicitação e encher o disco.
      */
     public const MAX_UNATTACHED_PER_USER = 3;
 
@@ -62,9 +50,7 @@ class DocumentRetention
     }
 
     /**
-     * Aplica a política de retenção a uma solicitação recém-finalizada.
-     * Modo `delete_immediate` apaga o arquivo e zera `document_path`; demais
-     * modos são no-op (o purge agendado cuida de `delete_after_days`).
+     * Só age em `delete_immediate`; `delete_after_days` fica com o purge agendado.
      */
     public function onRequestHandled(VerificationRequest $request): void
     {
@@ -88,9 +74,7 @@ class DocumentRetention
     }
 
     /**
-     * Apaga apenas o arquivo associado à solicitação sem persistir o
-     * model — usado em hooks `deleting` de Eloquent onde a linha já vai
-     * embora.
+     * Não persiste o model: usado em hooks `deleting`, quando a linha já vai embora.
      */
     public function purgeFileForRequest(VerificationRequest $request): void
     {
@@ -102,8 +86,8 @@ class DocumentRetention
     }
 
     /**
-     * Apaga o diretório inteiro de um usuário (chamado no delete da conta —
-     * o `cascadeOnDelete` da FK não dispara eventos Eloquent por linha).
+     * O `cascadeOnDelete` da FK não dispara eventos Eloquent, por isso o diretório
+     * é apagado explicitamente.
      */
     public function purgeAllForUser(int $userId): int
     {
@@ -131,16 +115,9 @@ class DocumentRetention
     }
 
     /**
-     * Sweep de arquivos órfãos no diretório do usuário — arquivos que não
-     * são referenciados por nenhuma linha de `verification_requests` e já
-     * passaram da janela de graça. Chamado pelo controller de upload antes
-     * de gravar um novo arquivo e pelo comando diário. Retorna a contagem
-     * removida.
-     *
-     * Toda linha com `document_path` conta como referência, qualquer que
-     * seja o status: o destino do documento de uma solicitação rejeitada é
-     * decidido pela política de retenção (`purgeExpired`/`onRequestHandled`),
-     * não pelo sweep — no modo `keep` ele tem de ficar.
+     * Toda linha com `document_path` conta como referência, qualquer que seja o
+     * status: quem decide o destino do documento de uma solicitação rejeitada é a
+     * política de retenção, e no modo `keep` ele tem de ficar.
      */
     public function sweepOrphans(int $userId): int
     {
@@ -159,8 +136,7 @@ class DocumentRetention
     }
 
     /**
-     * Arquivos do usuário ainda dentro da janela de graça e sem solicitação.
-     * O upload recusa um arquivo novo quando chega a `MAX_UNATTACHED_PER_USER`.
+     * O upload é recusado ao chegar a `MAX_UNATTACHED_PER_USER`.
      */
     public function countUnattached(int $userId): int
     {
@@ -168,8 +144,8 @@ class DocumentRetention
     }
 
     /**
-     * Varre os órfãos de todos os usuários (comando diário). Sem isto, os
-     * arquivos de quem envia e nunca abre solicitação ficavam para sempre.
+     * Sem isto, os arquivos de quem envia e nunca abre solicitação ficariam para
+     * sempre: o sweep por usuário só roda no próximo upload dele.
      */
     public function sweepAllOrphans(): int
     {
@@ -231,9 +207,7 @@ class DocumentRetention
     }
 
     /**
-     * Purge baseado em tempo. Remove arquivos de toda solicitação finalizada
-     * cujo `handled_at` ultrapassou a janela de retenção. No-op fora do
-     * modo `delete_after_days`. Retorna a contagem de solicitações processadas.
+     * Retorna o número de solicitações processadas.
      */
     public function purgeExpired(): int
     {
@@ -250,11 +224,8 @@ class DocumentRetention
         $purged = 0;
 
         /*
-         * `chunkById`, não `chunk`: `purgeRequest()` zera `document_path`, a
-         * própria coluna do `whereNotNull('document_path')`. Com `chunk`
-         * (paginação por OFFSET), cada lote processado encolhe o result set
-         * e o `OFFSET` do lote seguinte pula linhas ainda não tratadas.
-         * `chunkById` pagina por `id > último`, imune ao encolhimento.
+         * `chunkById`, não `chunk`: `purgeRequest()` zera a própria coluna do
+         * `whereNotNull`, e a paginação por OFFSET pularia linhas não tratadas.
          */
         VerificationRequest::query()
             ->whereIn('status', [VerificationRequest::STATUS_APPROVED, VerificationRequest::STATUS_REJECTED])
@@ -318,7 +289,7 @@ class DocumentRetention
     }
 
     /**
-     * Falhas de I/O são logadas e toleradas — retenção é best-effort.
+     * Retenção é best-effort: falhas de I/O são logadas e toleradas.
      */
     private function safeDelete(string $relative, ?int $requestId = null): bool
     {

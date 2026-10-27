@@ -16,17 +16,12 @@ use Flarum\Settings\SettingsRepositoryInterface;
 use RuntimeException;
 
 /**
- * Criptografia assimétrica para documentos de verificação usando "sealed
- * boxes" do libsodium (X25519 + XSalsa20-Poly1305). A chave pública vive em
- * setting `ramon-verified.encryption_public_key`; a chave privada é colada à
- * mão em `config.php` na entrada `verified-private-key`. Assim o processo
- * web não pode ser coagido a vazar uma chave que nunca recebeu.
+ * Sealed boxes do libsodium (X25519 + XSalsa20-Poly1305). A chave privada é
+ * colada à mão no `config.php`, para o processo web nunca a receber e não poder
+ * ser coagido a vazá-la.
  *
- * Layout em disco:  [MAGIC (6 bytes)] [sealed-box ciphertext].
- *
- * O prefixo MAGIC distingue blobs cifrados de arquivos legados em texto
- * claro — essencial no pipeline GDPR e em forums que ativam encryption no
- * meio do ciclo de vida.
+ * Layout em disco: [MAGIC (6 bytes)][ciphertext]. O MAGIC separa blobs cifrados
+ * de arquivos em texto claro, gravados antes de a criptografia ser ligada.
  */
 class DocumentCipher
 {
@@ -49,12 +44,8 @@ class DocumentCipher
     }
 
     /**
-     * Escolha do admin (chave "Criptografar documentos" no painel). Ligada,
-     * todo upload novo é selado com a chave pública — e recusado se não der
-     * para selar (falha fechada: nunca grava em texto claro um documento que
-     * o admin mandou criptografar). Desligada, os uploads novos vão em texto
-     * claro; os já cifrados continuam legíveis enquanto a privada estiver no
-     * config.php.
+     * Ligada, um upload que não puder ser selado é recusado em vez de cair em texto
+     * claro. Desligada, os já cifrados continuam legíveis enquanto houver a privada.
      */
     public function isEnabled(): bool
     {
@@ -72,9 +63,7 @@ class DocumentCipher
     }
 
     /**
-     * `true` quando a pública derivada da privada bate com a pública
-     * persistida; `false` se há mismatch (chave privada de outro par);
-     * `null` quando faltam ambas — pergunta ainda não aplicável.
+     * `null` quando falta alguma das chaves; `false` se a privada é de outro par.
      */
     public function keysMatch(): ?bool
     {
@@ -95,10 +84,6 @@ class DocumentCipher
         return $this->isAvailable() && $this->hasPublicKey();
     }
 
-    /**
-     * Decifrar exige par completo E que ambas as metades pertençam ao
-     * mesmo par. Privada de outro par é tão útil quanto privada ausente.
-     */
     public function canDecrypt(): bool
     {
         return $this->isAvailable()
@@ -108,8 +93,7 @@ class DocumentCipher
     }
 
     /**
-     * Cifra um buffer. Caller é responsável por já ter verificado que
-     * encryption está disponível — caso contrário, lança.
+     * Lança se a criptografia não estiver disponível.
      */
     public function encrypt(string $plaintext): string
     {
@@ -132,10 +116,8 @@ class DocumentCipher
     }
 
     /**
-     * Decifra apenas se o buffer carrega o MAGIC. Blobs legados (não
-     * cifrados) atravessam intactos — assim o pipeline de download
-     * funciona uniformemente. Quem precisa do contrato estrito "tem que
-     * ser cifrado" testa `isEncryptedBlob()` antes.
+     * Blobs sem MAGIC passam intactos. Quem exige um blob cifrado testa
+     * `isEncryptedBlob()` antes.
      */
     public function decryptIfEncrypted(string $blob): string
     {
@@ -164,9 +146,6 @@ class DocumentCipher
     }
 
     /**
-     * Gera um par X25519 novo. Pública é persistida; privada volta ao caller
-     * para exibição única e colagem manual em `config.php`.
-     *
      * @return array{public: string, private: string} ambos em base64
      */
     public function generateKeypair(): array
@@ -194,9 +173,8 @@ class DocumentCipher
     }
 
     /**
-     * Esquece a chave pública. Usado quando o admin reconhece perda da
-     * privada — sem privada, manter pública só atrapalha (novos uploads
-     * cifrariam para um par cujos arquivos cifrados são ilegíveis).
+     * Sem a privada, manter a pública faria novos uploads serem cifrados para um par
+     * ilegível.
      */
     public function forgetPublicKey(): void
     {

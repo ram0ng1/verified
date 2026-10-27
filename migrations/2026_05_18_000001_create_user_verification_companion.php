@@ -14,8 +14,8 @@ use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Database\Schema\Builder;
 
 /**
- * Move o estado verified de `users` para `user_verification`. Copia dados
- * existentes antes de dropar as colunas e índices legados. Idempotente.
+ * Move o estado de verificação de `users` para `user_verification`, copiando os
+ * dados antes de remover as colunas e índices legados.
  */
 
 $indexExists = function (Builder $schema, string $table, string $name): bool {
@@ -58,11 +58,9 @@ return [
             && $schema->hasColumn('users', 'verified_by')
         ) {
             /*
-             * `chunkById` em vez de `cursor()`: o cursor abre um result set
-             * não-bufferizado e, no MySQL/PDO, gravar (`updateOrInsert`) na
-             * mesma conexão enquanto ele está aberto lança "Cannot execute
-             * queries while other unbuffered queries are active". O chunk
-             * bufferiza cada lote e libera a conexão para os writes.
+             * `chunkById` em vez de `cursor()`: no MySQL/PDO, escrever na mesma conexão
+             * com um result set não bufferizado aberto lança "Cannot execute queries
+             * while other unbuffered queries are active".
              */
             $db->table('users')
                 ->select(['id', 'is_verified', 'verified_at', 'verified_by', 'verified_tier'])

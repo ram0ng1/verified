@@ -12,9 +12,7 @@
 use Illuminate\Database\Schema\Builder;
 
 /**
- * Limpa `verified_tier` em linhas com `is_verified=false`. Resolver foi
- * endurecido; esta migração só normaliza linhas stale. Migrator passa
- * apenas o `SchemaBuilder` — a conexão sai do próprio schema.
+ * Normaliza linhas antigas com `verified_tier` preenchido e `is_verified=false`.
  */
 return [
     'up' => function (Builder $schema) {

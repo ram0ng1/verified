@@ -16,16 +16,8 @@ use Flarum\Api\Schema;
 use Flarum\Settings\SettingsRepositoryInterface;
 
 /**
- * Fields para o `ForumResource` que SÓ devem chegar a usuários autenticados.
- * Em vez de `serializeToForum` (que ship pra todo guest), estes campos têm
- * `->visible(actor not guest)` e ficam fora do payload anônimo. Reduz peso
- * por page-load e evita exposição de toggles operacionais a quem nunca
- * abrirá o modal.
- *
- * `canVerifyUsers` e `canSelfRevokeVerification` espelham o gate do
- * `VerifyUserController::assertCanActOn` (§3, §4) — o primeiro vale para
- * cross-user e self; o segundo libera o botão Revoke no próprio perfil
- * quando o ator não é admin.
+ * Campos do `ForumResource` só para usuários autenticados, fora do payload
+ * anônimo. As permissões espelham `VerifyUserController::assertCanActOn`.
  */
 class ForumResourceFields
 {
@@ -68,9 +60,7 @@ class ForumResourceFields
     }
 
     /**
-     * Parse + saneamento do JSON de tipos de documento. Espelha o cast
-     * anterior em `extend.php` (mesma forma de descarte de linhas
-     * malformadas, mesmo cap em id/label).
+     * Descarta linhas malformadas e limita o tamanho de id e label.
      *
      * @return array<int, array{id: string, label: string}>
      */

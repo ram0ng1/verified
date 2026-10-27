@@ -18,11 +18,8 @@ use Ramon\Verified\Models\VerificationRequest;
 class VerificationRequestPolicy extends AbstractPolicy
 {
     /**
-     * Catch-all: quem detém `verified.verifyUsers` pode tudo sobre os
-     * pedidos — listar, ver, aprovar, rejeitar, revogar, deletar. Espelha o
-     * gate de `VerifyUserController` para que o mesmo moderador trate tanto
-     * a verificação direta quanto a fila de pedidos. Admins têm todas as
-     * permissões, então `hasPermission` os cobre sem um teste explícito.
+     * Quem detém `verified.verifyUsers` pode tudo sobre os pedidos: é o mesmo gate
+     * do `VerifyUserController`, para um só moderador cuidar das duas frentes.
      */
     public function can(User $actor, string $ability, ?VerificationRequest $request = null): ?string
     {

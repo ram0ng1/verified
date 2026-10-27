@@ -27,26 +27,15 @@ use Symfony\Contracts\Translation\TranslatorInterface;
 use Throwable;
 
 /**
- * DataType do flarum/gdpr. Exporta/anonimiza/deleta as linhas de
- * `verification_requests` e o estado em `user_verification` deste usuário.
- *
- * O GDPR instancia tipos via `new $type(...)` com 6 args fixos
- * (Exporter.php:56, ErasureJob.php:102), então não há janela de DI por
- * construtor para colaboradores extras. `DocumentPathResolver` e
- * `VerifiedStatus` são stateless sem dependências — instanciados direto.
- * O `DocumentCipher` precisa de `Flarum\Foundation\Config` (a chave privada
- * mora em `config.php`, não na tabela `settings`), inalcançável pelos 6
- * args; é resolvido de forma lazy, só na exportação, no mesmo padrão da
- * classe-base `Type::staticTranslator()`. Testes sem boot da app injetam o
- * cipher pelo 7º argumento opcional do construtor.
+ * O flarum/gdpr instancia os tipos com `new $type(...)` e 6 argumentos fixos,
+ * sem DI por construtor. O `DocumentCipher` depende do `Config` e por isso é
+ * resolvido de forma lazy, só no export; testes o injetam pelo 7º argumento.
  */
 class VerifiedDocuments extends Type
 {
     /**
-     * Tamanho do chunk ao percorrer as solicitações tratadas por um admin no
-     * export. Um administrador veterano pode ter tratado dezenas de milhares
-     * de linhas; `chunkById` mantém apenas este número de models hidratados em
-     * memória por vez, em vez de materializar o conjunto inteiro de uma vez.
+     * Um admin veterano pode ter tratado dezenas de milhares de solicitações; o
+     * export as percorre em chunks deste tamanho.
      */
     private const EXPORT_CHUNK = 200;
 
@@ -72,11 +61,6 @@ class VerifiedDocuments extends Type
         $this->cipherOverride = $cipher;
     }
 
-    /**
-     * Resolve o `DocumentCipher` apenas no momento em que arquivos cifrados
-     * são encontrados. O cipher injetado no construtor tem prioridade
-     * (cenário de teste sem boot completo); fora dele, resolve do container.
-     */
     private function cipher(): ?DocumentCipher
     {
         if ($this->cipherOverride !== null) {
@@ -98,8 +82,7 @@ class VerifiedDocuments extends Type
     }
 
     /**
-     * Campos tratados como PII quando o GDPR serializa eventos para sinks
-     * externos. Mascarados mesmo quando o restante do payload é encaminhado.
+     * Mascarados mesmo quando o resto do payload vai para sinks externos.
      */
     public static function piiFields(): array
     {
@@ -171,14 +154,9 @@ class VerifiedDocuments extends Type
     }
 
     /**
-     * Remove a PII das linhas, preservando o trilho de auditoria (status,
-     * datas). O `is_verified` permanece intencionalmente — o histórico
-     * espera o flag verdadeiro mesmo após a anonimização.
-     *
-     * Mutações DB envoltas em transação: se qualquer dos UPDATEs falhar,
-     * o usuário não fica num estado intermediário com algumas linhas
-     * zeradas e outras com PII residual. `deleteDocumentFiles` fica FORA
-     * do bloco — operação de disco não tem rollback útil.
+     * `is_verified` permanece de propósito: o histórico precisa dele após a
+     * anonimização. Os UPDATEs ficam numa transação para não sobrar PII parcial;
+     * os arquivos são apagados fora dela, pois disco não tem rollback.
      */
     public function anonymize(): void
     {
@@ -223,11 +201,8 @@ class VerifiedDocuments extends Type
     }
 
     /**
-     * Lê cada arquivo do diretório do usuário no disco privado e devolve
-     * `[filename => bytes]`. Arquivos cifrados sem chave privada disponível
-     * são pulados e contabilizados em `_encrypted_skipped.txt` — o sujeito
-     * tem direito ao próprio dado em claro, então ciphertext nunca sai no
-     * export.
+     * Devolve `[filename => bytes]`. Ciphertext nunca sai no export: arquivos
+     * cifrados sem privada disponível são listados em `_encrypted_skipped.txt`.
      */
     private function collectDocumentFiles(): array
     {
@@ -280,11 +255,8 @@ class VerifiedDocuments extends Type
     }
 
     /**
-     * Apaga o diretório de documentos do usuário no disco privado. Uma falha
-     * NÃO é silenciada: propaga e faz o `ErasureJob` (job de fila) falhar em
-     * vez de marcar a erasure como concluída deixando documentos de identidade
-     * em disco — exatamente a violação de GDPR que o fluxo existe para evitar.
-     * O job reexecuta; as mutações de DB anteriores são idempotentes.
+     * A falha propaga de propósito: o `ErasureJob` falha e reexecuta em vez de dar
+     * a erasure como concluída com documentos de identidade no disco.
      */
     private function deleteDocumentFiles(): void
     {

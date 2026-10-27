@@ -17,11 +17,8 @@ use Ramon\Verified\Models\VerificationRequest;
 use Throwable;
 
 /**
- * Apaga o arquivo de documento quando a linha de `verification_requests` é
- * deletada. Sem este hook, um usuário com `verified.request` poderia repetir
- * upload → submit → DELETE em loop, deixando arquivos órfãos em disco.
- * Falhas de I/O são logadas mas não bloqueiam a remoção da linha — o sweep
- * agendado limpa órfãos posteriormente.
+ * Sem isto, um loop upload/submit/DELETE deixaria arquivos órfãos no disco. Uma
+ * falha de I/O não bloqueia a remoção da linha; o sweep agendado limpa depois.
  */
 class PurgeDocumentOnRequestDelete
 {

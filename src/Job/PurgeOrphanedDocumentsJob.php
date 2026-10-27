@@ -22,15 +22,12 @@ use Ramon\Verified\Models\VerificationRequest;
 use Throwable;
 
 /**
- * Apaga arquivos cifrados pela chave antiga após uma rotação de par.
- * A nova chave pública já existe quando o job roda, então os uploads da
- * janela entre a rotação e o worker também levam o marcador `VENC1` —
- * cifrados com a chave NOVA. Por isso o job só apaga arquivos gravados
- * antes de `$rotatedAt` (o blob não guarda a impressão da chave).
+ * Apaga os arquivos cifrados com a chave antiga após uma rotação. A pública nova
+ * já existe quando o job roda e o blob não guarda a impressão da chave, então só
+ * saem arquivos gravados antes de `$rotatedAt`.
  *
- * Em queue driver `sync` (default do Flarum) roda inline; sob `redis` /
- * `database` roda em worker, sem amarrar o request de admin numa
- * varredura full-corpus que pode estourar `request_terminate_timeout`.
+ * Roda em fila para não prender o request do admin numa varredura completa que
+ * pode estourar o `request_terminate_timeout`.
  */
 class PurgeOrphanedDocumentsJob implements ShouldQueue
 {
@@ -60,9 +57,8 @@ class PurgeOrphanedDocumentsJob implements ShouldQueue
         $failed = 0;
 
         /*
-         * `chunkById`: o callback zera `document_path`, a coluna do
-         * `whereNotNull('document_path')`. `chunk` (OFFSET) pularia linhas
-         * conforme o result set encolhe; `chunkById` pagina por `id`.
+         * `chunkById`: o callback zera `document_path`, a coluna do `whereNotNull`, e a
+         * paginação por OFFSET pularia linhas.
          */
         VerificationRequest::query()
             ->whereNotNull('document_path')

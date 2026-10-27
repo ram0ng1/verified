@@ -16,11 +16,8 @@ use Flarum\User\User;
 use Ramon\Verified\Models\UserVerification;
 
 /**
- * Fonte única de "qual tier (se algum) este usuário tem". A lista de tiers
- * é cacheada por instância — o parse das settings é pago uma vez por request,
- * lookups subsequentes são walk de array. Lê o estado verified via relação
- * `verification` (companion table) com fallback à query direta
- * quando a relação não foi eager-loaded.
+ * Fonte única de "qual tier este usuário tem". A lista de tiers é parseada uma
+ * vez por instância.
  */
 class TierResolver
 {
@@ -28,10 +25,9 @@ class TierResolver
     protected ?array $tiers = null;
 
     /**
-     * Usuários do documento JSON:API à espera da relação `verification`.
-     * O getter enfileira na fase síncrona da serialização; a primeira leitura
-     * carrega a fila inteira numa consulta só (o mesmo padrão do
-     * `EloquentBuffer` do core) em vez de um SELECT por usuário.
+     * Fila da relação `verification`: o getter enfileira na fase síncrona da
+     * serialização e a primeira leitura carrega todos numa consulta só, como o
+     * `EloquentBuffer` do core.
      *
      * @var array<int, User>
      */
@@ -53,14 +49,9 @@ class TierResolver
     }
 
     /**
-     * Resolve o tier efetivo. Manual ganha do auto. Manual exige
-     * `verification.is_verified=true` — coluna `verified_tier` sozinha não
-     * basta: tier configurado e removido em runtime cai no default.
-     *
-     * Tombstone de opt-out: quando há row com `auto_revoked_at` set e
-     * `is_verified=false`, o usuário pediu para sair do auto-tier — não
-     * devolvemos auto-grant via grupo. `mark()` limpa o tombstone ao
-     * reverificar manualmente; `clear()` também (volta ao estado original).
+     * Manual ganha do auto e exige `is_verified=true`; um `verified_tier` que foi
+     * removido da config cai no default. Com o tombstone `auto_revoked_at`, o
+     * usuário optou por sair e não recebe auto-grant.
      */
     public function resolveTierId(User $user): ?string
     {
@@ -94,10 +85,8 @@ class TierResolver
     }
 
     /**
-     * Resolve o tier requisitado em um body de aprovação contra a lista
-     * configurada. Input ausente ou inválido cai no default (`blue`) ou no
-     * primeiro tier configurado — aprovação nunca trava por causa do tier.
-     * Devolve `null` quando o admin não configurou nenhum tier.
+     * Input ausente ou inválido cai no default (`blue`) ou no primeiro tier: a
+     * aprovação nunca trava por causa do tier. `null` sem tiers configurados.
      */
     public function resolveRequestedTierId(?string $requested): ?string
     {
@@ -118,9 +107,8 @@ class TierResolver
     }
 
     /**
-     * Tier que o usuário receberia exclusivamente por auto-grant de grupo,
-     * independentemente de `is_verified`. Usado no fluxo de self-revoke
-     * para informar o caller que o badge sobrevive via grupo.
+     * Ignora `is_verified`: serve para avisar, no self-revoke, que o badge sobrevive
+     * via grupo.
      *
      * @return array{id:string,label:string,color:string,description:string,learnMoreUrl:string,autoGroups:int[],badgeEnabled:bool,badgeSvg:string}|null
      */
@@ -161,10 +149,7 @@ class TierResolver
     }
 
     /**
-     * Carrega a relação `verification` se já tiver sido eager-loaded; caso
-     * contrário consulta a tabela diretamente. Cobre tanto reads vindos de
-     * resources (que devem `eagerLoad('verification')`) quanto reads
-     * pontuais em listeners/jobs.
+     * Usa a relação se já carregada; senão consulta direto (listeners e jobs).
      */
     private function loadVerification(User $user): ?UserVerification
     {

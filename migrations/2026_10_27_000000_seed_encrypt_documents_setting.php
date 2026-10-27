@@ -12,9 +12,8 @@
 use Illuminate\Database\Schema\Builder;
 
 /**
- * A criptografia virou uma escolha explícita (`ramon-verified.encrypt_documents`).
- * Antes ela ligava sozinha quando havia chave pública: um fórum que já tinha
- * gerado o par continua criptografando; os outros começam desligados.
+ * A criptografia passou a ser opt-in (`ramon-verified.encrypt_documents`).
+ * Fóruns que já tinham gerado o par de chaves continuam criptografando.
  */
 return [
     'up' => function (Builder $schema) {

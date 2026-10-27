@@ -12,8 +12,7 @@
 namespace Ramon\Verified\Api;
 
 /**
- * Critérios saneados do `ListApprovedUsersController`. Encapsula o parsing
- * da query string em um value object com defaults estáveis.
+ * Query string do `ListApprovedUsersController` já saneada, com defaults estáveis.
  */
 final class ApprovedUserCriteria
 {

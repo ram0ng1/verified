@@ -14,27 +14,16 @@ namespace Ramon\Verified\Support;
 use Flarum\Foundation\ValidationException;
 
 /**
- * Sanitiza SVGs admin-uploaded. Remove DOCTYPE/ENTITY (XXE), todo elemento
- * fora da allowlist `ALLOWED_TAGS` (script, foreignObject, iframe, animate*,
- * etc.), handlers `on*`, URLs `javascript:` / `data:`, qualquer
- * `href`/`xlink:href` que não seja referência interna
- * `#fragment` (defeats `<use href="evil.svg#x">`, relativo ou absoluto), e
- * referências `url(...)` para recursos externos em atributos e em CSS
- * inline. Opcionalmente reescreve `fill` para `currentColor`, deixando o
- * frontend pilotar a cor pelo tier.
- *
- * Usado em três call sites — UploadBadgeSvgController (upload),
- * SanitizeTiersOnSave (persistência de settings de tier) e TierConfig
- * (parse de JSON) — então mora fora do controller para evitar acoplar
- * cada caller à camada HTTP.
+ * Sanitiza SVGs enviados pelo admin: remove DOCTYPE/ENTITY (XXE), elementos
+ * fora de `ALLOWED_TAGS`, handlers `on*`, URLs `javascript:`/`data:`, `href`
+ * que não seja `#fragment` e `url(...)` externos em atributos e CSS inline.
+ * Opcionalmente troca `fill` por `currentColor`, para o tier controlar a cor.
  */
 class SvgSanitizer
 {
     /**
-     * Atributos SVG/CSS que aceitam `url(...)` como referência a paint server,
-     * máscara, filtro, marker ou cursor. Sem scrub aqui, um valor como
-     * `filter="url(https://evil.example/leak.svg#x)"` faz o navegador buscar
-     * recursos externos toda vez que o selo é renderizado.
+     * Sem este scrub, algo como `filter="url(https://evil.example/leak.svg#x)"`
+     * faria o navegador buscar um recurso externo a cada renderização do selo.
      */
     private const URL_REFERENCING_ATTRS = [
         'fill', 'stroke', 'filter', 'mask', 'clip-path',
@@ -43,18 +32,9 @@ class SvgSanitizer
     ];
 
     /**
-     * Allowlist de elementos SVG aceitos — qualquer elemento fora desta
-     * lista é removido. Allowlist em vez de blocklist porque falha fechado:
-     * um elemento ativo novo (ou esquecido — `<animateColor>`, `<mpath>`,
-     * foreign-content de outro namespace cujo `localName` colide) nunca
-     * passa por não constar aqui, sem depender de o sanitizador conhecer
-     * a ameaça de antemão.
-     *
-     * Cobre estrutura, formas, texto, gradientes/paint servers e primitivas
-     * de filtro. Fora da lista de propósito: `script`, `style`, `a`,
-     * `foreignObject`, `iframe`, `object`, `embed`, `base`, `link`, todos os
-     * `animate*`/`set`/`mpath` (SMIL reescreve `xlink:href` em runtime,
-     * contornando o scrub estático) e `image`/`feImage` (carregam recurso
+     * Allowlist, não blocklist, para falhar fechado com elementos que o sanitizador
+     * não conhece. Ficam de fora de propósito `animate*`/`set`/`mpath` (o SMIL
+     * reescreve `xlink:href` em runtime) e `image`/`feImage` (carregam recurso
      * externo mesmo após o scrub de `href`).
      */
     private const ALLOWED_TAGS = [
@@ -74,8 +54,7 @@ class SvgSanitizer
     ];
 
     /**
-     * Sanitiza um SVG. Devolve string vazia em entrada não-parseável;
-     * `throwOnInvalid=true` lança ValidationException em vez disso.
+     * Entrada não parseável devolve string vazia, ou lança com `throwOnInvalid`.
      */
     public static function sanitize(string $content, bool $throwOnInvalid = true): string
     {
@@ -130,9 +109,8 @@ class SvgSanitizer
     }
 
     /**
-     * Aplica cada padrão em loop até a string parar de mudar. Strip de
-     * uma passada deixa recombinações (`<<!--!-->!--X-->` → `<!--X-->`);
-     * loop até fixed-point garante remoção completa.
+     * Repete até a string parar de mudar: uma passada só deixa recombinações como
+     * `<<!--!-->!--X-->` → `<!--X-->`.
      *
      * @param string[] $patterns
      */
@@ -149,10 +127,7 @@ class SvgSanitizer
     }
 
     /**
-     * Reescreve cada atributo `fill` (exceto `none`, `transparent` ou
-     * branco-ish) para `currentColor`. Resultado: a cor do tier (ou a
-     * `@primary-color` do fórum) pilota a aparência do selo, preservando
-     * shapes brancos internos (típicos do check central).
+     * Mantém `none`, `transparent` e brancos, preservando o check branco interno.
      */
     private static function replaceFillsWithCurrentColor(\DOMNode $node): void
     {
@@ -186,10 +161,8 @@ class SvgSanitizer
     }
 
     /**
-     * `true` quando o atributo (ou trecho de style) tem qualquer `url(...)`
-     * que não seja referência interna do tipo `url(#fragment)`. Casa `url(`,
-     * `URL(`, aspas opcionais e espaço; rejeita protocolos absolutos, URLs
-     * relativas e protocolo-relativas (`//host/...`).
+     * Só `url(#fragment)` é aceito; relativas e protocolo-relativas (`//host`)
+     * também contam como externas.
      */
     private static function hasExternalUrlRef(string $value): bool
     {
@@ -230,10 +203,8 @@ class SvgSanitizer
             } elseif ($child instanceof \DOMProcessingInstruction
                 || $child instanceof \DOMComment
                 || $child instanceof \DOMCdataSection) {
-                // Comentários e CDATA voltam intactos no `saveXML()`. Inseridos
-                // via innerHTML, `<!-->` fecha o comentário na hora e o que vem
-                // depois sai do conteúdo SVG — mXSS para qualquer consumidor
-                // que não re-sanitize no cliente.
+                // Comentários e CDATA voltam intactos no `saveXML()`; inseridos via
+                // innerHTML, `<!-->` fecha o comentário e o resto escapa do SVG (mXSS).
                 $node->removeChild($child);
             }
         }
@@ -298,11 +269,6 @@ class SvgSanitizer
         }
     }
 
-    /**
-     * Remove declarações CSS cujo valor contém `url(...)` apontando para fora
-     * (qualquer coisa que não seja `url(#fragment)`). Preserva o resto do
-     * style — fill, transform, etc. seguem válidos.
-     */
     private static function stripExternalUrlRefsFromStyle(string $style): string
     {
         $declarations = explode(';', $style);

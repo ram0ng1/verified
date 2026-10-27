@@ -16,15 +16,9 @@ use Ramon\Verified\Support\SvgSanitizer;
 use Ramon\Verified\TierConfig;
 
 /**
- * Sanitiza `ramon-verified.tiers` no caminho de write. Sem
- * isso, o JSON enviado pelo admin (que contém SVG bruto carregado pelo
- * file picker) vai direto ao banco; só seria saneado quando lido por
- * `TierConfig::parse`. Defesa-em-profundidade: garante que NENHUM consumer
- * que ler a setting raw consiga ver SVG malicioso.
- *
- * Apenas o campo `badgeSvg` de cada tier passa pelo sanitizer — os demais
- * (id/label/color/description/learnMoreUrl/autoGroups) já são validados
- * por `TierConfig::doParse` no read.
+ * Sanitiza os SVGs dos tiers na escrita, para que nenhum consumidor da setting
+ * crua veja SVG malicioso. Os demais campos já são validados por
+ * `TierConfig::doParse` na leitura.
  */
 class SanitizeTiersOnSave
 {

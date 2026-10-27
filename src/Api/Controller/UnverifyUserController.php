@@ -48,17 +48,11 @@ class UnverifyUserController extends AbstractDirectVerificationController
     }
 
     /**
-     * Revogação: cobre os dois shapes possíveis de "verified".
+     * Verificação manual: apaga a linha; se o usuário ainda estiver num
+     * `autoGroup`, o auto-tier volta e `meta.autoTierPersists` avisa o caller.
      *
-     *  - **Manual** (linha em `user_verification` com `is_verified=true`):
-     *    apaga a linha e grava REJECTED na auditoria. Se o usuário ainda
-     *    pertencer a `autoGroups`, o auto-tier reaparece — `meta.autoTierPersists`
-     *    avisa o caller.
-     *  - **Auto-tier** (sem linha manual, mas o `TierResolver` devolve tier
-     *    via grupo): grava um tombstone `auto_revoked_at` para que o
-     *    `TierResolver` pare de devolver auto-tier para esse usuário.
-     *    Necessário porque o user não controla os grupos a que pertence,
-     *    e sem tombstone clicar "Revoke" não tinha efeito.
+     * Só auto-tier: grava o tombstone `auto_revoked_at`. O usuário não controla os
+     * próprios grupos, então sem ele o "Revoke" não teria efeito.
      */
     private function unverify(User $target, User $actor, ?string $note, Carbon $now): JsonResponse
     {
@@ -74,10 +68,8 @@ class UnverifyUserController extends AbstractDirectVerificationController
         $target->load('groups');
 
         /*
-         * Após `markAutoRevoked` o TierResolver respeita o tombstone e
-         * devolve `null`, então `autoTierPersists` só aparece quando havia
-         * uma verificação manual sobreposta sobre um grupo auto-tier-eligible
-         * — semântica original preservada.
+         * Com o tombstone o auto-tier some, então `autoTierPersists` só aparece quando
+         * havia verificação manual sobre um grupo elegível.
          */
         $autoTier = $this->tiers->resolveAutoTier($target);
         $autoTierStillEffective = $autoTier !== null && $this->tiers->resolveTierId($target) !== null;

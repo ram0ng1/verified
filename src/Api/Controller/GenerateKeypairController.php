@@ -25,24 +25,14 @@ use Ramon\Verified\Job\PurgeOrphanedDocumentsJob;
 use Ramon\Verified\Models\VerificationRequest;
 
 /**
- * Gera um par de chaves de criptografia. A pública é persistida como
- * setting; a privada volta UMA VEZ no corpo da resposta para o admin
- * colar manualmente em `config.php`. Se perdida, a única recuperação é
- * gerar de novo — o que destrói todos os documentos previamente cifrados.
+ * A chave pública vai para os settings; a privada volta uma única vez na
+ * resposta para o admin colar no `config.php`. Perdê-la significa gerar outro
+ * par, o que inutiliza os documentos já cifrados.
  *
- * Fluxo:
- * - Sem chave pública prévia → gera livremente.
- * - Estado saudável (público + privado coincidem) → rotação só com
- *   `acknowledgeLoss=true`. Documentos cifrados pela chave antiga são
- *   enfileirados para purga via `PurgeOrphanedDocumentsJob`.
- * - Estado quebrado (público sem privado) → mesmo shape; documentos
- *   cifrados também são enfileirados porque já não eram legíveis.
- *
- * A purga é despachada como job — em queue driver `sync` (default) roda
- * inline; sob driver real (`redis`, `database`) acontece em worker sem
- * amarrar o request do admin. Em ambos os casos, a contagem retornada é
- * de candidatos enfileirados, capturada antes do `forget` para não
- * contabilizar uploads concorrentes que virão plaintext.
+ * Rotacionar um par existente exige `acknowledgeLoss=true`, e os documentos
+ * cifrados com a chave antiga vão para purga via `PurgeOrphanedDocumentsJob`.
+ * A contagem devolvida é capturada antes do `forget`, para não incluir uploads
+ * concorrentes que já chegarão em texto claro.
  */
 class GenerateKeypairController implements RequestHandlerInterface
 {
