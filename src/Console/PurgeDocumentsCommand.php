@@ -29,6 +29,10 @@ class PurgeDocumentsCommand extends AbstractCommand
 
     protected function fire(): int
     {
+        // Uploads que nunca viraram solicitação: valem em qualquer modo.
+        $orphans = $this->retention->sweepAllOrphans();
+        $this->info("{$orphans} unattached upload(s) removed.");
+
         $mode = $this->retention->mode();
 
         if ($mode !== DocumentRetention::MODE_DELETE_AFTER_DAYS) {

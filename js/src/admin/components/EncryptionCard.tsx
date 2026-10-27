@@ -9,6 +9,8 @@ import EncryptionState, {
   EncryptionStatus,
   KeypairResult,
 } from "../states/EncryptionState";
+import { getBool } from "../utils/settings";
+import AdminToggle from "./AdminToggle";
 import KeypairRevealModal from "./KeypairRevealModal";
 import RegenerateConfirmModal from "./RegenerateConfirmModal";
 
@@ -16,6 +18,7 @@ const trans = (key: string, params?: Record<string, unknown>) =>
   app.translator.trans(`ramon-verified.admin.encryption.${key}`, params ?? {});
 
 const CONFIG_KEY = "verified-private-key";
+const ENABLED_KEY = "ramon-verified.encrypt_documents";
 
 export default class EncryptionCard extends Component<ComponentAttrs> {
   protected encryption!: EncryptionState;
@@ -28,6 +31,9 @@ export default class EncryptionCard extends Component<ComponentAttrs> {
   }
 
   view() {
+    const enabled = getBool(ENABLED_KEY);
+    const s = this.encryption.status;
+
     return (
       <section className="VerifiedAdmin-card EncryptionCard">
         <header className="VerifiedAdmin-cardHeader">
@@ -35,7 +41,20 @@ export default class EncryptionCard extends Component<ComponentAttrs> {
           <p className="helpText">{trans("section_help")}</p>
         </header>
 
-        {this.encryption.loading ? <LoadingIndicator /> : this.body()}
+        <AdminToggle
+          settingKey={ENABLED_KEY}
+          label={trans("toggle_label")}
+          help={trans("toggle_help")}
+        />
+
+        {this.encryption.loading ? (
+          <LoadingIndicator />
+        ) : enabled || (s && s.has_public_key) ? (
+          <>
+            <div className="VerifiedAdmin-divider" />
+            {this.body()}
+          </>
+        ) : null}
       </section>
     );
   }
@@ -62,14 +81,27 @@ export default class EncryptionCard extends Component<ComponentAttrs> {
         </div>
 
         {s.healthy && (
-          <div className="Alert Alert--success EncryptionCard-msg">
-            {trans("status.healthy")}
+          <div
+            className={
+              "Alert EncryptionCard-msg " +
+              (getBool(ENABLED_KEY) ? "Alert--success" : "Alert--warning")
+            }
+          >
+            {getBool(ENABLED_KEY)
+              ? trans("status.healthy")
+              : trans("status.healthy_disabled")}
           </div>
         )}
 
-        {!s.has_public_key && !s.private_key_present && (
+        {!s.has_public_key && (
           <div className="EncryptionCard-msg">
-            <p className="helpText">{trans("status.not_setup")}</p>
+            {getBool(ENABLED_KEY) ? (
+              <div className="Alert Alert--warning">
+                {trans("status.enabled_without_key")}
+              </div>
+            ) : (
+              <p className="helpText">{trans("status.not_setup")}</p>
+            )}
             <Button
               className="Button Button--primary"
               icon="fas fa-key"

@@ -24,6 +24,7 @@ class DocumentCipher
     public const MAGIC = "VENC1\n";
 
     public const SETTING_PUBLIC_KEY = 'ramon-verified.encryption_public_key';
+    public const SETTING_ENABLED = 'ramon-verified.encrypt_documents';
     public const CONFIG_PRIVATE_KEY = 'verified-private-key';
 
     public function __construct(
@@ -36,6 +37,19 @@ class DocumentCipher
     {
         return function_exists('sodium_crypto_box_seal')
             && function_exists('sodium_crypto_box_seal_open');
+    }
+
+    /**
+     * Escolha do admin (chave "Criptografar documentos" no painel). Ligada,
+     * todo upload novo é selado com a chave pública — e recusado se não der
+     * para selar (falha fechada: nunca grava em texto claro um documento que
+     * o admin mandou criptografar). Desligada, os uploads novos vão em texto
+     * claro; os já cifrados continuam legíveis enquanto a privada estiver no
+     * config.php.
+     */
+    public function isEnabled(): bool
+    {
+        return (bool) $this->settings->get(self::SETTING_ENABLED, false);
     }
 
     public function hasPublicKey(): bool
@@ -101,7 +115,7 @@ class DocumentCipher
             throw new RuntimeException('Document encryption failed.', 0, $e);
         }
 
-        if (! is_string($sealed) || $sealed === '') {
+        if ($sealed === '') {
             throw new RuntimeException('Document encryption failed (empty ciphertext).');
         }
 
@@ -195,6 +209,7 @@ class DocumentCipher
         $healthy = $available && $hasPublic && $hasPrivate && $match === true;
 
         return [
+            'enabled'               => $this->isEnabled(),
             'available'             => $available,
             'has_public_key'        => $hasPublic,
             'private_key_present'   => $hasPrivate,

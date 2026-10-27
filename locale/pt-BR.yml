@@ -180,7 +180,9 @@ ramon-verified:
 
     encryption:
       section_title: "Criptografia de documentos"
-      section_help: "Cifre os documentos de identidade enviados em repouso. A chave privada é gerada aqui, mas você precisa colá-la manualmente no config.php — o servidor nunca a armazena. Sem a chave privada no lugar, documentos cifrados não podem ser decifrados."
+      section_help: "Sela os documentos de identidade com uma chave pública antes de gravá-los no disco. A chave privada é gerada aqui, mas você mesmo a cola no config.php — o servidor nunca a guarda."
+      toggle_label: "Criptografar documentos enviados"
+      toggle_help: "Ligado: todo envio novo é criptografado, e os envios são recusados enquanto não houver par de chaves — nada é gravado sem criptografia. Desligado: os envios novos são gravados sem criptografia; os arquivos já criptografados continuam legíveis enquanto a chave privada estiver no config.php."
       status:
         unknown: "Não foi possível carregar o status da criptografia."
         libsodium_missing: "libsodium não está disponível nesta instalação do PHP. Instale-o para habilitar a criptografia de documentos."
@@ -190,6 +192,8 @@ ramon-verified:
         absent: "ausente"
         healthy: "Criptografia ativa. Novos uploads são cifrados com a chave pública configurada e os downloads são decifrados de forma transparente."
         not_setup: "Criptografia não configurada. Novos uploads serão armazenados em texto puro."
+        enabled_without_key: "A criptografia está ligada, mas ainda não há par de chaves. O envio de documentos fica recusado até você gerar um."
+        healthy_disabled: "O par de chaves está válido, mas a criptografia está desligada: os envios novos são gravados sem criptografia. Os arquivos já criptografados continuam abrindo."
         private_missing_title: "Chave privada ausente em config.php"
         private_missing_body: "Existe uma chave pública configurada, mas a chave privada correspondente não foi encontrada em config.php. Documentos cifrados existentes ficam ilegíveis até que você restaure a chave privada. Adicione a entrada exibida abaixo no config.php, ou remova a chave pública abaixo para gerar um novo par (o que apagará permanentemente todos os documentos cifrados em disco)."
         mismatch_title: "Chave pública e privada não combinam"
@@ -303,11 +307,14 @@ ramon-verified:
     not_verified: "Este usuário não é verificado."
     verified_by_admin_note: "Verificado diretamente por um administrador."
     self_revoked_note: "Verificação revogada pelo próprio usuário (solicitação de alteração de avatar)."
+    too_many_uploads: "Você já tem documentos enviados que não foram anexados a uma solicitação. Envie sua solicitação ou aguarde 30 minutos para enviar outro."
+    revoke_not_approved: "Só uma solicitação aprovada pode ser revogada."
     encryption:
       libsodium_missing: "libsodium não está disponível nesta instalação do PHP."
       acknowledge_loss_required: "Você precisa confirmar que todos os documentos cifrados existentes serão apagados antes de gerar um novo par de chaves."
       private_key_missing: "Este documento está cifrado, mas a chave privada não está configurada em config.php neste servidor. Adicione-a sob a chave 'verified-private-key', ou gere um novo par de chaves (o que apagará todos os documentos cifrados)."
       decryption_failed: "Este documento está cifrado e não pôde ser descifrado. A chave privada em config.php pode não corresponder à chave pública salva, ou o arquivo está corrompido."
+      not_configured: "A criptografia de documentos está ligada, mas não há chave pública para selar o arquivo. Peça a um administrador para gerar o par de chaves."
     badge_svg:
       missing: "Nenhum arquivo SVG foi enviado no campo \"verified-badge\"."
       upload_failed: "Falha ao enviar o SVG. Tente novamente."

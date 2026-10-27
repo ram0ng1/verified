@@ -42,8 +42,18 @@ Then enable Verified on the Extensions page. Settings, permissions and the reque
 ## Good to know
 
 - Documents are wiped on the schedule you choose. The nightly `verified:purge-documents` command takes care of it, no cron of your own needed.
-- Encryption is opt in: set a public key in the settings and uploads are sealed before they touch the disk. The private key never goes in the database.
+- Encryption is your call: switch **Encrypt uploaded documents** on in the settings, generate the keypair there and paste the private key into `config.php` (it never goes in the database). While it is on, uploads are refused if they cannot be sealed, so nothing is ever stored unencrypted by accident. Switch it off and new uploads are stored as-is, while files already encrypted stay readable.
 - Everything the frontend does goes through the `/api/verified/*` endpoints, so verification can also be automated from outside.
+
+## Development
+
+```sh
+composer install
+composer test:setup        # once: creates the SQLite test database
+composer test              # unit + integration tests
+composer analyse:phpstan
+cd js && npm ci && npm run check-typings && npm run format-check && npm run build
+```
 
 ## License
 

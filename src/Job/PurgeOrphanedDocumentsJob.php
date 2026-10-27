@@ -15,10 +15,10 @@ use Throwable;
 
 /**
  * Apaga arquivos cifrados pela chave antiga após uma rotação de par.
- * Despachado depois que a chave pública já foi esquecida, então uploads
- * concorrentes durante a janela do job caem no path plaintext. A nova
- * chave pública é gerada ANTES do dispatch para que novos uploads sejam
- * cifrados imediatamente.
+ * A nova chave pública já existe quando o job roda, então os uploads da
+ * janela entre a rotação e o worker também levam o marcador `VENC1` —
+ * cifrados com a chave NOVA. Por isso o job só apaga arquivos gravados
+ * antes de `$rotatedAt` (o blob não guarda a impressão da chave).
  *
  * Em queue driver `sync` (default do Flarum) roda inline; sob `redis` /
  * `database` roda em worker, sem amarrar o request de admin numa
@@ -33,6 +33,15 @@ class PurgeOrphanedDocumentsJob implements ShouldQueue
     public int $tries = 1;
 
     public int $timeout = 1800;
+
+    /**
+     * @param int $rotatedAt timestamp Unix capturado antes de a chave nova
+     *                       existir; arquivos mais novos ficam
+     */
+    public function __construct(
+        public int $rotatedAt
+    ) {
+    }
 
     public function handle(
         Factory $filesystem,
@@ -61,6 +70,15 @@ class PurgeOrphanedDocumentsJob implements ShouldQueue
                     }
 
                     try {
+                        if ($disk->lastModified($relative) >= $this->rotatedAt) {
+                            continue;
+                        }
+                    } catch (Throwable $e) {
+                        $failed++;
+                        continue;
+                    }
+
+                    try {
                         $stream = $disk->readStream($relative);
                     } catch (Throwable $e) {
                         $failed++;
@@ -72,7 +90,7 @@ class PurgeOrphanedDocumentsJob implements ShouldQueue
                     }
                     $magic = fread($stream, strlen(DocumentCipher::MAGIC));
                     fclose($stream);
-                    if (! is_string($magic) || ! DocumentCipher::isEncryptedBlob($magic)) {
+                    if ($magic === false || ! DocumentCipher::isEncryptedBlob($magic)) {
                         continue;
                     }
 
@@ -82,7 +100,7 @@ class PurgeOrphanedDocumentsJob implements ShouldQueue
                         $deleted = false;
                     }
 
-                    if ($deleted || ! $disk->exists($relative)) {
+                    if ($deleted) {
                         $row->document_path = null;
                         $row->save();
                         $purged++;

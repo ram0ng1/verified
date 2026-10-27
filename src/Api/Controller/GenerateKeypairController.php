@@ -62,6 +62,7 @@ class GenerateKeypairController implements RequestHandlerInterface
         $acknowledged = ! empty($body['acknowledgeLoss']);
 
         $orphanedCandidates = 0;
+        $rotatedAt = time();
 
         if ($hasPublic) {
             if (! $acknowledged) {
@@ -80,7 +81,7 @@ class GenerateKeypairController implements RequestHandlerInterface
         $pair = $this->cipher->generateKeypair();
 
         if ($hasPublic) {
-            $this->bus->dispatch(new PurgeOrphanedDocumentsJob());
+            $this->bus->dispatch(new PurgeOrphanedDocumentsJob($rotatedAt));
         }
 
         $this->logger->warning('verified: encryption keypair regenerated', [

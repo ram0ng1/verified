@@ -70,6 +70,7 @@ return [
         ->default('ramon-verified.require_document', false)
         ->default('ramon-verified.document_retention', 'keep')
         ->default('ramon-verified.document_retention_days', 30)
+        ->default('ramon-verified.encrypt_documents', false)
         ->default('ramon-verified.encryption_public_key', '')
         ->default('ramon-verified.lock_avatar', false)
         ->default('ramon-verified.show_tooltip', true)

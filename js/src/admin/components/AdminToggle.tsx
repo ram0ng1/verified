@@ -25,9 +25,15 @@ export default class AdminToggle extends Component<IAdminToggleAttrs> {
         <Switch
           state={value}
           onchange={(checked: boolean) => {
+            const previous = settings()[settingKey];
             settings()[settingKey] = checked;
             m.redraw();
-            saveSetting({ [settingKey]: checked ? "1" : "0" });
+            // If the save fails the switch goes back: the panel must never
+            // show as on something the server did not store.
+            saveSetting({ [settingKey]: checked ? "1" : "0" }).catch(() => {
+              settings()[settingKey] = previous;
+              m.redraw();
+            });
           }}
         >
           {label}

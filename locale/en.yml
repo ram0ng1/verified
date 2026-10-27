@@ -179,7 +179,9 @@ ramon-verified:
 
     encryption:
       section_title: "Document encryption"
-      section_help: "Encrypt uploaded identity documents at rest. The private key is generated here, but you must paste it into config.php manually — the server never stores it. Without the private key in place, encrypted documents cannot be decrypted."
+      section_help: "Seal uploaded identity documents with a public key before they touch the disk. The private key is generated here, but you paste it into config.php yourself — the server never stores it."
+      toggle_label: "Encrypt uploaded documents"
+      toggle_help: "On: every new upload is encrypted, and uploads are refused while no keypair exists — nothing is stored unencrypted. Off: new uploads are stored unencrypted; files already encrypted stay readable while the private key is in config.php."
       status:
         unknown: "Could not load encryption status."
         libsodium_missing: "libsodium is not available on this PHP installation. Install it to enable document encryption."
@@ -189,6 +191,8 @@ ramon-verified:
         absent: "missing"
         healthy: "Encryption is active. New uploads are sealed with the configured public key, and downloads decrypt transparently."
         not_setup: "Encryption is not set up. New uploads will be stored unencrypted."
+        enabled_without_key: "Encryption is on, but there is no keypair yet. Document uploads are refused until you generate one."
+        healthy_disabled: "The keypair is valid, but encryption is off: new uploads are stored unencrypted. Files already encrypted can still be opened."
         private_missing_title: "Private key missing in config.php"
         private_missing_body: "A public key is configured but the matching private key was not found in config.php. Existing encrypted documents are unreadable until you restore the private key. Add the entry shown below to config.php, or remove the public key below to generate a new keypair (this permanently deletes every encrypted document on disk)."
         mismatch_title: "Public and private keys do not match"
@@ -302,11 +306,14 @@ ramon-verified:
     not_verified: "This user is not verified."
     verified_by_admin_note: "Verified directly by an administrator."
     self_revoked_note: "Verification revoked by the user (avatar change request)."
+    too_many_uploads: "You already have documents uploaded that were not attached to a request. Submit your request or wait 30 minutes before uploading again."
+    revoke_not_approved: "Only an approved request can be revoked."
     encryption:
       libsodium_missing: "libsodium is not available on this PHP installation."
       acknowledge_loss_required: "You must acknowledge that all existing encrypted documents will be deleted before generating a new keypair."
       private_key_missing: "This document is encrypted, but the private key is not configured in config.php on this server. Add it under the key 'verified-private-key', or regenerate the keypair (which will delete every encrypted document)."
       decryption_failed: "This document is encrypted and could not be decrypted. The private key in config.php may not match the saved public key, or the file is corrupted."
+      not_configured: "Document encryption is turned on, but no public key is available to seal the file. Ask an administrator to generate the keypair."
     badge_svg:
       missing: "No SVG file was uploaded in the \"verified-badge\" field."
       upload_failed: "The SVG upload failed. Please try again."

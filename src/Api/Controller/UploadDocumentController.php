@@ -78,6 +78,16 @@ class UploadDocumentController implements RequestHandlerInterface
             ]);
         }
 
+        // Antes de ler o arquivo: com a criptografia ligada e sem como selar
+        // (sem libsodium ou sem chave pública), o upload é recusado em vez de
+        // cair em texto claro.
+        $encrypt = $this->cipher->isEnabled();
+        if ($encrypt && ! $this->cipher->canEncrypt()) {
+            throw new ValidationException([
+                'document' => $this->translator->trans('ramon-verified.api.encryption.not_configured'),
+            ]);
+        }
+
         $file = $this->extractUploadedFile($request);
         $extension = $this->validateAndDetectExtension($file);
         $this->validateMimeTypes($file);
@@ -87,6 +97,12 @@ class UploadDocumentController implements RequestHandlerInterface
 
         $this->retention->sweepOrphans($userId);
 
+        if ($this->retention->countUnattached($userId) >= DocumentRetention::MAX_UNATTACHED_PER_USER) {
+            throw new ValidationException([
+                'document' => $this->translator->trans('ramon-verified.api.too_many_uploads'),
+            ]);
+        }
+
         $filename = bin2hex(random_bytes(16)).'.'.$extension;
         $relative = $userId.'/'.$filename;
 
@@ -94,7 +110,7 @@ class UploadDocumentController implements RequestHandlerInterface
         $stream->rewind();
         $plaintext = $stream->getContents();
 
-        if ($this->cipher->canEncrypt()) {
+        if ($encrypt) {
             $payload = $this->cipher->encrypt($plaintext);
             sodium_memzero($plaintext);
         } else {

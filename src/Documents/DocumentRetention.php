@@ -36,6 +36,14 @@ class DocumentRetention
      */
     public const UNREFERENCED_GRACE_SECONDS = 30 * 60;
 
+    /**
+     * Quantos arquivos enviados e ainda não anexados a uma solicitação um
+     * usuário pode ter ao mesmo tempo. Sem o teto, um membro enviava 5
+     * arquivos de 8 MB por minuto sem nunca abrir solicitação e o disco
+     * enchia (o sweep só roda no upload seguinte do mesmo usuário).
+     */
+    public const MAX_UNATTACHED_PER_USER = 3;
+
     public function __construct(
         protected SettingsRepositoryInterface $settings,
         protected Factory $filesystem,
@@ -93,7 +101,7 @@ class DocumentRetention
         $disk    = $this->disk();
         $userDir = $this->resolver->userDirectory($userId);
 
-        if (! $disk->directoryExists($userDir)) {
+        if (! $disk->exists($userDir)) {
             return 0;
         }
 
@@ -115,24 +123,75 @@ class DocumentRetention
 
     /**
      * Sweep de arquivos órfãos no diretório do usuário — arquivos que não
-     * são referenciados por nenhuma linha não-rejeitada de `verification_requests`.
-     * Chamado pelo controller de upload antes de gravar um novo arquivo
-     * para impedir loop "upload-submit-delete" abusivo. Retorna a contagem
+     * são referenciados por nenhuma linha de `verification_requests` e já
+     * passaram da janela de graça. Chamado pelo controller de upload antes
+     * de gravar um novo arquivo e pelo comando diário. Retorna a contagem
      * removida.
+     *
+     * Toda linha com `document_path` conta como referência, qualquer que
+     * seja o status: o destino do documento de uma solicitação rejeitada é
+     * decidido pela política de retenção (`purgeExpired`/`onRequestHandled`),
+     * não pelo sweep — no modo `keep` ele tem de ficar.
      */
     public function sweepOrphans(int $userId): int
+    {
+        $cutoff = time() - self::UNREFERENCED_GRACE_SECONDS;
+        $purged = 0;
+
+        foreach ($this->unattachedFiles($userId) as $relative => $mtime) {
+            if ($mtime > $cutoff) continue;
+
+            if ($this->safeDelete($relative)) {
+                $purged++;
+            }
+        }
+
+        return $purged;
+    }
+
+    /**
+     * Arquivos do usuário ainda dentro da janela de graça e sem solicitação.
+     * O upload recusa um arquivo novo quando chega a `MAX_UNATTACHED_PER_USER`.
+     */
+    public function countUnattached(int $userId): int
+    {
+        return count($this->unattachedFiles($userId));
+    }
+
+    /**
+     * Varre os órfãos de todos os usuários (comando diário). Sem isto, os
+     * arquivos de quem envia e nunca abre solicitação ficavam para sempre.
+     */
+    public function sweepAllOrphans(): int
+    {
+        $disk   = $this->disk();
+        $purged = 0;
+
+        foreach ($disk->directories('') as $dir) {
+            if (! preg_match('/\A[0-9]+\z/', basename($dir))) continue;
+
+            $purged += $this->sweepOrphans((int) basename($dir));
+        }
+
+        return $purged;
+    }
+
+    /**
+     * @return array<string, int> caminho relativo => mtime, dos arquivos do
+     *                            usuário que nenhuma solicitação referencia
+     */
+    private function unattachedFiles(int $userId): array
     {
         $disk    = $this->disk();
         $userDir = $this->resolver->userDirectory($userId);
 
-        if (! $disk->directoryExists($userDir)) {
-            return 0;
+        if (! $disk->exists($userDir)) {
+            return [];
         }
 
         $referenced = VerificationRequest::query()
             ->where('user_id', $userId)
             ->whereNotNull('document_path')
-            ->where('status', '!=', VerificationRequest::STATUS_REJECTED)
             ->pluck('document_path')
             ->all();
 
@@ -145,8 +204,7 @@ class DocumentRetention
             }
         }
 
-        $cutoff = time() - self::UNREFERENCED_GRACE_SECONDS;
-        $purged = 0;
+        $files = [];
 
         foreach ($disk->files($userDir) as $relative) {
             $name = basename($relative);
@@ -154,18 +212,13 @@ class DocumentRetention
             if (isset($referencedFilenames[$name])) continue;
 
             try {
-                $mtime = $disk->lastModified($relative);
+                $files[$relative] = (int) $disk->lastModified($relative);
             } catch (Throwable $e) {
                 continue;
             }
-            if ($mtime > $cutoff) continue;
-
-            if ($this->safeDelete($relative)) {
-                $purged++;
-            }
         }
 
-        return $purged;
+        return $files;
     }
 
     /**

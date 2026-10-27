@@ -225,7 +225,7 @@ class VerifiedDocuments extends Type
         $disk    = $this->disk();
         $userDir = $this->pathResolver->userDirectory((int) $this->user->id);
 
-        if (! $disk->directoryExists($userDir)) {
+        if (! $disk->exists($userDir)) {
             return [];
         }
 
@@ -282,7 +282,7 @@ class VerifiedDocuments extends Type
         $disk    = $this->disk();
         $userDir = $this->pathResolver->userDirectory((int) $this->user->id);
 
-        if (! $disk->directoryExists($userDir)) {
+        if (! $disk->exists($userDir)) {
             return;
         }
 
