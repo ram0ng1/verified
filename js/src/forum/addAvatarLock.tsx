@@ -31,6 +31,13 @@ export default function addAvatarLock(): void {
       if (items.has("remove")) items.remove("remove");
 
       const user = this.attrs.user as User | undefined;
+      // The button drops the badge through the self-revoke route: only for
+      // the user's own avatar, and only when they hold `verified.selfRevoke`
+      // (otherwise the server refuses and the button just errors).
+      const canRequestChange =
+        !!user &&
+        user === app.session.user &&
+        !!app.forum.attribute("canSelfRevokeVerification");
 
       items.add(
         "verified-locked",
@@ -42,20 +49,22 @@ export default function addAvatarLock(): void {
           <span className="AvatarEditor-lockedNotice-text">
             {app.translator.trans("ramon-verified.forum.avatar.locked_help")}
           </span>
-          <Button
-            className="Button Button--primary AvatarEditor-lockedNotice-button"
-            icon="fas fa-pen"
-            onclick={(e: Event) => {
-              if (e) {
-                e.stopPropagation();
-              }
-              requestAvatarChange(user);
-            }}
-          >
-            {app.translator.trans(
-              "ramon-verified.forum.avatar.request_change_button",
-            )}
-          </Button>
+          {canRequestChange && (
+            <Button
+              className="Button Button--primary AvatarEditor-lockedNotice-button"
+              icon="fas fa-pen"
+              onclick={(e: Event) => {
+                if (e) {
+                  e.stopPropagation();
+                }
+                requestAvatarChange(user);
+              }}
+            >
+              {app.translator.trans(
+                "ramon-verified.forum.avatar.request_change_button",
+              )}
+            </Button>
+          )}
         </div>,
         100,
       );

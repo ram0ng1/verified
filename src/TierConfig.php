@@ -15,7 +15,7 @@ use Ramon\Verified\Support\SvgSanitizer;
  * - id              slug [a-z0-9_-], 1..32 chars
  * - label           nome exibido, 1..64
  * - color           hex (#rgb / #rrggbb / #rrggbbaa); vazio cai no primary do forum
- * - description     texto do popover, até 280 chars; aceita `<strong>` e `<em>`
+ * - description     texto do popover, até 320 chars; aceita `<strong>` e `<em>`
  * - learnMoreUrl    link opcional "Saiba mais"; apenas http/https
  * - autoGroups      IDs de grupos cujos membros recebem o tier automaticamente
  * - badgeEnabled    opt-in para usar um SVG customizado APENAS para este tier
@@ -61,7 +61,7 @@ class TierConfig
      *
      * @return array<int, array{id:string,label:string,color:string,description:string,learnMoreUrl:string,autoGroups:int[],badgeEnabled:bool,badgeSvg:string}>
      */
-    public static function parse($raw): array
+    public static function parse(mixed $raw): array
     {
         $cacheKey = is_string($raw)
             ? 's:'.hash('xxh128', $raw)
@@ -90,7 +90,7 @@ class TierConfig
         return $result;
     }
 
-    private static function doParse($raw): array
+    private static function doParse(mixed $raw): array
     {
         $list = is_string($raw) ? json_decode($raw, true) : (is_array($raw) ? $raw : null);
         if (! is_array($list)) return [];
@@ -117,7 +117,7 @@ class TierConfig
      * @param array<string, true> $seen
      * @return array{id:string,label:string,color:string,description:string,learnMoreUrl:string,autoGroups:int[],badgeEnabled:bool,badgeSvg:string}|null
      */
-    private static function parseTierRow($row, array &$seen): ?array
+    private static function parseTierRow(mixed $row, array &$seen): ?array
     {
         if (! is_array($row)) return null;
 
@@ -147,7 +147,7 @@ class TierConfig
      * Cor hex (`#rgb` a `#rrggbbaa`); string vazia quando ausente ou
      * malformada — o frontend cai no `@primary-color` do fórum.
      */
-    private static function parseColor($row): string
+    private static function parseColor(array $row): string
     {
         if (isset($row['color']) && is_string($row['color'])) {
             $c = trim($row['color']);
@@ -163,17 +163,19 @@ class TierConfig
      * Texto do popover, escapado com allowlist `<strong>`/`<em>` e limitado
      * a 320 chars.
      */
-    private static function parseDescription($row): string
+    private static function parseDescription(array $row): string
     {
         return isset($row['description']) && is_string($row['description'])
-            ? mb_substr(self::sanitiseDescription($row['description']), 0, 320)
+            // Corta antes de escapar: depois, o corte podia partir uma
+            // entidade ao meio (`&am`).
+            ? self::sanitiseDescription(mb_substr(trim($row['description']), 0, 320))
             : '';
     }
 
     /**
      * Link "Saiba mais"; aceita apenas `http`/`https`, limitado a 500 chars.
      */
-    private static function parseLearnMoreUrl($row): string
+    private static function parseLearnMoreUrl(array $row): string
     {
         if (isset($row['learnMoreUrl']) && is_string($row['learnMoreUrl'])) {
             $u = trim($row['learnMoreUrl']);
@@ -190,7 +192,7 @@ class TierConfig
      *
      * @return int[]
      */
-    private static function parseAutoGroups($row): array
+    private static function parseAutoGroups(array $row): array
     {
         if (! isset($row['autoGroups']) || ! is_array($row['autoGroups'])) {
             return [];
@@ -212,7 +214,7 @@ class TierConfig
      *
      * @return array{0: bool, 1: string} `[badgeEnabled, badgeSvg]`
      */
-    private static function parseBadge($row): array
+    private static function parseBadge(array $row): array
     {
         $badgeEnabled = ! empty($row['badgeEnabled']);
         $badgeSvg = '';
@@ -234,7 +236,7 @@ class TierConfig
         return [$badgeEnabled, $badgeSvg];
     }
 
-    public static function parseForFrontend($raw): array
+    public static function parseForFrontend(mixed $raw): array
     {
         return self::parse($raw);
     }

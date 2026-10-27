@@ -168,7 +168,7 @@ export default class TiersEditor extends Component<ComponentAttrs> {
       !!row.learnMoreUrl && /^https?:\/\//i.test(row.learnMoreUrl);
     const charCount = (row.description || "").length;
     const charCountClass =
-      charCount >= 280
+      charCount >= 320
         ? "VerifiedTier-charCount VerifiedTier-charCount--max"
         : charCount >= 240
           ? "VerifiedTier-charCount VerifiedTier-charCount--warn"
@@ -278,7 +278,7 @@ export default class TiersEditor extends Component<ComponentAttrs> {
               <label className="VerifiedTier-fieldLabel">
                 {trans("settings.tiers.description_label")}
               </label>
-              <span className={charCountClass}>{charCount}/280</span>
+              <span className={charCountClass}>{charCount}/320</span>
             </div>
             <div className="VerifiedTier-descToolbar">
               <button

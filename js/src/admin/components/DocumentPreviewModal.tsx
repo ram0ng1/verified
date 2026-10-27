@@ -15,7 +15,7 @@ export interface DocumentPreviewModalAttrs extends IInternalModalAttrs {
 const trans = (key: string, params?: Record<string, unknown>) =>
   app.translator.trans(`ramon-verified.admin.requests.${key}`, params ?? {});
 
-const IMAGE_EXTS = ["png", "jpg", "jpeg", "webp", "gif"];
+const IMAGE_EXTS = ["png", "jpg", "jpeg", "webp"];
 
 function detectExtension(
   url: string | undefined,

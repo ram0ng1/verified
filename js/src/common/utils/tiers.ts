@@ -126,8 +126,12 @@ export function sanitiseDescription(raw: string): string {
   const text = (raw || "").trim();
   if (!text) return "";
 
+  // Idempotent: an `&` that already starts one of the entities produced
+  // here is left alone. The forum gets the description already escaped by
+  // the server, and the popover runs this again before `m.trust` — escaping
+  // `&` unconditionally turned "A & B" into the literal text "A &amp;amp; B".
   const escaped = text
-    .replace(/&/g, "&amp;")
+    .replace(/&(?!(?:amp|lt|gt|quot|#0?39);)/g, "&amp;")
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;")
@@ -155,7 +159,7 @@ function normalise(row: unknown): VerifiedTier | null {
 
   const description =
     typeof r.description === "string"
-      ? sanitiseDescription(r.description).slice(0, 320)
+      ? sanitiseDescription(r.description.trim().slice(0, 320))
       : "";
 
   let learnMoreUrl = "";

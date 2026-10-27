@@ -149,9 +149,10 @@ class ApprovedUserQuery
      * `user_id`), então resolve sem ambiguidade e sem depender do prefixo do
      * install — string constante, sem interpolação em SQL cru (§10).
      *
+     * @param Builder<User> $query
      * @return \Illuminate\Database\Eloquent\Collection<int, \Flarum\User\User>
      */
-    private function orderByPresenceAndPaginate($query, ApprovedUserCriteria $criteria)
+    private function orderByPresenceAndPaginate(Builder $query, ApprovedUserCriteria $criteria)
     {
         return $query
             ->leftJoin('user_verification', 'user_verification.user_id', '=', 'users.id')
@@ -235,7 +236,9 @@ class ApprovedUserQuery
                 ->take($manualTake)
                 ->get();
             foreach ($manualPage as $row) {
-                $ordered[] = $row;
+                if ($row instanceof User) {
+                    $ordered[] = $row;
+                }
             }
         }
 
@@ -247,7 +250,7 @@ class ApprovedUserQuery
                 ->keyBy('id');
             foreach ($autoPageIds as $id) {
                 $row = $autoFetched->get($id);
-                if ($row !== null) {
+                if ($row instanceof User) {
                     $ordered[] = $row;
                 }
             }

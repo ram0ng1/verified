@@ -101,7 +101,7 @@ class ListApprovedUsersController implements RequestHandlerInterface
             ? collect()
             : User::query()->whereIn('id', array_unique($handlerIds))->get()->keyBy('id');
 
-        $autoVerifiedGroupSet = array_flip($this->query->autoVerifiedGroupIds());
+        $autoVerifiedGroupSet = array_fill_keys($this->query->autoVerifiedGroupIds(), true);
 
         return $users->map(fn (User $user) => [
             'type'       => self::RESOURCE_TYPE,
@@ -120,16 +120,19 @@ class ListApprovedUsersController implements RequestHandlerInterface
      * grupos auto-verificadores e — quando existe — o bloco do último pedido
      * aprovado. Cada uma das duas últimas partes vive num helper próprio.
      *
+     * @param \Illuminate\Support\Collection<int|string, \Illuminate\Support\Collection<int, VerificationRequest>> $approvedRequests
+     * @param \Illuminate\Support\Collection<int, User> $handlers
      * @param array<int, true> $autoVerifiedGroupSet
+     * @return array<string, mixed>
      */
-    private function buildAttributes(User $user, $approvedRequests, $handlers, array $autoVerifiedGroupSet): array
+    private function buildAttributes(User $user, \Illuminate\Support\Collection $approvedRequests, \Illuminate\Support\Collection $handlers, array $autoVerifiedGroupSet): array
     {
         $isManual   = $this->verifiedStatus->isVerified($user);
         $verifiedAt = $this->verifiedStatus->verifiedAt($user);
 
         $row = [
             'username'           => (string) $user->username,
-            'displayName'        => (string) ($user->display_name ?: $user->nickname ?: $user->username),
+            'displayName'        => (string) ($user->display_name ?: $user->getAttribute('nickname') ?: $user->username),
             'avatarUrl'          => $user->avatar_url,
             'source'             => $isManual ? 'manual' : 'group',
             'isVerified'         => $isManual,

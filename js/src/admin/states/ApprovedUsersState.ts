@@ -67,8 +67,11 @@ export default class ApprovedUsersState {
   busy: Record<string, boolean> = {};
 
   private _searchTimer: ReturnType<typeof setTimeout> | null = null;
+  /** Sequence of `load()` calls: a slower, older response must not win. */
+  private _loadSeq = 0;
 
   async load(): Promise<void> {
+    const seq = ++this._loadSeq;
     this.loading = true;
     m.redraw();
 
@@ -90,6 +93,8 @@ export default class ApprovedUsersState {
       },
       { errorKey: "ramon-verified.admin.requests.load_approved_failed" },
     );
+
+    if (seq !== this._loadSeq) return;
 
     this.loading = false;
     if (res) {

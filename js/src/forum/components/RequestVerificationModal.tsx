@@ -264,7 +264,7 @@ export default class RequestVerificationModal extends FormModal {
   fileIcon(name: string): string {
     const ext = (name || "").split(".").pop()!.toLowerCase();
     if (ext === "pdf") return "fas fa-file-pdf";
-    if (["png", "jpg", "jpeg", "webp", "gif"].indexOf(ext) !== -1)
+    if (["png", "jpg", "jpeg", "webp"].indexOf(ext) !== -1)
       return "fas fa-file-image";
     return "fas fa-file";
   }
