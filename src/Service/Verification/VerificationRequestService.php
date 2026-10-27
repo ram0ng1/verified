@@ -83,7 +83,11 @@ class VerificationRequestService
         $documentIsLive = $documentPath !== null
             && $documentPath !== ''
             && $this->pathResolver->isOwnedDocumentToken($documentPath, (int) $actor->id)
-            && $this->documentFileExists($actor, $documentPath);
+            && $this->documentFileExists($actor, $documentPath)
+            // Um arquivo já anexado a outra solicitação não pode ser reusado:
+            // apagar a solicitação nova (o dono pode, enquanto pendente)
+            // levaria junto a evidência da antiga.
+            && ! VerificationRequest::query()->where('document_path', $documentPath)->exists();
 
         if ($documentRequired && ! $documentIsLive) {
             throw new ValidationException([
@@ -154,6 +158,8 @@ class VerificationRequestService
         $tier = $this->tiers->resolveRequestedTierId($this->readRequestedTier($context));
 
         VerificationRequest::runInTransaction(function () use ($request, $user, $actor, $now, $note, $tier) {
+            $this->lockPending($request);
+
             $request->status     = VerificationRequest::STATUS_APPROVED;
             $request->handled_by = (int) $actor->id;
             $request->handled_at = $now;
@@ -294,6 +300,8 @@ class VerificationRequestService
         $note = $this->extractNote($context);
 
         VerificationRequest::runInTransaction(function () use ($request, $actor, $now, $note) {
+            $this->lockPending($request);
+
             $request->status     = VerificationRequest::STATUS_REJECTED;
             $request->handled_by = (int) $actor->id;
             $request->handled_at = $now;
@@ -312,6 +320,15 @@ class VerificationRequestService
         $actor = $context->getActor();
 
         $request = $this->findOrFail($context);
+
+        // Só uma aprovação pode ser revogada. Sem isto, "revogar" uma linha
+        // pendente virava uma rejeição que também limpava a verificação, e
+        // revogar uma linha antiga reescrevia quem a tinha tratado.
+        if ($request->status !== VerificationRequest::STATUS_APPROVED) {
+            throw new ValidationException([
+                'status' => $this->translator->trans('ramon-verified.api.revoke_not_approved'),
+            ]);
+        }
 
         /** @var User|null $user */
         $user = User::query()->find($request->user_id);
@@ -356,6 +373,26 @@ class VerificationRequestService
         $request = VerificationRequest::query()->findOrFail($context->modelId);
 
         return $request;
+    }
+
+    /**
+     * Relê a linha com trava dentro da transação e confere de novo que está
+     * pendente. O `assertPending()` de antes da transação é só a resposta
+     * rápida; sem a releitura travada, aprovar e rejeitar ao mesmo tempo
+     * (dois moderadores, ou um clique duplo) passavam os dois.
+     */
+    private function lockPending(VerificationRequest $request): void
+    {
+        $status = VerificationRequest::query()
+            ->whereKey($request->getKey())
+            ->lockForUpdate()
+            ->value('status');
+
+        if ($status !== VerificationRequest::STATUS_PENDING) {
+            throw new ValidationException([
+                'status' => $this->translator->trans('ramon-verified.api.already_handled'),
+            ]);
+        }
     }
 
     private function assertPending(VerificationRequest $request): void
