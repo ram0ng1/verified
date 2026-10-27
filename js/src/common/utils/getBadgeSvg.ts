@@ -131,7 +131,12 @@ export function sanitizeSvg(raw: unknown): string | null {
 
   if (!/^<svg[\s>]/i.test(trimmed)) return null;
   if (/<\s*script\b/i.test(trimmed)) return null;
-  if (/\son\w+\s*=/i.test(trimmed)) return null;
+  // Processing instructions have no place in a badge. Inserted through
+  // innerHTML, `<?x >` becomes a bogus comment that ends at the first `>`,
+  // so whatever follows it escapes SVG foreign content.
+  if (/<\?/.test(trimmed)) return null;
+  // `/` separates attributes as well as whitespace does (`<img/onerror=…>`).
+  if (/[\s/]on\w+\s*=/i.test(trimmed)) return null;
   if (/javascript:/i.test(trimmed)) return null;
 
   if (typeof DOMParser === "undefined") return trimmed;
@@ -162,25 +167,29 @@ export function sanitizeSvg(raw: unknown): string | null {
       "symbol",
     ]);
 
-    const walker = doc.createTreeWalker(root, 1);
-    const toRemove: Element[] = [];
+    // SHOW_ALL, not SHOW_ELEMENT: processing instructions, comments and
+    // CDATA sections must be visited too, or XMLSerializer writes them back
+    // out untouched.
+    const walker = doc.createTreeWalker(root, 0xffffffff);
+    const toRemove: Node[] = [];
     let node: Node | null = walker.currentNode;
     while (node) {
       const name = node.nodeName.toLowerCase();
-      if (!ALLOWED.has(name)) {
-        toRemove.push(node as Element);
+      if (node.nodeType === 3) {
+        // Text is fine.
+      } else if (node.nodeType !== 1 || !ALLOWED.has(name)) {
+        toRemove.push(node);
       } else {
         const el = node as Element;
         for (const attr of Array.from(el.attributes)) {
           const an = attr.name.toLowerCase();
           if (an.startsWith("on")) {
             el.removeAttribute(attr.name);
-          } else if (an === "href" || an === "xlink:href") {
-            if (
-              /javascript:/i.test(attr.value) ||
-              /^(https?:)?\/\//i.test(attr.value)
-            ) {
-              el.removeAttribute(attr.name);
+          } else if (an === "href" || an.endsWith(":href")) {
+            // Only same-document references (`#id`): a badge never needs
+            // to load anything from elsewhere.
+            if (!/^#[\w.:-]*$/.test(attr.value.trim())) {
+              el.removeAttributeNode(attr);
             }
           }
         }

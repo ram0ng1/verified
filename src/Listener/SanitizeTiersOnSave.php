@@ -21,6 +21,15 @@ class SanitizeTiersOnSave
 {
     public function handle(Saving $event): void
     {
+        // O SVG global também pode chegar direto por `POST /api/settings`,
+        // sem passar pelo `UploadBadgeSvgController` que o sanitiza.
+        if (isset($event->settings['ramon-verified.badge_svg_content'])) {
+            $svg = $event->settings['ramon-verified.badge_svg_content'];
+            $event->settings['ramon-verified.badge_svg_content'] = is_string($svg) && $svg !== ''
+                ? SvgSanitizer::sanitize($svg, false)
+                : '';
+        }
+
         if (! isset($event->settings['ramon-verified.tiers'])) {
             return;
         }

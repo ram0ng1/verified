@@ -218,7 +218,13 @@ class SvgSanitizer
                     continue;
                 }
                 self::cleanNode($child);
-            } elseif ($child instanceof \DOMProcessingInstruction) {
+            } elseif ($child instanceof \DOMProcessingInstruction
+                || $child instanceof \DOMComment
+                || $child instanceof \DOMCdataSection) {
+                // Comentários e CDATA voltam intactos no `saveXML()`. Inseridos
+                // via innerHTML, `<!-->` fecha o comentário na hora e o que vem
+                // depois sai do conteúdo SVG — mXSS para qualquer consumidor
+                // que não re-sanitize no cliente.
                 $node->removeChild($child);
             }
         }
@@ -231,34 +237,37 @@ class SvgSanitizer
         $rewrite = [];
 
         foreach ($node->attributes as $attr) {
-            $name = strtolower($attr->name);
-            $val  = ltrim($attr->value);
+            // `nodeName` é o nome qualificado (`xlink:href`); `name` seria só
+            // o local (`href`). E a remoção vai pelo nó do atributo: um
+            // `removeAttribute('href')` não acha o `xlink:href`.
+            $name      = strtolower($attr->nodeName);
+            $localName = strtolower((string) $attr->localName);
+            $val       = ltrim($attr->value);
 
-            if (str_starts_with($name, 'on')) {
-                $remove[] = $attr->name;
+            if (str_starts_with($localName, 'on')) {
+                $remove[] = $attr;
                 continue;
             }
 
             if (preg_match('/^javascript\s*:/i', $val)) {
-                $remove[] = $attr->name;
+                $remove[] = $attr;
                 continue;
             }
 
-            if (in_array($name, ['href', 'xlink:href', 'src', 'action'], true)
+            if (in_array($localName, ['href', 'src', 'action'], true)
                 && preg_match('/^data\s*:/i', $val)) {
-                $remove[] = $attr->name;
+                $remove[] = $attr;
                 continue;
             }
 
-            if (in_array($name, ['href', 'xlink:href'], true)
-                && ! str_starts_with($val, '#')) {
-                $remove[] = $attr->name;
+            if ($localName === 'href' && ! str_starts_with($val, '#')) {
+                $remove[] = $attr;
                 continue;
             }
 
             if (in_array($name, self::URL_REFERENCING_ATTRS, true)
                 && self::hasExternalUrlRef($val)) {
-                $remove[] = $attr->name;
+                $remove[] = $attr;
                 continue;
             }
 
@@ -267,8 +276,8 @@ class SvgSanitizer
             }
         }
 
-        foreach ($remove as $attrName) {
-            $node->removeAttribute($attrName);
+        foreach ($remove as $attr) {
+            $node->removeAttributeNode($attr);
         }
 
         foreach ($rewrite as $attrName => $newValue) {
