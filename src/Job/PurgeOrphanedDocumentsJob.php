@@ -15,7 +15,6 @@ use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Filesystem\Factory;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Queue\InteractsWithQueue;
-use Illuminate\Queue\SerializesModels;
 use Psr\Log\LoggerInterface;
 use Ramon\Verified\Crypto\DocumentCipher;
 use Ramon\Verified\Documents\DocumentPathResolver;
@@ -37,7 +36,6 @@ class PurgeOrphanedDocumentsJob implements ShouldQueue
 {
     use Queueable;
     use InteractsWithQueue;
-    use SerializesModels;
 
     public int $tries = 1;
 

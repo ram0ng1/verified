@@ -93,13 +93,13 @@ class VerificationRequestResource extends AbstractDatabaseResource
                 ->authenticated()
                 ->paginate(15, 50)
                 ->defaultInclude(['user', 'handler'])
-                ->eagerLoad(['user.verification', 'handler.verification']),
+                ->eagerLoad(['user.verification', 'user.groups', 'handler.verification', 'handler.groups']),
 
             Endpoint\Show::make()
                 ->authenticated()
                 ->can('view')
                 ->defaultInclude(['user', 'handler'])
-                ->eagerLoad(['user.verification', 'handler.verification']),
+                ->eagerLoad(['user.verification', 'user.groups', 'handler.verification', 'handler.groups']),
 
             Endpoint\Create::make()
                 ->authenticated()

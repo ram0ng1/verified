@@ -127,15 +127,17 @@ class TierResolver
     public function resolveAutoTier(User $user): ?array
     {
         $tiers = $this->tiers();
-        if (empty($tiers)) return null;
+
+        // Sem tier com grupos automáticos não há o que procurar, e o usuário
+        // não precisa carregar a relação `groups` (uma consulta por usuário).
+        if (! array_filter($tiers, fn (array $tier) => $tier['autoGroups'] !== [])) {
+            return null;
+        }
 
         $userGroupIds = $user->groups->pluck('id')->map(fn ($id) => (int) $id)->all();
         return TierConfig::autoTierFor($tiers, $userGroupIds);
     }
 
-    /**
-     * @return array<int, array>
-     */
     /** Garante a relação `verification` carregada (esvaziando a fila em lote). */
     public function ensureLoaded(User $user): void
     {
@@ -150,6 +152,9 @@ class TierResolver
         }
     }
 
+    /**
+     * @return array<int, array>
+     */
     public function tiers(): array
     {
         return $this->tiers ??= TierConfig::fromSettings($this->settings);

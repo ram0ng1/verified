@@ -37,6 +37,8 @@ class VerificationRequest extends AbstractModel
     protected $table = 'verification_requests';
 
     protected $casts = [
+        'user_id' => 'integer',
+        'handled_by' => 'integer',
         'handled_at' => 'datetime',
         'created_at' => 'datetime',
         'updated_at' => 'datetime',

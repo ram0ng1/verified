@@ -350,6 +350,8 @@ class VerificationRequestService
         );
 
         VerificationRequest::runInTransaction(function () use ($request, $user, $actor, $now, $note) {
+            $this->lockLatestApproval($request);
+
             $request->status     = VerificationRequest::STATUS_REJECTED;
             $request->handled_by = (int) $actor->id;
             $request->handled_at = $now;
@@ -378,6 +380,12 @@ class VerificationRequestService
      */
     private function findOrFail(Context $context): VerificationRequest
     {
+        // O endpoint já carregou o model (404 se não existe); a consulta só
+        // roda quando o serviço é chamado fora de um endpoint.
+        if ($context->model instanceof VerificationRequest) {
+            return $context->model;
+        }
+
         /** @var VerificationRequest $request */
         $request = VerificationRequest::query()->findOrFail($context->modelId);
 
@@ -400,6 +408,37 @@ class VerificationRequestService
         if ($status !== VerificationRequest::STATUS_PENDING) {
             throw new ValidationException([
                 'status' => $this->translator->trans('ramon-verified.api.already_handled'),
+            ]);
+        }
+    }
+
+    /**
+     * Revogar vale só para a aprovação que está valendo. Depois de "revogar
+     * direto" e "verificar direto", a aprovação antiga continua `approved` no
+     * histórico; revogá-la apagaria a verificação nova.
+     */
+    private function lockLatestApproval(VerificationRequest $request): void
+    {
+        $status = VerificationRequest::query()
+            ->whereKey($request->getKey())
+            ->lockForUpdate()
+            ->value('status');
+
+        if ($status !== VerificationRequest::STATUS_APPROVED) {
+            throw new ValidationException([
+                'status' => $this->translator->trans('ramon-verified.api.revoke_not_approved'),
+            ]);
+        }
+
+        $newer = VerificationRequest::query()
+            ->where('user_id', $request->user_id)
+            ->where('status', VerificationRequest::STATUS_APPROVED)
+            ->where('id', '>', $request->getKey())
+            ->exists();
+
+        if ($newer) {
+            throw new ValidationException([
+                'status' => $this->translator->trans('ramon-verified.api.revoke_not_latest'),
             ]);
         }
     }

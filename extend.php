@@ -32,12 +32,15 @@ use Ramon\Verified\Api\Controller\GenerateKeypairController;
 use Ramon\Verified\Api\Controller\ListApprovedUsersController;
 use Ramon\Verified\Api\Controller\UploadBadgeSvgController;
 use Ramon\Verified\Api\Controller\UploadDocumentController;
+use Ramon\Verified\Api\Controller\UnverifyUserController;
 use Ramon\Verified\Api\Controller\VerifyUserController;
+use Ramon\Verified\Api\ForumTiers;
 use Ramon\Verified\Api\Resource\VerificationRequestResource;
 use Ramon\Verified\Api\Throttler\VerifiedActionsThrottler;
 use Ramon\Verified\Api\UserResourceFields;
 use Ramon\Verified\Audit\RecordVerificationActivity;
 use Ramon\Verified\Console\PurgeDocumentsCommand;
+use Ramon\Verified\Console\PurgeDocumentsSchedule;
 use Ramon\Verified\Documents\DocumentPathResolver;
 use Ramon\Verified\Event\UserUnverified;
 use Ramon\Verified\Event\UserVerified;
@@ -95,7 +98,7 @@ return [
             return strlen($raw) <= UploadBadgeSvgController::INLINE_SVG_THRESHOLD ? $raw : '';
         })
         ->serializeToForum('ramonVerifiedBadgeSize',       'ramon-verified.badge_size')
-        ->serializeToForum('ramonVerifiedTiers', 'ramon-verified.tiers', [\Ramon\Verified\TierConfig::class, 'parseForFrontend']),
+        ->serializeToForum('ramonVerifiedTiers', 'ramon-verified.tiers', ForumTiers::class),
 
     (new Extend\Model(User::class))
         ->hasOne('verification', UserVerification::class, 'user_id')
@@ -135,9 +138,7 @@ return [
 
     (new Extend\Console())
         ->command(PurgeDocumentsCommand::class)
-        ->schedule(PurgeDocumentsCommand::class, function (\Illuminate\Console\Scheduling\Event $event) {
-            $event->dailyAt('03:30');
-        }),
+        ->schedule(PurgeDocumentsCommand::class, PurgeDocumentsSchedule::class),
 
     (new Extend\Routes('api'))
         ->post('/verified/documents', 'verified.documents.upload', UploadDocumentController::class)
@@ -145,7 +146,7 @@ return [
         ->post('/verified/badge-svg',   'verified.badge_svg.upload', UploadBadgeSvgController::class)
         ->delete('/verified/badge-svg', 'verified.badge_svg.delete', DeleteBadgeSvgController::class)
         ->post('/verified/users/{id:[0-9]+}/verify',   'verified.users.verify',   VerifyUserController::class)
-        ->delete('/verified/users/{id:[0-9]+}/verify', 'verified.users.unverify', VerifyUserController::class)
+        ->delete('/verified/users/{id:[0-9]+}/verify', 'verified.users.unverify', UnverifyUserController::class)
         ->get('/verified/approved-users', 'verified.approved.list', ListApprovedUsersController::class)
         ->get('/verified/encryption/status',            'verified.encryption.status',   EncryptionStatusController::class)
         ->post('/verified/encryption/generate-keypair', 'verified.encryption.generate', GenerateKeypairController::class),

@@ -35,6 +35,8 @@ class UserVerification extends AbstractModel
     public $timestamps = false;
 
     protected $casts = [
+        'user_id' => 'integer',
+        'verified_by' => 'integer',
         'is_verified' => 'bool',
         'verified_at' => 'datetime',
         'verified_tier' => 'string',

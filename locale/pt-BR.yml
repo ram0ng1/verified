@@ -1,9 +1,13 @@
 ramon-verified:
   lib:
+    document_types:
+      rg: "RG"
+      cpf: "CPF"
+      passport: "Passaporte"
+      driver: "CNH"
+      other: "Outro"
     tooltip: "Conta verificada"
-    tooltip_with_date: "Conta verificada · desde {date}"
     popover:
-      pill: "Verificado"
       headline: "Esta conta tem a <strong>identidade verificada</strong>."
       verified_on: "Verificado {date}"
       verified_no_date: "Conta verificada automaticamente."
@@ -21,17 +25,11 @@ ramon-verified:
 
   forum:
     settings:
-      heading: "Verificação"
       verified_label: "Sua conta está verificada"
-      verified_sublabel: "Sua identidade foi confirmada por um administrador."
       pending_label: "Verificação em análise"
-      pending_sublabel: "Um administrador retornará em breve."
-      avatar_locked_label: "Avatar bloqueado"
-      avatar_locked_sublabel: "Contas verificadas não podem alterar o avatar. Envie uma nova solicitação de verificação para atualizar."
       request_button: "Solicitar verificação"
 
     avatar:
-      locked_tooltip: "Seu avatar está bloqueado porque sua conta é verificada. Para alterá-lo, envie uma nova solicitação de verificação."
       locked_label: "Avatar bloqueado"
       locked_help: "Contas verificadas não podem alterar o avatar. Envie uma nova solicitação de verificação para atualizar."
       locked_alert: "Seu avatar está bloqueado porque sua conta é verificada."
@@ -56,15 +54,9 @@ ramon-verified:
       reason_label: "Por que esta conta deve ser verificada?"
       reason_placeholder: "Opcional — explique o contexto (cargo público, perfil notório, organização etc.)"
       document_type_label: "Tipo de documento"
-      document_type_rg: "RG"
-      document_type_cpf: "CPF"
-      document_type_passport: "Passaporte"
-      document_type_driver: "CNH"
-      document_type_other: "Outro"
       document_label: "Documento de identidade"
       document_help: "PNG, JPG, WEBP ou PDF. Até 8 MB. Os documentos ficam armazenados de forma privada e só são vistos por administradores."
       uploading: "Enviando documento…"
-      uploaded: "Anexado: {name}"
       uploaded_short: "Documento anexado"
       choose_file: "Clique para selecionar um documento"
       choose_file_hint: "PNG, JPG, WEBP ou PDF · máx 8 MB"
@@ -122,7 +114,6 @@ ramon-verified:
         empty_title: "Nenhum tier configurado"
         add: "Adicionar tier"
         add_first: "Criar primeiro tier"
-        collapse: "Recolher"
         done: "Concluir"
         unnamed: "(sem nome)"
         no_id: "(sem ID)"
@@ -143,7 +134,6 @@ ramon-verified:
         badge_replace: "Substituir"
         badge_remove: "Remover"
         badge_svg_too_large: "O SVG é grande demais (máx. 8 KB)."
-        preview_label: "Pré-visualização"
         preview_hint: "Passe o mouse no selo para ver o popover real"
         learn_more_open: "Abrir link em nova aba"
         remove_confirm: "Remover este tier? Usuários que tinham esse tier ficarão com o selo padrão até serem reatribuídos."
@@ -160,7 +150,6 @@ ramon-verified:
         description_toolbar_hint: "Selecione um trecho e clique"
         learn_more_label: "Link \"Saiba mais\""
         learn_more_help: "URL https:// para a política de verificação. Vazio = nenhum link aparece no popover."
-        auto_groups_label: "Grupos com este tier automaticamente"
         auto_groups_help: "Membros desses grupos recebem este tier sem precisar de aprovação manual. Se um usuário pertence a grupos com tiers diferentes, vence o tier listado mais acima."
         auto_groups_empty: "Sem grupos disponíveis."
       section_document_types: "Tipos de documento"
@@ -176,7 +165,6 @@ ramon-verified:
       request_label: "Solicitar verificação"
       verify_users_label: "Verificar usuários diretamente"
       self_revoke_label: "Revogar o próprio selo verificado"
-      auto_verified_label: "Receber selo verificado automaticamente"
 
     encryption:
       section_title: "Criptografia de documentos"
@@ -215,8 +203,6 @@ ramon-verified:
         snippet_label: "Adicione esta linha ao array do config.php:"
         copy_button: "Copiar trecho"
         copied: "Copiado!"
-        confirm_saved: "Salvei no config.php e confirmei que o arquivo é legível pelo PHP."
-        confirm_hint: "Confirme acima que você salvou a chave antes de fechar."
         close: "Fechar"
         orphaned: "{count} documento(s) cifrado(s) anteriormente estão sendo apagados em segundo plano."
       regenerate_modal:
@@ -237,7 +223,6 @@ ramon-verified:
       empty_pending: "Nenhuma solicitação pendente."
       empty_approved: "Nenhum usuário aprovado ainda."
       empty_rejected: "Nenhuma solicitação rejeitada."
-      truncated: "Mais {hidden} solicitações não exibidas — refine os filtros ou veja a aba Aprovados."
       empty_search: "Nenhum usuário verificado encontrado para \"{query}\"."
       search_placeholder: "Buscar usuários verificados…"
       search_clear: "Limpar busca"
@@ -309,6 +294,7 @@ ramon-verified:
     self_revoked_note: "Verificação revogada pelo próprio usuário (solicitação de alteração de avatar)."
     too_many_uploads: "Você já tem documentos enviados que não foram anexados a uma solicitação. Envie sua solicitação ou aguarde 30 minutos para enviar outro."
     revoke_not_approved: "Só uma solicitação aprovada pode ser revogada."
+    revoke_not_latest: "Só a aprovação que está valendo pode ser revogada."
     encryption:
       libsodium_missing: "libsodium não está disponível nesta instalação do PHP."
       acknowledge_loss_required: "Você precisa confirmar que todos os documentos cifrados existentes serão apagados antes de gerar um novo par de chaves."
