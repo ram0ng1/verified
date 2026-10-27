@@ -1,53 +1,44 @@
 import app from "flarum/admin/app";
+import Extend from "flarum/common/extenders";
 
+import commonExtend from "../common/extend";
 import LazyVerifiedSettingsPanel from "./components/LazyVerifiedSettingsPanel";
 
-const EXT_ID = "ramon-verified";
+// O auto-verificado não tem permissão própria: cada tier escolhe, em
+// Admin → Tiers, os grupos que recebem o selo sem pedido.
+export default [
+  ...commonExtend,
 
-/**
- * Wire the extension's admin UI: settings panel + the two permissions
- * surfaced in the standard PermissionGrid.
- *
- * Note: `verified.autoVerified` is NOT registered here. Auto-verification is
- * per-tier — each tier in Admin → Tiers picks the groups that get its badge
- * automatically.
- */
-export default function addVerifiedSettingsPanel(): void {
-  app.registry
-    .for(EXT_ID)
-    .registerSetting(
-      () => <LazyVerifiedSettingsPanel />,
-      100,
-      "ramon-verified.panel",
-    )
-    .registerPermission(
-      {
+  new Extend.Admin()
+    .customSetting(() => <LazyVerifiedSettingsPanel />, 100)
+    .permission(
+      () => ({
         icon: "fas fa-certificate",
         label: app.translator.trans(
           "ramon-verified.admin.permissions.request_label",
         ),
         permission: "verified.request",
-      },
+      }),
       "start",
     )
-    .registerPermission(
-      {
+    .permission(
+      () => ({
         icon: "fas fa-user-check",
         label: app.translator.trans(
           "ramon-verified.admin.permissions.verify_users_label",
         ),
         permission: "verified.verifyUsers",
-      },
+      }),
       "moderate",
     )
-    .registerPermission(
-      {
+    .permission(
+      () => ({
         icon: "fas fa-ban",
         label: app.translator.trans(
           "ramon-verified.admin.permissions.self_revoke_label",
         ),
         permission: "verified.selfRevoke",
-      },
+      }),
       "start",
-    );
-}
+    ),
+];
