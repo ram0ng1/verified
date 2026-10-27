@@ -1,5 +1,14 @@
 <?php
 
+/*
+ * This file is part of ramon/verified.
+ *
+ * Copyright (c) 2026 Ramon Guilherme.
+ *
+ * For the full copyright and license information, please view the LICENSE
+ * file that was distributed with this source code.
+ */
+
 namespace Ramon\Verified;
 
 use Flarum\Api\Context;
@@ -141,18 +150,20 @@ return [
         ->get('/verified/encryption/status',            'verified.encryption.status',   EncryptionStatusController::class)
         ->post('/verified/encryption/generate-keypair', 'verified.encryption.generate', GenerateKeypairController::class),
 
-    ...(class_exists(\Ramon\Audit\Extend\ActivityType::class) ? [
-        (new \Ramon\Audit\Extend\ActivityType())
-            ->register('verified.user.verified', ['severity' => 'notice'])
-            ->register('verified.user.unverified', ['severity' => 'notice']),
+    // Integrações opcionais: só valem com a outra extensão ativa (instalada e
+    // desativada não conta).
+    (new Extend\Conditional())
+        ->whenExtensionEnabled('ramon-audit', fn () => [
+            (new \Ramon\Audit\Extend\ActivityType())
+                ->register('verified.user.verified', ['severity' => 'notice'])
+                ->register('verified.user.unverified', ['severity' => 'notice']),
 
-        (new Extend\Event())
-            ->listen(UserVerified::class, RecordVerificationActivity::class.'@whenVerified')
-            ->listen(UserUnverified::class, RecordVerificationActivity::class.'@whenUnverified'),
-    ] : []),
-
-    ...(class_exists(\Flarum\Gdpr\Extend\UserData::class) ? [
-        (new \Flarum\Gdpr\Extend\UserData())
-            ->addType(\Ramon\Verified\Gdpr\VerifiedDocuments::class),
-    ] : []),
+            (new Extend\Event())
+                ->listen(UserVerified::class, RecordVerificationActivity::class.'@whenVerified')
+                ->listen(UserUnverified::class, RecordVerificationActivity::class.'@whenUnverified'),
+        ])
+        ->whenExtensionEnabled('flarum-gdpr', fn () => [
+            (new \Flarum\Gdpr\Extend\UserData())
+                ->addType(\Ramon\Verified\Gdpr\VerifiedDocuments::class),
+        ]),
 ];
