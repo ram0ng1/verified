@@ -1,10 +1,10 @@
-import app from "flarum/admin/app";
-import extractText from "flarum/common/utils/extractText";
+import app from 'flarum/admin/app';
+import extractText from 'flarum/common/utils/extractText';
 
-import VerificationRequest from "../../common/models/VerificationRequest";
-import apiCall from "../../common/utils/apiCall";
-import verificationPrompt from "../../common/utils/verificationPrompt";
-import { getConfiguredTiers } from "../../common/utils/tiers";
+import VerificationRequest from '../../common/models/VerificationRequest';
+import apiCall from '../../common/utils/apiCall';
+import verificationPrompt from '../../common/utils/verificationPrompt';
+import { getConfiguredTiers } from '../../common/utils/tiers';
 
 interface JsonApiResource {
   type: string;
@@ -17,11 +17,10 @@ interface JsonApiListPayload {
   meta?: { page?: { total?: number } };
 }
 
-export type RequestAction = "approve" | "reject" | "revoke";
-export type RequestTab = "pending" | "approved" | "rejected";
+export type RequestAction = 'approve' | 'reject' | 'revoke';
+export type RequestTab = 'pending' | 'approved' | 'rejected';
 
-const trans = (key: string, params?: Record<string, unknown>) =>
-  app.translator.trans(`ramon-verified.admin.requests.${key}`, params ?? {});
+const trans = (key: string, params?: Record<string, unknown>) => app.translator.trans(`ramon-verified.admin.requests.${key}`, params ?? {});
 
 interface TabState {
   loading: boolean;
@@ -46,7 +45,7 @@ export const REQUESTS_PAGE_SIZE = 25;
 export default class VerificationRequestsState {
   busy: Record<string, boolean> = {};
 
-  private tabs: Record<"pending" | "rejected", TabState> = {
+  private tabs: Record<'pending' | 'rejected', TabState> = {
     pending: {
       loading: false,
       loaded: false,
@@ -63,19 +62,19 @@ export default class VerificationRequestsState {
     },
   };
 
-  loadingFor(tab: "pending" | "rejected"): boolean {
+  loadingFor(tab: 'pending' | 'rejected'): boolean {
     return this.tabs[tab].loading;
   }
 
-  requestsFor(tab: "pending" | "rejected"): VerificationRequest[] {
+  requestsFor(tab: 'pending' | 'rejected'): VerificationRequest[] {
     return this.tabs[tab].requests;
   }
 
-  totalFor(tab: "pending" | "rejected"): number {
+  totalFor(tab: 'pending' | 'rejected'): number {
     return this.tabs[tab].total;
   }
 
-  offsetFor(tab: "pending" | "rejected"): number {
+  offsetFor(tab: 'pending' | 'rejected'): number {
     return this.tabs[tab].offset;
   }
 
@@ -87,7 +86,7 @@ export default class VerificationRequestsState {
     return this.tabs.rejected.total;
   }
 
-  hiddenFor(tab: "pending" | "rejected"): number {
+  hiddenFor(tab: 'pending' | 'rejected'): number {
     const state = this.tabs[tab];
     return Math.max(0, state.total - state.requests.length - state.offset);
   }
@@ -97,7 +96,7 @@ export default class VerificationRequestsState {
    * do conjunto filtrado pelo status; `total` vem do `meta.page.total` do
    * JSON:API e dirige paginação no UI.
    */
-  async load(tab: "pending" | "rejected", offset: number = 0): Promise<void> {
+  async load(tab: 'pending' | 'rejected', offset: number = 0): Promise<void> {
     const state = this.tabs[tab];
     state.loading = true;
     state.offset = Math.max(0, offset);
@@ -116,36 +115,26 @@ export default class VerificationRequestsState {
       // Integração com o store via `pushPayload`, preservando cache em
       // memória e hidratação das relações `user`/`handler`.
       const params = new URLSearchParams();
-      params.set("sort", "-createdAt");
-      params.set("byStatus", tab);
-      params.set("page[limit]", String(REQUESTS_PAGE_SIZE));
-      params.set("page[offset]", String(state.offset));
-      params.set("include", "user,handler");
+      params.set('sort', '-createdAt');
+      params.set('byStatus', tab);
+      params.set('page[limit]', String(REQUESTS_PAGE_SIZE));
+      params.set('page[offset]', String(state.offset));
+      params.set('include', 'user,handler');
 
       const payload = await app.request<JsonApiListPayload>({
-        method: "GET",
-        url:
-          app.forum.attribute("apiUrl") +
-          "/verification-requests?" +
-          params.toString(),
+        method: 'GET',
+        url: app.forum.attribute('apiUrl') + '/verification-requests?' + params.toString(),
         errorHandler: () => {},
       });
 
       app.store.pushPayload(payload);
 
       const total = payload?.meta?.page?.total;
-      state.total = typeof total === "number" ? total : 0;
+      state.total = typeof total === 'number' ? total : 0;
 
       const list: VerificationRequest[] = (payload?.data ?? [])
-        .map((row) =>
-          app.store.getById<VerificationRequest>(
-            "verification-requests",
-            String(row.id),
-          ),
-        )
-        .filter(
-          (m): m is VerificationRequest => m instanceof VerificationRequest,
-        );
+        .map((row) => app.store.getById<VerificationRequest>('verification-requests', String(row.id)))
+        .filter((m): m is VerificationRequest => m instanceof VerificationRequest);
 
       list.sort((a, b) => {
         const av = a.createdAt() ? (a.createdAt() as Date).getTime() : 0;
@@ -155,7 +144,7 @@ export default class VerificationRequestsState {
       state.requests = list;
       state.loaded = true;
     } catch (err) {
-      app.alerts.show({ type: "error" }, extractText(trans("load_failed")));
+      app.alerts.show({ type: 'error' }, extractText(trans('load_failed')));
     } finally {
       state.loading = false;
       m.redraw();
@@ -167,10 +156,10 @@ export default class VerificationRequestsState {
    * Roda em paralelo; falha em uma aba não impede a outra.
    */
   async loadAll(): Promise<void> {
-    await Promise.all([this.load("pending", 0), this.load("rejected", 0)]);
+    await Promise.all([this.load('pending', 0), this.load('rejected', 0)]);
   }
 
-  goToPage(tab: "pending" | "rejected", offset: number): void {
+  goToPage(tab: 'pending' | 'rejected', offset: number): void {
     this.load(tab, offset);
   }
 
@@ -180,27 +169,24 @@ export default class VerificationRequestsState {
    * `approve` or `revoke`.
    */
   async act(req: VerificationRequest, action: RequestAction): Promise<boolean> {
-    const withTier = action === "approve";
+    const withTier = action === 'approve';
 
     // Preserve the previous "no tiers configured" guard — approval needs a
     // tier, and picking from an empty list would be a dead end.
     if (withTier && getConfiguredTiers().length === 0) {
-      app.alerts.show(
-        { type: "error" },
-        app.translator.trans("ramon-verified.lib.tier_prompt.no_tiers"),
-      );
+      app.alerts.show({ type: 'error' }, app.translator.trans('ramon-verified.lib.tier_prompt.no_tiers'));
       return false;
     }
 
     const result = await verificationPrompt({
-      title: trans(action + "_button"),
-      noteLabel: trans(action + "_prompt"),
-      confirmLabel: trans(action + "_button"),
+      title: trans(action + '_button'),
+      noteLabel: trans(action + '_prompt'),
+      confirmLabel: trans(action + '_button'),
       withTier,
     });
     if (!result) return false;
 
-    const reqId = String(req.id() ?? "");
+    const reqId = String(req.id() ?? '');
     if (!reqId) return false;
 
     this.busy[reqId] = true;
@@ -213,16 +199,11 @@ export default class VerificationRequestsState {
 
     const res = await apiCall<JsonApiListPayload | { data?: JsonApiResource }>(
       {
-        method: "POST",
-        url:
-          app.forum.attribute("apiUrl") +
-          "/verification-requests/" +
-          reqId +
-          "/" +
-          action,
+        method: 'POST',
+        url: app.forum.attribute('apiUrl') + '/verification-requests/' + reqId + '/' + action,
         body,
       },
-      { errorKey: "ramon-verified.admin.requests.decide_failed" },
+      { errorKey: 'ramon-verified.admin.requests.decide_failed' }
     );
 
     delete this.busy[reqId];
@@ -230,7 +211,7 @@ export default class VerificationRequestsState {
     if (res !== null) {
       if (res.data) app.store.pushPayload(res as JsonApiListPayload);
       await this.loadAll();
-      app.alerts.show({ type: "success" }, trans(action + "_success"));
+      app.alerts.show({ type: 'success' }, trans(action + '_success'));
       m.redraw();
       return true;
     }

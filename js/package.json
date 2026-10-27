@@ -21,5 +21,6 @@
     "format": "prettier --write src",
     "format-check": "prettier --check src",
     "check-typings": "tsc --noEmit --emitDeclarationOnly false"
-  }
+  },
+  "prettier": "@flarum/prettier-config"
 }

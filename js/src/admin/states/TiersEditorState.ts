@@ -1,14 +1,13 @@
-import app from "flarum/admin/app";
-import Group from "flarum/common/models/Group";
-import sortGroups from "flarum/common/utils/sortGroups";
-import extractText from "flarum/common/utils/extractText";
+import app from 'flarum/admin/app';
+import Group from 'flarum/common/models/Group';
+import sortGroups from 'flarum/common/utils/sortGroups';
+import extractText from 'flarum/common/utils/extractText';
 
-import { settings, saveSetting } from "../utils/settings";
+import { settings, saveSetting } from '../utils/settings';
 
-const trans = (key: string) =>
-  app.translator.trans(`ramon-verified.admin.${key}`);
+const trans = (key: string) => app.translator.trans(`ramon-verified.admin.${key}`);
 
-const SETTING_KEY = "ramon-verified.tiers";
+const SETTING_KEY = 'ramon-verified.tiers';
 const FLUSH_DEBOUNCE_MS = 400;
 
 export const BADGE_SVG_MAX = 8 * 1024;
@@ -26,14 +25,14 @@ export interface TierRow {
 
 function emptyRow(): TierRow {
   return {
-    id: "",
-    label: "",
-    color: "#1d9bf0",
-    description: "",
-    learnMoreUrl: "",
+    id: '',
+    label: '',
+    color: '#1d9bf0',
+    description: '',
+    learnMoreUrl: '',
     autoGroups: [],
     badgeEnabled: false,
-    badgeSvg: "",
+    badgeSvg: '',
   };
 }
 
@@ -52,10 +51,8 @@ export default class TiersEditorState {
   private _flushTimer: ReturnType<typeof setTimeout> | null = null;
 
   constructor() {
-    this.rows = this.parse(String(settings()[SETTING_KEY] ?? ""));
-    this.groups = sortGroups(
-      app.store.all<Group>("groups").filter((g) => g.id() !== Group.GUEST_ID),
-    );
+    this.rows = this.parse(String(settings()[SETTING_KEY] ?? ''));
+    this.groups = sortGroups(app.store.all<Group>('groups').filter((g) => g.id() !== Group.GUEST_ID));
   }
 
   parse(raw: string): TierRow[] {
@@ -64,28 +61,21 @@ export default class TiersEditorState {
       const parsed = JSON.parse(raw);
       if (!Array.isArray(parsed)) return [];
       return parsed.map((r: unknown) => {
-        const row = (r && typeof r === "object" ? r : {}) as Record<
-          string,
-          unknown
-        >;
-        const badgeSvgRaw =
-          typeof row.badgeSvg === "string" ? row.badgeSvg : "";
-        const badgeEnabled =
-          Boolean(row.badgeEnabled) && badgeSvgRaw.trim().length > 0;
+        const row = (r && typeof r === 'object' ? r : {}) as Record<string, unknown>;
+        const badgeSvgRaw = typeof row.badgeSvg === 'string' ? row.badgeSvg : '';
+        const badgeEnabled = Boolean(row.badgeEnabled) && badgeSvgRaw.trim().length > 0;
 
         return {
-          id: String(row.id || "").trim(),
-          label: String(row.label || "").trim(),
-          color: String(row.color || "").trim(),
-          description: String(row.description || "").trim(),
-          learnMoreUrl: String(row.learnMoreUrl || "").trim(),
+          id: String(row.id || '').trim(),
+          label: String(row.label || '').trim(),
+          color: String(row.color || '').trim(),
+          description: String(row.description || '').trim(),
+          learnMoreUrl: String(row.learnMoreUrl || '').trim(),
           autoGroups: Array.isArray(row.autoGroups)
-            ? row.autoGroups
-                .map((g) => parseInt(String(g), 10))
-                .filter((n) => Number.isFinite(n) && n > 0)
+            ? row.autoGroups.map((g) => parseInt(String(g), 10)).filter((n) => Number.isFinite(n) && n > 0)
             : [],
           badgeEnabled,
-          badgeSvg: badgeSvgRaw.length > BADGE_SVG_MAX ? "" : badgeSvgRaw,
+          badgeSvg: badgeSvgRaw.length > BADGE_SVG_MAX ? '' : badgeSvgRaw,
         };
       });
     } catch (e) {
@@ -98,7 +88,7 @@ export default class TiersEditorState {
       this.rows
         .filter((r) => r.id.trim() && r.label.trim())
         .map((r) => {
-          const trimmedSvg = (r.badgeSvg || "").trim();
+          const trimmedSvg = (r.badgeSvg || '').trim();
           const badgeEnabled = r.badgeEnabled && trimmedSvg.length > 0;
           return {
             id: r.id.trim().toLowerCase(),
@@ -108,9 +98,9 @@ export default class TiersEditorState {
             learnMoreUrl: this.normaliseUrl(r.learnMoreUrl),
             autoGroups: r.autoGroups,
             badgeEnabled,
-            badgeSvg: badgeEnabled ? trimmedSvg : "",
+            badgeSvg: badgeEnabled ? trimmedSvg : '',
           };
-        }),
+        })
     );
   }
 
@@ -121,13 +111,13 @@ export default class TiersEditorState {
    * `policy.example.com` and the link disappeared on save with no feedback.
    */
   normaliseUrl(raw: string): string {
-    const trimmed = (raw || "").trim();
-    if (!trimmed) return "";
+    const trimmed = (raw || '').trim();
+    if (!trimmed) return '';
     if (/^https?:\/\//i.test(trimmed)) return trimmed;
     // If it already has another scheme (mailto:, ftp:, …) leave it alone —
     // it'll be rejected server-side, but we shouldn't silently rewrite it.
     if (/^[a-z][a-z0-9+.-]*:/i.test(trimmed)) return trimmed;
-    return "https://" + trimmed;
+    return 'https://' + trimmed;
   }
 
   flushNow(): void {
@@ -148,12 +138,10 @@ export default class TiersEditorState {
   }
 
   remove(idx: number): void {
-    if (!window.confirm(extractText(trans("settings.tiers.remove_confirm"))))
-      return;
+    if (!window.confirm(extractText(trans('settings.tiers.remove_confirm')))) return;
     this.rows = this.rows.filter((_, i) => i !== idx);
     if (this.expandedIdx === idx) this.expandedIdx = null;
-    else if (this.expandedIdx !== null && this.expandedIdx > idx)
-      this.expandedIdx -= 1;
+    else if (this.expandedIdx !== null && this.expandedIdx > idx) this.expandedIdx -= 1;
     this.flushNow();
     m.redraw();
   }
@@ -168,9 +156,7 @@ export default class TiersEditorState {
     const row = this.rows[idx];
     if (!row) return;
     const isOn = row.autoGroups.indexOf(groupId) !== -1;
-    const next = isOn
-      ? row.autoGroups.filter((g) => g !== groupId)
-      : [...row.autoGroups, groupId];
+    const next = isOn ? row.autoGroups.filter((g) => g !== groupId) : [...row.autoGroups, groupId];
     this.update(idx, { autoGroups: next });
   }
 

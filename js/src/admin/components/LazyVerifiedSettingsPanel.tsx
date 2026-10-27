@@ -1,7 +1,7 @@
-import Component from "flarum/common/Component";
-import LoadingIndicator from "flarum/common/components/LoadingIndicator";
+import Component from 'flarum/common/Component';
+import LoadingIndicator from 'flarum/common/components/LoadingIndicator';
 
-import type Mithril from "mithril";
+import type Mithril from 'mithril';
 
 let Panel: Mithril.ComponentTypes<any> | null = null;
 let pending: Promise<void> | null = null;
@@ -16,7 +16,7 @@ export default class LazyVerifiedSettingsPanel extends Component {
     super.oninit(vnode);
 
     if (!Panel && !pending) {
-      pending = import("./VerifiedSettingsPanel")
+      pending = import('./VerifiedSettingsPanel')
         .then((mod) => {
           Panel = mod.default;
           m.redraw();

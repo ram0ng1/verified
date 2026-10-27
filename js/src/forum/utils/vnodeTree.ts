@@ -1,7 +1,7 @@
-import type Mithril from "mithril";
-import type User from "flarum/common/models/User";
+import type Mithril from 'mithril';
+import type User from 'flarum/common/models/User';
 
-import VerifiedBadge from "../../common/components/VerifiedBadge";
+import VerifiedBadge from '../../common/components/VerifiedBadge';
 
 export type VnodeLike = Mithril.Vnode<any, any> & {
   attrs?: Record<string, any>;
@@ -12,11 +12,8 @@ export type VnodeLike = Mithril.Vnode<any, any> & {
  * Recursively find the first vnode in `node` whose attrs.className contains
  * the given class. Returns null if no match.
  */
-export function findVnodeByClass(
-  node: unknown,
-  className: string,
-): VnodeLike | null {
-  if (!node || typeof node !== "object") return null;
+export function findVnodeByClass(node: unknown, className: string): VnodeLike | null {
+  if (!node || typeof node !== 'object') return null;
 
   if (Array.isArray(node)) {
     for (const child of node) {
@@ -28,7 +25,7 @@ export function findVnodeByClass(
 
   const v = node as VnodeLike;
   const cls = v.attrs && v.attrs.className;
-  if (typeof cls === "string" && cls.split(/\s+/).indexOf(className) !== -1) {
+  if (typeof cls === 'string' && cls.split(/\s+/).indexOf(className) !== -1) {
     return v;
   }
 
@@ -39,10 +36,7 @@ export function findVnodeByClass(
 /**
  * O selo, para injetar numa árvore de vnodes do Avocado.
  */
-export function makeVerifiedVnode(
-  user: User | null | undefined,
-  className: string,
-): Mithril.Vnode | null {
+export function makeVerifiedVnode(user: User | null | undefined, className: string): Mithril.Vnode | null {
   if (!user || !user.isVerified || !user.isVerified()) return null;
 
   return m(VerifiedBadge, { user, className });

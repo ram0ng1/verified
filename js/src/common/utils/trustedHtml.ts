@@ -1,4 +1,4 @@
-import type Mithril from "mithril";
+import type Mithril from 'mithril';
 
 /**
  * Ponto único de m.trust do bundle. Só recebe HTML que JÁ passou por

@@ -1,8 +1,8 @@
-import app from "flarum/common/app";
+import app from 'flarum/common/app';
 
-import type Mithril from "mithril";
+import type Mithril from 'mithril';
 
-import type { VerificationPromptResult } from "../components/VerificationPromptModal";
+import type { VerificationPromptResult } from '../components/VerificationPromptModal';
 
 export interface VerificationPromptOptions {
   /** Modal heading. */
@@ -20,11 +20,9 @@ export interface VerificationPromptOptions {
  * `null` se ele cancelar. Substitui os `window.prompt` dos fluxos de
  * verify/approve/revoke por uma UI consistente com o resto da extensão.
  */
-export default function verificationPrompt(
-  opts: VerificationPromptOptions,
-): Promise<VerificationPromptResult | null> {
+export default function verificationPrompt(opts: VerificationPromptOptions): Promise<VerificationPromptResult | null> {
   return new Promise((resolve) => {
-    app.modal.show(() => import("../components/VerificationPromptModal"), {
+    app.modal.show(() => import('../components/VerificationPromptModal'), {
       promptTitle: opts.title,
       noteLabel: opts.noteLabel,
       confirmLabel: opts.confirmLabel,

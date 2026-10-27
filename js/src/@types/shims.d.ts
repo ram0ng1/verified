@@ -9,10 +9,10 @@
  * `VerificationRequestsState.load` envia, em vez de `as any`.
  */
 
-import "flarum/common/models/User";
-import "flarum/common/Store";
+import 'flarum/common/models/User';
+import 'flarum/common/Store';
 
-declare module "flarum/common/models/User" {
+declare module 'flarum/common/models/User' {
   export default interface User {
     isVerified(): boolean | undefined;
     verifiedAt(): Date | null | undefined;
@@ -24,7 +24,7 @@ declare module "flarum/common/models/User" {
   }
 }
 
-declare module "flarum/common/Store" {
+declare module 'flarum/common/Store' {
   interface JsonApiResource {
     type: string;
     id: string | number;
@@ -47,11 +47,7 @@ declare global {
   namespace flarum {
     const reg: {
       get(namespace: string, id: string): unknown;
-      onLoad(
-        namespace: string,
-        id: string,
-        callback: (mod: unknown) => void,
-      ): void;
+      onLoad(namespace: string, id: string, callback: (mod: unknown) => void): void;
       addChunk?: unknown;
     };
   }

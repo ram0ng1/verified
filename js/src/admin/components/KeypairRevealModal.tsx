@@ -1,11 +1,10 @@
-import app from "flarum/admin/app";
-import Modal, { IInternalModalAttrs } from "flarum/common/components/Modal";
-import Button from "flarum/common/components/Button";
-import extractText from "flarum/common/utils/extractText";
-import type Mithril from "mithril";
+import app from 'flarum/admin/app';
+import Modal, { IInternalModalAttrs } from 'flarum/common/components/Modal';
+import Button from 'flarum/common/components/Button';
+import extractText from 'flarum/common/utils/extractText';
+import type Mithril from 'mithril';
 
-const trans = (key: string, params?: Record<string, unknown>) =>
-  app.translator.trans(`ramon-verified.admin.encryption.${key}`, params ?? {});
+const trans = (key: string, params?: Record<string, unknown>) => app.translator.trans(`ramon-verified.admin.encryption.${key}`, params ?? {});
 
 export interface IKeypairRevealAttrs extends IInternalModalAttrs {
   privateKey: string;
@@ -30,11 +29,11 @@ export default class KeypairRevealModal extends Modal<IKeypairRevealAttrs> {
   protected pageHideHandler?: (e: PageTransitionEvent) => void;
 
   className() {
-    return "EncryptionRevealModal Modal--medium";
+    return 'EncryptionRevealModal Modal--medium';
   }
 
   title() {
-    return trans("reveal_modal.title");
+    return trans('reveal_modal.title');
   }
 
   oncreate(vnode: Mithril.VnodeDOM<IKeypairRevealAttrs, this>) {
@@ -49,13 +48,13 @@ export default class KeypairRevealModal extends Modal<IKeypairRevealAttrs> {
         this.scrubSecret();
       }
     };
-    window.addEventListener("pagehide", this.pageHideHandler);
+    window.addEventListener('pagehide', this.pageHideHandler);
   }
 
   onremove(vnode: Mithril.VnodeDOM<IKeypairRevealAttrs, this>) {
     this.scrubSecret();
     if (this.pageHideHandler) {
-      window.removeEventListener("pagehide", this.pageHideHandler);
+      window.removeEventListener('pagehide', this.pageHideHandler);
       this.pageHideHandler = undefined;
     }
     super.onremove(vnode);
@@ -63,51 +62,38 @@ export default class KeypairRevealModal extends Modal<IKeypairRevealAttrs> {
 
   protected scrubSecret() {
     if (this.attrs?.privateKey) {
-      this.attrs.privateKey = "";
+      this.attrs.privateKey = '';
     }
   }
 
   content() {
     const { privateKey, configKey, orphanedDocuments = 0 } = this.attrs;
-    const snippet = privateKey ? `'${configKey}' => '${privateKey}',` : "";
+    const snippet = privateKey ? `'${configKey}' => '${privateKey}',` : '';
 
     return (
       <div className="Modal-body">
-        <p>{trans("reveal_modal.intro")}</p>
+        <p>{trans('reveal_modal.intro')}</p>
 
         {orphanedDocuments > 0 && (
-          <div className="Alert Alert--warning EncryptionReveal-orphaned">
-            {trans("reveal_modal.orphaned", { count: orphanedDocuments })}
-          </div>
+          <div className="Alert Alert--warning EncryptionReveal-orphaned">{trans('reveal_modal.orphaned', { count: orphanedDocuments })}</div>
         )}
 
         <div className="EncryptionReveal-warning Alert Alert--error">
-          <strong>{trans("reveal_modal.warning_title")}</strong>
-          <p>{trans("reveal_modal.warning_body")}</p>
+          <strong>{trans('reveal_modal.warning_title')}</strong>
+          <p>{trans('reveal_modal.warning_body')}</p>
         </div>
 
-        <label className="EncryptionReveal-label">
-          {trans("reveal_modal.snippet_label")}
-        </label>
+        <label className="EncryptionReveal-label">{trans('reveal_modal.snippet_label')}</label>
         <pre className="EncryptionReveal-snippet">
           <code>{snippet}</code>
         </pre>
 
         <div className="Form-group EncryptionReveal-actions">
-          <Button
-            className="Button"
-            icon="fas fa-copy"
-            onclick={() => this.copy(snippet)}
-          >
-            {this.copied
-              ? trans("reveal_modal.copied")
-              : trans("reveal_modal.copy_button")}
+          <Button className="Button" icon="fas fa-copy" onclick={() => this.copy(snippet)}>
+            {this.copied ? trans('reveal_modal.copied') : trans('reveal_modal.copy_button')}
           </Button>
-          <Button
-            className="Button Button--primary"
-            onclick={() => this.hide()}
-          >
-            {trans("reveal_modal.close")}
+          <Button className="Button Button--primary" onclick={() => this.hide()}>
+            {trans('reveal_modal.close')}
           </Button>
         </div>
       </div>
@@ -116,12 +102,7 @@ export default class KeypairRevealModal extends Modal<IKeypairRevealAttrs> {
 
   copy(snippet: string) {
     if (!navigator.clipboard) {
-      app.alerts.show(
-        { type: "error" },
-        extractText(
-          app.translator.trans("ramon-verified.lib.errors.clipboard"),
-        ),
-      );
+      app.alerts.show({ type: 'error' }, extractText(app.translator.trans('ramon-verified.lib.errors.clipboard')));
       return;
     }
     navigator.clipboard.writeText(snippet).then(
@@ -134,13 +115,8 @@ export default class KeypairRevealModal extends Modal<IKeypairRevealAttrs> {
         }, 2000);
       },
       () => {
-        app.alerts.show(
-          { type: "error" },
-          extractText(
-            app.translator.trans("ramon-verified.lib.errors.clipboard"),
-          ),
-        );
-      },
+        app.alerts.show({ type: 'error' }, extractText(app.translator.trans('ramon-verified.lib.errors.clipboard')));
+      }
     );
   }
 }

@@ -10,8 +10,8 @@
  * the same in every frontend code path.
  */
 
-import app from "flarum/common/app";
-import type User from "flarum/common/models/User";
+import app from 'flarum/common/app';
+import type User from 'flarum/common/models/User';
 
 export interface VerifiedTier {
   id: string;
@@ -24,7 +24,7 @@ export interface VerifiedTier {
   badgeSvg: string;
 }
 
-export const DEFAULT_TIER_ID = "blue";
+export const DEFAULT_TIER_ID = 'blue';
 
 export const BADGE_SVG_MAX = 8 * 1024;
 
@@ -55,11 +55,9 @@ export function getConfiguredTiers(): VerifiedTier[] {
     // Admin: as settings ao vivo (o JSON cru). Têm de vir antes do payload do
     // fórum, que o admin também recebe e que só reflete o carregamento da
     // página: editar os tiers não mudava a lista do modal de aprovação.
-    const settings = (
-      app as unknown as { data?: { settings?: Record<string, unknown> } }
-    ).data?.settings;
-    const raw = settings?.["ramon-verified.tiers"];
-    if (typeof raw === "string" && raw.trim()) {
+    const settings = (app as unknown as { data?: { settings?: Record<string, unknown> } }).data?.settings;
+    const raw = settings?.['ramon-verified.tiers'];
+    if (typeof raw === 'string' && raw.trim()) {
       return memoised(raw, () => {
         try {
           const parsed = JSON.parse(raw);
@@ -67,22 +65,19 @@ export function getConfiguredTiers(): VerifiedTier[] {
             return parsed.map(normalise).filter(Boolean) as VerifiedTier[];
           }
         } catch (e) {
-          warnDev("tier config JSON parse failed", e);
+          warnDev('tier config JSON parse failed', e);
         }
         return [];
       });
     }
 
     // Fórum: a lista já vem parseada no payload.
-    const v = app.forum?.attribute("ramonVerifiedTiers");
+    const v = app.forum?.attribute('ramonVerifiedTiers');
     if (Array.isArray(v)) {
-      return memoised(
-        v,
-        () => v.map(normalise).filter(Boolean) as VerifiedTier[],
-      );
+      return memoised(v, () => v.map(normalise).filter(Boolean) as VerifiedTier[]);
     }
   } catch (e) {
-    warnDev("tier config read failed", e);
+    warnDev('tier config read failed', e);
   }
 
   return [];
@@ -96,9 +91,9 @@ export function getConfiguredTiers(): VerifiedTier[] {
 function warnDev(msg: string, err: unknown): void {
   // O webpack troca `process.env.NODE_ENV` no build; o `typeof process` de
   // antes virava `"undefined" != typeof process` e o aviso saía em produção.
-  if (process.env.NODE_ENV === "production") return;
+  if (process.env.NODE_ENV === 'production') return;
 
-  console.warn("[verified] " + msg, err);
+  console.warn('[verified] ' + msg, err);
 }
 
 /**
@@ -112,47 +107,41 @@ function warnDev(msg: string, err: unknown): void {
  * without round-tripping through the backend.
  */
 export function sanitiseDescription(raw: string): string {
-  const text = (raw || "").trim();
-  if (!text) return "";
+  const text = (raw || '').trim();
+  if (!text) return '';
 
   // Idempotent: an `&` that already starts one of the entities produced
   // here is left alone. The forum gets the description already escaped by
   // the server, and the popover runs this again before `m.trust` — escaping
   // `&` unconditionally turned "A & B" into the literal text "A &amp;amp; B".
   const escaped = text
-    .replace(/&(?!(?:amp|lt|gt|quot|#0?39);)/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#39;");
+    .replace(/&(?!(?:amp|lt|gt|quot|#0?39);)/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
 
-  return escaped.replace(/&lt;(\/?)(strong|em)&gt;/gi, "<$1$2>");
+  return escaped.replace(/&lt;(\/?)(strong|em)&gt;/gi, '<$1$2>');
 }
 
 function normalise(row: unknown): VerifiedTier | null {
-  if (!row || typeof row !== "object") return null;
+  if (!row || typeof row !== 'object') return null;
   const r = row as Record<string, unknown>;
 
-  const id = String(r.id || "")
+  const id = String(r.id || '')
     .trim()
     .toLowerCase();
   if (!/^[a-z0-9_-]{1,32}$/.test(id)) return null;
 
-  const label = String(r.label || "").trim();
+  const label = String(r.label || '').trim();
   if (!label) return null;
 
-  const color =
-    typeof r.color === "string" && /^#[0-9a-f]{3,8}$/i.test(r.color.trim())
-      ? r.color.trim()
-      : "";
+  const color = typeof r.color === 'string' && /^#[0-9a-f]{3,8}$/i.test(r.color.trim()) ? r.color.trim() : '';
 
-  const description =
-    typeof r.description === "string"
-      ? sanitiseDescription(r.description.trim().slice(0, 320))
-      : "";
+  const description = typeof r.description === 'string' ? sanitiseDescription(r.description.trim().slice(0, 320)) : '';
 
-  let learnMoreUrl = "";
-  if (typeof r.learnMoreUrl === "string") {
+  let learnMoreUrl = '';
+  if (typeof r.learnMoreUrl === 'string') {
     const u = r.learnMoreUrl.trim();
     if (/^https?:\/\//i.test(u)) learnMoreUrl = u.slice(0, 500);
   }
@@ -166,8 +155,8 @@ function normalise(row: unknown): VerifiedTier | null {
   }
 
   let badgeEnabled = Boolean(r.badgeEnabled);
-  let badgeSvg = "";
-  if (badgeEnabled && typeof r.badgeSvg === "string") {
+  let badgeSvg = '';
+  if (badgeEnabled && typeof r.badgeSvg === 'string') {
     const candidate = r.badgeSvg;
     if (candidate && candidate.length <= BADGE_SVG_MAX) {
       badgeSvg = candidate;
@@ -196,15 +185,13 @@ function normalise(row: unknown): VerifiedTier | null {
  *   2. Default tier (`blue`) when the user is verified but no tier matches.
  *   3. null when the user isn't verified.
  */
-export function resolveTierForUser(
-  user: User | null | undefined,
-): VerifiedTier | null {
+export function resolveTierForUser(user: User | null | undefined): VerifiedTier | null {
   if (!user || !user.isVerified || !user.isVerified()) return null;
 
   const tiers = getConfiguredTiers();
   if (tiers.length === 0) return null;
 
-  if (typeof user.verifiedTier === "function") {
+  if (typeof user.verifiedTier === 'function') {
     const id = user.verifiedTier();
     if (id) {
       const found = tiers.find((t) => t.id === String(id).toLowerCase());
