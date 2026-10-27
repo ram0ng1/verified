@@ -19,4 +19,5 @@ $setup->run();
 
 // O cache do catálogo de traduções grava aqui; sem a pasta, cada teste que
 // traduz algo dispara um warning.
-@mkdir(__DIR__.'/../../vendor/flarum/testing/src/integration/tmp/storage/locale', 0777, true);
+$tmpDir = getenv('FLARUM_TEST_TMP_DIR_LOCAL') ?: getenv('FLARUM_TEST_TMP_DIR') ?: __DIR__.'/../../vendor/flarum/testing/src/integration/tmp';
+@mkdir($tmpDir.'/storage/locale', 0777, true);

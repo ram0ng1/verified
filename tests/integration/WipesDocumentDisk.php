@@ -16,14 +16,13 @@ use Illuminate\Filesystem\Filesystem;
 /**
  * O disco de documentos mora no tmp do flarum/testing e sobrevive entre os
  * testes. Limpa direto no sistema de arquivos: no `setUp` o app ainda não
- * pode subir (o banco não foi preparado).
+ * pode subir (o banco não foi preparado). O tmp vem de `tmpDir()`, que segue
+ * o `FLARUM_TEST_TMP_DIR_LOCAL` do workflow do core.
  */
 trait WipesDocumentDisk
 {
     protected function wipeDocumentDisk(): void
     {
-        (new Filesystem())->deleteDirectory(
-            dirname(__DIR__, 2).'/vendor/flarum/testing/src/integration/tmp/storage/verified-documents'
-        );
+        (new Filesystem())->deleteDirectory($this->tmpDir().'/storage/verified-documents');
     }
 }
