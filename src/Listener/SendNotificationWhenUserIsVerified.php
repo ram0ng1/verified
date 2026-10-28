@@ -1,5 +1,14 @@
 <?php
 
+/*
+ * This file is part of ramon/verified.
+ *
+ * Copyright (c) 2026 Ramon Guilherme.
+ *
+ * For the full copyright and license information, please view the LICENSE
+ * file that was distributed with this source code.
+ */
+
 namespace Ramon\Verified\Listener;
 
 use Flarum\Notification\NotificationSyncer;
@@ -9,9 +18,8 @@ use Ramon\Verified\Notification\UserVerifiedBlueprint;
 use Throwable;
 
 /**
- * Verify já está commitado quando este listener roda. Falha no pipeline
- * de notification (mailer caído, queue worker offline, erro no blueprint)
- * não pode propagar e desfazer o verify — log e segue.
+ * A verificação já está commitada: uma falha na notificação (mailer, fila,
+ * blueprint) não pode propagar, então loga e segue.
  */
 class SendNotificationWhenUserIsVerified
 {

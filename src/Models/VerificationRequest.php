@@ -1,5 +1,14 @@
 <?php
 
+/*
+ * This file is part of ramon/verified.
+ *
+ * Copyright (c) 2026 Ramon Guilherme.
+ *
+ * For the full copyright and license information, please view the LICENSE
+ * file that was distributed with this source code.
+ */
+
 namespace Ramon\Verified\Models;
 
 use Flarum\Database\AbstractModel;
@@ -28,6 +37,8 @@ class VerificationRequest extends AbstractModel
     protected $table = 'verification_requests';
 
     protected $casts = [
+        'user_id' => 'integer',
+        'handled_by' => 'integer',
         'handled_at' => 'datetime',
         'created_at' => 'datetime',
         'updated_at' => 'datetime',
@@ -49,11 +60,6 @@ class VerificationRequest extends AbstractModel
     }
 
     /**
-     * Roda o callback dentro de uma transação do connection deste model.
-     * Centraliza o pattern `query()->getConnection()->transaction()` para
-     * evitar duplicação entre controller, resource e listener — e mantém
-     * a resolução de connection junto do model que define a tabela.
-     *
      * @template T
      * @param  \Closure(): T  $cb
      * @return T

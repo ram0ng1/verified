@@ -1,5 +1,14 @@
 <?php
 
+/*
+ * This file is part of ramon/verified.
+ *
+ * Copyright (c) 2026 Ramon Guilherme.
+ *
+ * For the full copyright and license information, please view the LICENSE
+ * file that was distributed with this source code.
+ */
+
 namespace Ramon\Verified\Api\Controller;
 
 use Flarum\Api\Controller\UploadImageController;
@@ -15,11 +24,9 @@ use Ramon\Verified\Support\SvgSanitizer;
 use Ramon\Verified\Support\UploadedFileMime;
 
 /**
- * Armazena o SVG customizado do badge no disco `flarum-assets`. O arquivo
- * passa por SvgSanitizer antes de gravar: script, foreignObject, event
- * handlers e URLs `javascript:` / `data:` são removidos. Se o SVG sanitizado
- * for pequeno o suficiente, o conteúdo vai também para a setting
- * `ramon-verified.badge_svg_content` para inlining sem fetch.
+ * Todo SVG passa pelo SvgSanitizer antes de ser gravado em `flarum-assets`. Se
+ * for pequeno, também vai para `ramon-verified.badge_svg_content` e é inlinado
+ * no payload do fórum.
  */
 class UploadBadgeSvgController extends UploadImageController
 {
@@ -32,28 +39,19 @@ class UploadBadgeSvgController extends UploadImageController
     public const MAX_SVG_BYTES = 256 * 1024;
 
     /**
-     * Acima deste tamanho de SVG sanitizado o `extend.php` deixa de
-     * inlinear `ramonVerifiedBadgeSvgContent` no payload do forum; o
-     * frontend recai para fetch via `ramonVerifiedBadgeSvgPath`. Selos
-     * razoáveis ficam bem abaixo de 8 KB.
+     * Acima disso o SVG não é inlinado e o frontend faz fetch pelo path.
      */
     public const INLINE_SVG_THRESHOLD = 8 * 1024;
 
     /**
-     * Allowlist de extensão e MIME (cliente + server-side) ANTES do parent
-     * chamar `makeImage()`. Sem essas barreiras, um arquivo `.png` com
-     * Content-Type forjado passa direto até o DOMDocument no sanitizer,
-     * onde falha — mas com 500 em vez de 422, e depois de ter sido
-     * carregado em memória.
+     * Validado antes de o parent chamar `makeImage()`: senão um `.png` com
+     * Content-Type forjado chega ao DOMDocument e falha com 500 em vez de 422.
      */
     private const ALLOWED_EXTENSIONS = ['svg'];
 
     /**
-     * MIME que um cliente honesto envia no `Content-Type` de um `.svg`: só
-     * o tipo IANA oficial e a variante legada sem `+xml`. Estrito de
-     * propósito — navegadores e ferramentas de upload nunca rotulam um SVG
-     * como `text/xml`/`application/xml`/`text/plain`, então aceitá-los na
-     * primeira barreira só a alargaria sem ganho legítimo.
+     * O que um cliente honesto envia para `.svg`. Estrito de propósito: nenhum
+     * navegador rotula SVG como `text/xml` ou `text/plain`.
      */
     private const ALLOWED_CLIENT_MIMES = [
         'image/svg+xml',
@@ -61,13 +59,9 @@ class UploadBadgeSvgController extends UploadImageController
     ];
 
     /**
-     * MIME que `finfo`/libmagic pode devolver para um SVG real. libmagic
-     * varia conforme o conteúdo: SVG com prólogo `<?xml?>` vira
-     * `image/svg+xml`; sem prólogo, frequentemente `text/xml`,
-     * `application/xml` ou até `text/plain`. A lista é permissiva de
-     * propósito — o gate de conteúdo autoritativo é o `SvgSanitizer`, que
-     * parseia via DOMDocument e exige `<svg>` como elemento raiz; um arquivo
-     * não-SVG que passe por aqui ainda falha lá com 422.
+     * O libmagic varia: sem prólogo `<?xml?>` um SVG costuma sair como `text/xml`,
+     * `application/xml` ou `text/plain`. A lista é permissiva porque o gate real é
+     * o `SvgSanitizer`, que exige `<svg>` como raiz.
      */
     private const ALLOWED_DETECTED_MIMES = [
         'image/svg+xml',
@@ -145,15 +139,8 @@ class UploadBadgeSvgController extends UploadImageController
     }
 
     /**
-     * Allowlist em duas camadas com listas distintas: cliente-MIME estrito
-     * (`ALLOWED_CLIENT_MIMES` — defesa rápida contra ferramentas honestas)
-     * + detecção server-side via `finfo`/`mime_content_type` contra a lista
-     * permissiva (`ALLOWED_DETECTED_MIMES` — defesa real contra polyglot e
-     * Content-Type forjado, tolerando a variação do libmagic para SVG).
-     * Quando o cliente OMITE o Content-Type E a detecção server-side também
-     * falha (temp file ilegível, finfo ausente), o upload é recusado —
-     * falhar fechado em vez de aceitar cego, mesmo padrão do
-     * `UploadDocumentController::validateMimeTypes`.
+     * Se o cliente omite o Content-Type e a detecção no servidor também falha, o
+     * upload é recusado (fail-closed).
      */
     private function validateMime(UploadedFileInterface $file): void
     {

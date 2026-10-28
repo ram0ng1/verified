@@ -1,18 +1,7 @@
-/**
- * Module + global augmentations for the Verified extension.
- *
- * Estende o User model do Flarum core com os atributos registrados via
- * `Extend.Model(User).attribute(...)` em `common/extend.ts`. Merge puramente
- * de tipos — runtime é controlado pelo extender.
- *
- * `Store.pushPayload` é aumentada para aceitar o shape JSON:API que
- * `VerificationRequestsState.load` envia, em vez de `as any`.
- */
+import 'flarum/common/models/User';
+import 'flarum/common/Store';
 
-import "flarum/common/models/User";
-import "flarum/common/Store";
-
-declare module "flarum/common/models/User" {
+declare module 'flarum/common/models/User' {
   export default interface User {
     isVerified(): boolean | undefined;
     verifiedAt(): Date | null | undefined;
@@ -24,7 +13,7 @@ declare module "flarum/common/models/User" {
   }
 }
 
-declare module "flarum/common/Store" {
+declare module 'flarum/common/Store' {
   interface JsonApiResource {
     type: string;
     id: string | number;
@@ -39,28 +28,17 @@ declare module "flarum/common/Store" {
   }
 }
 
-/**
- * `flarum.reg` é fornecido pelo runtime registry mas não exposto nas
- * typings do core. Paths de integração com o Avocado dependem dele.
- */
+// Existe em runtime, mas as typings do core não o declaram.
 declare global {
   namespace flarum {
     const reg: {
       get(namespace: string, id: string): unknown;
-      onLoad(
-        namespace: string,
-        id: string,
-        callback: (mod: unknown) => void,
-      ): void;
+      onLoad(namespace: string, id: string, callback: (mod: unknown) => void): void;
       addChunk?: unknown;
     };
   }
 
-  /**
-   * Webpack injeta `process.env.NODE_ENV` em build via DefinePlugin
-   * (`'production'` / `'development'`). Sem `@types/node` instalado,
-   * declaramos só o subset que usamos para o gate dev-warn (§40.2).
-   */
+  // Substituído pelo DefinePlugin do webpack no build; sem @types/node.
   const process: {
     env: {
       NODE_ENV?: string;

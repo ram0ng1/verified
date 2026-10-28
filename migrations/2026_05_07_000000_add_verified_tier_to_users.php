@@ -1,12 +1,20 @@
 <?php
 
+/*
+ * This file is part of ramon/verified.
+ *
+ * Copyright (c) 2026 Ramon Guilherme.
+ *
+ * For the full copyright and license information, please view the LICENSE
+ * file that was distributed with this source code.
+ */
+
 use Flarum\Database\Migration;
 use Illuminate\Database\ConnectionInterface;
 
 /**
- * Multi-tier badge: usuário pode ter um de N tiers configurados pelo admin.
- * Verificados pré-existentes recebem o tier default (`blue`) — backfill
- * roda após `addColumns` para que a nova coluna exista no momento do UPDATE.
+ * Verificados pré-existentes recebem o tier default (`blue`). O backfill roda
+ * depois de `addColumns` para a coluna já existir no UPDATE.
  */
 
 $base = Migration::addColumns('users', [

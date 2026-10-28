@@ -1,5 +1,14 @@
 <?php
 
+/*
+ * This file is part of ramon/verified.
+ *
+ * Copyright (c) 2026 Ramon Guilherme.
+ *
+ * For the full copyright and license information, please view the LICENSE
+ * file that was distributed with this source code.
+ */
+
 namespace Ramon\Verified\Api\Controller;
 
 use Flarum\Http\RequestUtil;
@@ -10,11 +19,9 @@ use Psr\Http\Server\RequestHandlerInterface;
 use Ramon\Verified\Crypto\DocumentCipher;
 
 /**
- * Admin-only status probe — tells the front end whether libsodium is
- * available, whether a public key has been generated, and whether the
- * private key was actually pasted into config.php. Refreshed on every
- * admin panel mount so the warning state stays accurate even if config.php
- * is edited live.
+ * Diz ao admin se há libsodium, chave pública gerada e chave privada no
+ * `config.php`. Consultado a cada montagem do painel, pois o `config.php` pode
+ * mudar a qualquer momento.
  */
 class EncryptionStatusController implements RequestHandlerInterface
 {

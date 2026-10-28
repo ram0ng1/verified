@@ -1,18 +1,21 @@
 <?php
 
+/*
+ * This file is part of ramon/verified.
+ *
+ * Copyright (c) 2026 Ramon Guilherme.
+ *
+ * For the full copyright and license information, please view the LICENSE
+ * file that was distributed with this source code.
+ */
+
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Database\Schema\Builder;
 
 /**
- * Audit F4: índice em `verification_requests.handled_by`. MySQL/MariaDB cria
- * um índice implícito ao adicionar a FK (2026_05_18_000000), mas PostgreSQL
- * e SQLite não — sem índice, o pipeline GDPR varre a tabela inteira em
- * `WHERE handled_by = ?` (export/anonymize/delete).
- *
- * Idempotente e portável: pula quando já existe QUALQUER índice cuja
- * primeira coluna é `handled_by` — isso abrange o índice implícito da FK no
- * MySQL, evitando um índice redundante nesse motor, e cria o índice
- * explícito apenas onde ele falta (PostgreSQL/SQLite).
+ * PostgreSQL e SQLite não criam índice implícito para a FK de `handled_by`, e o
+ * pipeline GDPR filtra por essa coluna. Pula se já existir um índice começando
+ * em `handled_by` (o implícito do MySQL, por exemplo).
  */
 return [
     'up' => function (Builder $schema) {

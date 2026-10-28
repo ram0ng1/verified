@@ -1,5 +1,14 @@
 <?php
 
+/*
+ * This file is part of ramon/verified.
+ *
+ * Copyright (c) 2026 Ramon Guilherme.
+ *
+ * For the full copyright and license information, please view the LICENSE
+ * file that was distributed with this source code.
+ */
+
 namespace Ramon\Verified\Api\Controller;
 
 use Flarum\Foundation\ValidationException;
@@ -20,11 +29,9 @@ use Ramon\Verified\Support\UploadedFileMime;
 use Ramon\Verified\VerifiedStatus;
 
 /**
- * Recebe o upload de um documento de verificação, grava no disco privado
- * `flarum-verified-documents` (fora do webroot público) e devolve o
- * pseudo-path `/assets/verified/{userId}/{filename}` que o usuário anexa
- * à solicitação. A resolução real para o disco privado acontece no
- * endpoint de download, via DocumentPathResolver.
+ * Grava no disco privado `flarum-verified-documents`, fora do webroot, e devolve
+ * o pseudo-path `/assets/verified/{userId}/{filename}`; quem o resolve para o
+ * disco é o endpoint de download.
  */
 class UploadDocumentController implements RequestHandlerInterface
 {
@@ -78,6 +85,16 @@ class UploadDocumentController implements RequestHandlerInterface
             ]);
         }
 
+        // Antes de ler o arquivo: com a criptografia ligada e sem como selar
+        // (sem libsodium ou sem chave pública), o upload é recusado em vez de
+        // cair em texto claro.
+        $encrypt = $this->cipher->isEnabled();
+        if ($encrypt && ! $this->cipher->canEncrypt()) {
+            throw new ValidationException([
+                'document' => $this->translator->trans('ramon-verified.api.encryption.not_configured'),
+            ]);
+        }
+
         $file = $this->extractUploadedFile($request);
         $extension = $this->validateAndDetectExtension($file);
         $this->validateMimeTypes($file);
@@ -87,6 +104,12 @@ class UploadDocumentController implements RequestHandlerInterface
 
         $this->retention->sweepOrphans($userId);
 
+        if ($this->retention->countUnattached($userId) >= DocumentRetention::MAX_UNATTACHED_PER_USER) {
+            throw new ValidationException([
+                'document' => $this->translator->trans('ramon-verified.api.too_many_uploads'),
+            ]);
+        }
+
         $filename = bin2hex(random_bytes(16)).'.'.$extension;
         $relative = $userId.'/'.$filename;
 
@@ -94,7 +117,7 @@ class UploadDocumentController implements RequestHandlerInterface
         $stream->rewind();
         $plaintext = $stream->getContents();
 
-        if ($this->cipher->canEncrypt()) {
+        if ($encrypt) {
             $payload = $this->cipher->encrypt($plaintext);
             sodium_memzero($plaintext);
         } else {
@@ -154,12 +177,9 @@ class UploadDocumentController implements RequestHandlerInterface
     }
 
     /**
-     * Allowlist em duas camadas: cliente-MIME (defesa rápida contra ferramentas
-     * honestas) + detecção server-side via `finfo`/`mime_content_type` (defesa
-     * real contra polyglot / Content-Type forjado). Audit F5 corrigiu o bypass:
-     * quando o temp file não é legível (NFS lenta, FS read-only, file handle
-     * preso em Windows), a detecção retorna null e o fluxo antigo passava
-     * direto. Agora `null` falha o upload, independentemente do motivo.
+     * Se o temp file não puder ser lido (NFS lenta, FS read-only, handle preso no
+     * Windows), a detecção devolve null e o upload falha: nunca confiar só no MIME
+     * do cliente.
      */
     private function validateMimeTypes(UploadedFileInterface $file): void
     {

@@ -1,14 +1,20 @@
 <?php
 
+/*
+ * This file is part of ramon/verified.
+ *
+ * Copyright (c) 2026 Ramon Guilherme.
+ *
+ * For the full copyright and license information, please view the LICENSE
+ * file that was distributed with this source code.
+ */
+
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Database\Schema\Builder;
 
 /**
- * Audit M-index: índice composto em `verification_requests(user_id, status)`.
- * O caminho mais quente é "tem request pendente?" — `WHERE user_id=? AND
- * status='pending'`. MySQL/MariaDB usa um único índice por condição;
- * sem composto, fica filtrando no buffer pool conforme a tabela cresce.
- * Idempotente: `getIndexes()` é portável em MySQL / PostgreSQL / SQLite.
+ * Índice para a consulta mais quente: `WHERE user_id = ? AND status = 'pending'`.
+ * `getIndexes()` mantém a migração idempotente em MySQL, PostgreSQL e SQLite.
  */
 return [
     'up' => function (Builder $schema) {

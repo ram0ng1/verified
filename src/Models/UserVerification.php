@@ -1,5 +1,14 @@
 <?php
 
+/*
+ * This file is part of ramon/verified.
+ *
+ * Copyright (c) 2026 Ramon Guilherme.
+ *
+ * For the full copyright and license information, please view the LICENSE
+ * file that was distributed with this source code.
+ */
+
 namespace Ramon\Verified\Models;
 
 use Flarum\Database\AbstractModel;
@@ -26,6 +35,8 @@ class UserVerification extends AbstractModel
     public $timestamps = false;
 
     protected $casts = [
+        'user_id' => 'integer',
+        'verified_by' => 'integer',
         'is_verified' => 'bool',
         'verified_at' => 'datetime',
         'verified_tier' => 'string',

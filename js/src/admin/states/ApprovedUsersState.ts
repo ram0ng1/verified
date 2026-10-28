@@ -1,13 +1,12 @@
-import app from "flarum/admin/app";
+import app from 'flarum/admin/app';
 
-import apiCall from "../../common/utils/apiCall";
-import verificationPrompt from "../../common/utils/verificationPrompt";
+import apiCall from '../../common/utils/apiCall';
+import verificationPrompt from '../../common/utils/verificationPrompt';
 
 export const APPROVED_PAGE_SIZE = 15;
 const SEARCH_DEBOUNCE_MS = 250;
 
-const trans = (key: string) =>
-  app.translator.trans(`ramon-verified.admin.requests.${key}`);
+const trans = (key: string) => app.translator.trans(`ramon-verified.admin.requests.${key}`);
 
 export interface ApprovedRequestSummary {
   id: string | number;
@@ -29,7 +28,7 @@ export interface ApprovedUserRow {
   id: string | number;
   username?: string;
   displayName?: string;
-  source?: "request" | "group";
+  source?: 'request' | 'group';
   verifiedTier?: string | null;
   request?: ApprovedRequestSummary | null;
   autoVerifiedGroups?: ApprovedGroup[];
@@ -41,34 +40,31 @@ export interface TierMeta {
   color: string;
 }
 
-/** One JSON:API resource object as returned by `/verified/approved-users`. */
 interface ApprovedUserResource {
   type: string;
   id: string;
-  attributes: Omit<ApprovedUserRow, "id">;
+  attributes: Omit<ApprovedUserRow, 'id'>;
 }
 
-/**
- * Owns the paginated, searchable, tier-filterable list of approved /
- * auto-verified users. Talks to the `/verified/approved-users` endpoint.
- * These rows are a virtual aggregate with no model of their own, so the
- * endpoint is a classic controller — but its payload follows the JSON:API
- * envelope (`data` is `{type, id, attributes}[]`, `meta` carries the rest).
- */
+// As linhas são um agregado sem model próprio, então não passam pelo store:
+// o payload só segue o envelope JSON:API.
 export default class ApprovedUsersState {
   loading: boolean = false;
   rows: ApprovedUserRow[] = [];
   total: number = 0;
   offset: number = 0;
-  query: string = "";
-  /** Empty string = no filter. Otherwise the tier id. */
-  tierFilter: string = "";
+  query: string = '';
+  // Vazio significa sem filtro.
+  tierFilter: string = '';
   tiers: TierMeta[] = [];
   busy: Record<string, boolean> = {};
 
   private _searchTimer: ReturnType<typeof setTimeout> | null = null;
+  // Uma resposta mais antiga e mais lenta não pode sobrescrever a atual.
+  private _loadSeq = 0;
 
   async load(): Promise<void> {
+    const seq = ++this._loadSeq;
     this.loading = true;
     m.redraw();
 
@@ -84,12 +80,14 @@ export default class ApprovedUsersState {
       meta?: { total?: number; tiers?: TierMeta[] };
     }>(
       {
-        method: "GET",
-        url: app.forum.attribute("apiUrl") + "/verified/approved-users",
+        method: 'GET',
+        url: app.forum.attribute('apiUrl') + '/verified/approved-users',
         params,
       },
-      { errorKey: "ramon-verified.admin.requests.load_approved_failed" },
+      { errorKey: 'ramon-verified.admin.requests.load_approved_failed' }
     );
+
+    if (seq !== this._loadSeq) return;
 
     this.loading = false;
     if (res) {
@@ -103,10 +101,6 @@ export default class ApprovedUsersState {
     m.redraw();
   }
 
-  /**
-   * Update the search query and debounce a reload. Resets pagination so the
-   * user always sees results from the first page on a new search.
-   */
   setSearch(value: string): void {
     this.query = value;
     this.offset = 0;
@@ -134,41 +128,33 @@ export default class ApprovedUsersState {
     return this.tiers.find((t) => t.id === tierId) || null;
   }
 
-  /**
-   * Revoke a user's verification from the approved-users tab. Returns true
-   * on success — callers should also refresh the requests state, since the
-   * matching request row's status flips alongside.
-   */
+  // Quem chama também recarrega os pedidos: o pedido correspondente muda de status.
   async revokeUser(row: ApprovedUserRow): Promise<boolean> {
     const result = await verificationPrompt({
-      title: trans("revoke_button"),
-      noteLabel: trans("revoke_prompt"),
-      confirmLabel: trans("revoke_button"),
+      title: trans('revoke_button'),
+      noteLabel: trans('revoke_prompt'),
+      confirmLabel: trans('revoke_button'),
       withTier: false,
     });
     if (!result) return false;
 
-    const key = "user-" + row.id;
+    const key = 'user-' + row.id;
     this.busy[key] = true;
     m.redraw();
 
     const res = await apiCall(
       {
-        method: "DELETE",
-        url:
-          app.forum.attribute("apiUrl") +
-          "/verified/users/" +
-          row.id +
-          "/verify",
+        method: 'DELETE',
+        url: app.forum.attribute('apiUrl') + '/verified/users/' + row.id + '/verify',
         body: { adminNote: result.note },
       },
-      { errorKey: "ramon-verified.admin.requests.revoke_user_failed" },
+      { errorKey: 'ramon-verified.admin.requests.revoke_user_failed' }
     );
 
     delete this.busy[key];
 
     if (res !== null) {
-      app.alerts.show({ type: "success" }, trans("revoke_success"));
+      app.alerts.show({ type: 'success' }, trans('revoke_success'));
       this.load();
       m.redraw();
       return true;

@@ -1,5 +1,14 @@
 <?php
 
+/*
+ * This file is part of ramon/verified.
+ *
+ * Copyright (c) 2026 Ramon Guilherme.
+ *
+ * For the full copyright and license information, please view the LICENSE
+ * file that was distributed with this source code.
+ */
+
 namespace Ramon\Verified\Api\Controller;
 
 use Flarum\Foundation\ValidationException;
@@ -16,24 +25,14 @@ use Ramon\Verified\Job\PurgeOrphanedDocumentsJob;
 use Ramon\Verified\Models\VerificationRequest;
 
 /**
- * Gera um par de chaves de criptografia. A pública é persistida como
- * setting; a privada volta UMA VEZ no corpo da resposta para o admin
- * colar manualmente em `config.php`. Se perdida, a única recuperação é
- * gerar de novo — o que destrói todos os documentos previamente cifrados.
+ * A chave pública vai para os settings; a privada volta uma única vez na
+ * resposta para o admin colar no `config.php`. Perdê-la significa gerar outro
+ * par, o que inutiliza os documentos já cifrados.
  *
- * Fluxo:
- * - Sem chave pública prévia → gera livremente.
- * - Estado saudável (público + privado coincidem) → rotação só com
- *   `acknowledgeLoss=true`. Documentos cifrados pela chave antiga são
- *   enfileirados para purga via `PurgeOrphanedDocumentsJob`.
- * - Estado quebrado (público sem privado) → mesmo shape; documentos
- *   cifrados também são enfileirados porque já não eram legíveis.
- *
- * A purga é despachada como job — em queue driver `sync` (default) roda
- * inline; sob driver real (`redis`, `database`) acontece em worker sem
- * amarrar o request do admin. Em ambos os casos, a contagem retornada é
- * de candidatos enfileirados, capturada antes do `forget` para não
- * contabilizar uploads concorrentes que virão plaintext.
+ * Rotacionar um par existente exige `acknowledgeLoss=true`, e os documentos
+ * cifrados com a chave antiga vão para purga via `PurgeOrphanedDocumentsJob`.
+ * A contagem devolvida é capturada antes do `forget`, para não incluir uploads
+ * concorrentes que já chegarão em texto claro.
  */
 class GenerateKeypairController implements RequestHandlerInterface
 {
@@ -62,6 +61,7 @@ class GenerateKeypairController implements RequestHandlerInterface
         $acknowledged = ! empty($body['acknowledgeLoss']);
 
         $orphanedCandidates = 0;
+        $rotatedAt = time();
 
         if ($hasPublic) {
             if (! $acknowledged) {
@@ -80,7 +80,7 @@ class GenerateKeypairController implements RequestHandlerInterface
         $pair = $this->cipher->generateKeypair();
 
         if ($hasPublic) {
-            $this->bus->dispatch(new PurgeOrphanedDocumentsJob());
+            $this->bus->dispatch(new PurgeOrphanedDocumentsJob($rotatedAt));
         }
 
         $this->logger->warning('verified: encryption keypair regenerated', [

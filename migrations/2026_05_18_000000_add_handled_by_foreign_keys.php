@@ -1,20 +1,21 @@
 <?php
 
+/*
+ * This file is part of ramon/verified.
+ *
+ * Copyright (c) 2026 Ramon Guilherme.
+ *
+ * For the full copyright and license information, please view the LICENSE
+ * file that was distributed with this source code.
+ */
+
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Database\Schema\Builder;
 
 /**
- * Audit F7: FK em `verification_requests.handled_by` para `users.id` com
- * `nullOnDelete`. Sem essa FK, a coluna fica com referência pendurada
- * quando o admin é apagado e a trilha de auditoria mente sobre quem
- * aprovou (linha existe, `User::find($handled_by)` devolve null).
- *
- * `users.verified_by` é coberto pela `2026_05_18_000001` que move a
- * coluna inteira para `user_verification` e cria a FK no `createTable`.
- *
- * Cleanup PRECEDE o `addForeign` — instalações sujas com IDs órfãos
- * fariam o `ADD CONSTRAINT` falhar. Idempotente: checa via
- * `getForeignKeys` (portável Laravel 13: MySQL/MariaDB/PgSQL/SQLite).
+ * Sem a FK, apagar o admin deixa `handled_by` apontando para um usuário
+ * inexistente. Os IDs órfãos são anulados antes do `addForeign`, senão o
+ * `ADD CONSTRAINT` falha em instalações com dados sujos.
  */
 
 $fkExists = function (Builder $schema, string $table, string $name): bool {

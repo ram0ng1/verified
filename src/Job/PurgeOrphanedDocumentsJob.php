@@ -1,12 +1,20 @@
 <?php
 
+/*
+ * This file is part of ramon/verified.
+ *
+ * Copyright (c) 2026 Ramon Guilherme.
+ *
+ * For the full copyright and license information, please view the LICENSE
+ * file that was distributed with this source code.
+ */
+
 namespace Ramon\Verified\Job;
 
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Filesystem\Factory;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Queue\InteractsWithQueue;
-use Illuminate\Queue\SerializesModels;
 use Psr\Log\LoggerInterface;
 use Ramon\Verified\Crypto\DocumentCipher;
 use Ramon\Verified\Documents\DocumentPathResolver;
@@ -14,25 +22,30 @@ use Ramon\Verified\Models\VerificationRequest;
 use Throwable;
 
 /**
- * Apaga arquivos cifrados pela chave antiga após uma rotação de par.
- * Despachado depois que a chave pública já foi esquecida, então uploads
- * concorrentes durante a janela do job caem no path plaintext. A nova
- * chave pública é gerada ANTES do dispatch para que novos uploads sejam
- * cifrados imediatamente.
+ * Apaga os arquivos cifrados com a chave antiga após uma rotação. A pública nova
+ * já existe quando o job roda e o blob não guarda a impressão da chave, então só
+ * saem arquivos gravados antes de `$rotatedAt`.
  *
- * Em queue driver `sync` (default do Flarum) roda inline; sob `redis` /
- * `database` roda em worker, sem amarrar o request de admin numa
- * varredura full-corpus que pode estourar `request_terminate_timeout`.
+ * Roda em fila para não prender o request do admin numa varredura completa que
+ * pode estourar o `request_terminate_timeout`.
  */
 class PurgeOrphanedDocumentsJob implements ShouldQueue
 {
     use Queueable;
     use InteractsWithQueue;
-    use SerializesModels;
 
     public int $tries = 1;
 
     public int $timeout = 1800;
+
+    /**
+     * @param int $rotatedAt timestamp Unix capturado antes de a chave nova
+     *                       existir; arquivos mais novos ficam
+     */
+    public function __construct(
+        public int $rotatedAt
+    ) {
+    }
 
     public function handle(
         Factory $filesystem,
@@ -44,9 +57,8 @@ class PurgeOrphanedDocumentsJob implements ShouldQueue
         $failed = 0;
 
         /*
-         * `chunkById`: o callback zera `document_path`, a coluna do
-         * `whereNotNull('document_path')`. `chunk` (OFFSET) pularia linhas
-         * conforme o result set encolhe; `chunkById` pagina por `id`.
+         * `chunkById`: o callback zera `document_path`, a coluna do `whereNotNull`, e a
+         * paginação por OFFSET pularia linhas.
          */
         VerificationRequest::query()
             ->whereNotNull('document_path')
@@ -57,6 +69,15 @@ class PurgeOrphanedDocumentsJob implements ShouldQueue
                         (int) $row->user_id
                     );
                     if ($relative === null || ! $disk->exists($relative)) {
+                        continue;
+                    }
+
+                    try {
+                        if ($disk->lastModified($relative) >= $this->rotatedAt) {
+                            continue;
+                        }
+                    } catch (Throwable $e) {
+                        $failed++;
                         continue;
                     }
 
@@ -72,7 +93,7 @@ class PurgeOrphanedDocumentsJob implements ShouldQueue
                     }
                     $magic = fread($stream, strlen(DocumentCipher::MAGIC));
                     fclose($stream);
-                    if (! is_string($magic) || ! DocumentCipher::isEncryptedBlob($magic)) {
+                    if ($magic === false || ! DocumentCipher::isEncryptedBlob($magic)) {
                         continue;
                     }
 
@@ -82,7 +103,7 @@ class PurgeOrphanedDocumentsJob implements ShouldQueue
                         $deleted = false;
                     }
 
-                    if ($deleted || ! $disk->exists($relative)) {
+                    if ($deleted) {
                         $row->document_path = null;
                         $row->save();
                         $purged++;

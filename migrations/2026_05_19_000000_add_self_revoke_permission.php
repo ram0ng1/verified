@@ -1,16 +1,20 @@
 <?php
 
+/*
+ * This file is part of ramon/verified.
+ *
+ * Copyright (c) 2026 Ramon Guilherme.
+ *
+ * For the full copyright and license information, please view the LICENSE
+ * file that was distributed with this source code.
+ */
+
 use Flarum\Database\Migration;
 use Flarum\Group\Group;
 
 /**
- * Permissão dedicada para auto-revogação do badge. Default em MEMBER_ID
- * (§4 — permissões custom nunca defaultam para GUEST) preserva o fluxo
- * existente em que o usuário verificado clica "trocar avatar" e o
- * `EnforceAvatarLock` o força a passar pelo self-revoke do badge.
- *
- * Admins que quiserem que toda revogação passe pelo painel administrativo
- * só precisam remover essa permissão do grupo Members.
+ * Default em Members preserva o fluxo em que trocar o avatar obriga o
+ * verificado a revogar o próprio badge (`EnforceAvatarLock`).
  */
 return Migration::addPermissions([
     'verified.selfRevoke' => Group::MEMBER_ID,

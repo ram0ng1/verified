@@ -1,5 +1,14 @@
 <?php
 
+/*
+ * This file is part of ramon/verified.
+ *
+ * Copyright (c) 2026 Ramon Guilherme.
+ *
+ * For the full copyright and license information, please view the LICENSE
+ * file that was distributed with this source code.
+ */
+
 namespace Ramon\Verified;
 
 use Flarum\Api\Context;
@@ -23,12 +32,15 @@ use Ramon\Verified\Api\Controller\GenerateKeypairController;
 use Ramon\Verified\Api\Controller\ListApprovedUsersController;
 use Ramon\Verified\Api\Controller\UploadBadgeSvgController;
 use Ramon\Verified\Api\Controller\UploadDocumentController;
+use Ramon\Verified\Api\Controller\UnverifyUserController;
 use Ramon\Verified\Api\Controller\VerifyUserController;
+use Ramon\Verified\Api\ForumTiers;
 use Ramon\Verified\Api\Resource\VerificationRequestResource;
 use Ramon\Verified\Api\Throttler\VerifiedActionsThrottler;
 use Ramon\Verified\Api\UserResourceFields;
 use Ramon\Verified\Audit\RecordVerificationActivity;
 use Ramon\Verified\Console\PurgeDocumentsCommand;
+use Ramon\Verified\Console\PurgeDocumentsSchedule;
 use Ramon\Verified\Documents\DocumentPathResolver;
 use Ramon\Verified\Event\UserUnverified;
 use Ramon\Verified\Event\UserVerified;
@@ -70,6 +82,7 @@ return [
         ->default('ramon-verified.require_document', false)
         ->default('ramon-verified.document_retention', 'keep')
         ->default('ramon-verified.document_retention_days', 30)
+        ->default('ramon-verified.encrypt_documents', false)
         ->default('ramon-verified.encryption_public_key', '')
         ->default('ramon-verified.lock_avatar', false)
         ->default('ramon-verified.show_tooltip', true)
@@ -85,7 +98,7 @@ return [
             return strlen($raw) <= UploadBadgeSvgController::INLINE_SVG_THRESHOLD ? $raw : '';
         })
         ->serializeToForum('ramonVerifiedBadgeSize',       'ramon-verified.badge_size')
-        ->serializeToForum('ramonVerifiedTiers', 'ramon-verified.tiers', [\Ramon\Verified\TierConfig::class, 'parseForFrontend']),
+        ->serializeToForum('ramonVerifiedTiers', 'ramon-verified.tiers', ForumTiers::class),
 
     (new Extend\Model(User::class))
         ->hasOne('verification', UserVerification::class, 'user_id')
@@ -125,9 +138,7 @@ return [
 
     (new Extend\Console())
         ->command(PurgeDocumentsCommand::class)
-        ->schedule(PurgeDocumentsCommand::class, function (\Illuminate\Console\Scheduling\Event $event) {
-            $event->dailyAt('03:30');
-        }),
+        ->schedule(PurgeDocumentsCommand::class, PurgeDocumentsSchedule::class),
 
     (new Extend\Routes('api'))
         ->post('/verified/documents', 'verified.documents.upload', UploadDocumentController::class)
@@ -135,23 +146,25 @@ return [
         ->post('/verified/badge-svg',   'verified.badge_svg.upload', UploadBadgeSvgController::class)
         ->delete('/verified/badge-svg', 'verified.badge_svg.delete', DeleteBadgeSvgController::class)
         ->post('/verified/users/{id:[0-9]+}/verify',   'verified.users.verify',   VerifyUserController::class)
-        ->delete('/verified/users/{id:[0-9]+}/verify', 'verified.users.unverify', VerifyUserController::class)
+        ->delete('/verified/users/{id:[0-9]+}/verify', 'verified.users.unverify', UnverifyUserController::class)
         ->get('/verified/approved-users', 'verified.approved.list', ListApprovedUsersController::class)
         ->get('/verified/encryption/status',            'verified.encryption.status',   EncryptionStatusController::class)
         ->post('/verified/encryption/generate-keypair', 'verified.encryption.generate', GenerateKeypairController::class),
 
-    ...(class_exists(\Ramon\Audit\Extend\ActivityType::class) ? [
-        (new \Ramon\Audit\Extend\ActivityType())
-            ->register('verified.user.verified', ['severity' => 'notice'])
-            ->register('verified.user.unverified', ['severity' => 'notice']),
+    // Integrações opcionais: só valem com a outra extensão ativa (instalada e
+    // desativada não conta).
+    (new Extend\Conditional())
+        ->whenExtensionEnabled('ramon-audit', fn () => [
+            (new \Ramon\Audit\Extend\ActivityType())
+                ->register('verified.user.verified', ['severity' => 'notice'])
+                ->register('verified.user.unverified', ['severity' => 'notice']),
 
-        (new Extend\Event())
-            ->listen(UserVerified::class, RecordVerificationActivity::class.'@whenVerified')
-            ->listen(UserUnverified::class, RecordVerificationActivity::class.'@whenUnverified'),
-    ] : []),
-
-    ...(class_exists(\Flarum\Gdpr\Extend\UserData::class) ? [
-        (new \Flarum\Gdpr\Extend\UserData())
-            ->addType(\Ramon\Verified\Gdpr\VerifiedDocuments::class),
-    ] : []),
+            (new Extend\Event())
+                ->listen(UserVerified::class, RecordVerificationActivity::class.'@whenVerified')
+                ->listen(UserUnverified::class, RecordVerificationActivity::class.'@whenUnverified'),
+        ])
+        ->whenExtensionEnabled('flarum-gdpr', fn () => [
+            (new \Flarum\Gdpr\Extend\UserData())
+                ->addType(\Ramon\Verified\Gdpr\VerifiedDocuments::class),
+        ]),
 ];

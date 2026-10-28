@@ -1,5 +1,14 @@
 <?php
 
+/*
+ * This file is part of ramon/verified.
+ *
+ * Copyright (c) 2026 Ramon Guilherme.
+ *
+ * For the full copyright and license information, please view the LICENSE
+ * file that was distributed with this source code.
+ */
+
 namespace Ramon\Verified\Api\Controller;
 
 use Flarum\Http\Exception\RouteNotFoundException;
@@ -29,11 +38,8 @@ class DownloadDocumentController implements RequestHandlerInterface
     }
 
     /**
-     * Documentos (RG / CPF / passaporte) são dados de identidade — apenas
-     * administradores conseguem baixar. O remetente tem o arquivo original
-     * em sua própria máquina; não precisa receber de volta. Qualquer entrada
-     * inválida ou inexistente cai em 404 para não diferenciar "não encontrado"
-     * de "acesso negado".
+     * Documentos de identidade: só admins baixam. Qualquer entrada inválida ou
+     * inexistente vira 404, para não distinguir "não encontrado" de "negado".
      */
     public function handle(ServerRequestInterface $request): ResponseInterface
     {
@@ -123,10 +129,8 @@ class DownloadDocumentController implements RequestHandlerInterface
     }
 
     /**
-     * Resposta de erro estruturada (envelope JSON:API) para falhas de
-     * criptografia. Uma `RuntimeException` crua viraria um 500 genérico cujo
-     * corpo o handler de erros da API esvazia — a mensagem traduzida, que diz
-     * ao admin exatamente o que corrigir em `config.php`, nunca chegaria.
+     * Envelope JSON:API para falhas de criptografia. Uma `RuntimeException` crua
+     * viraria um 500 de corpo vazio e o admin não veria o que corrigir no `config.php`.
      */
     private function encryptionError(string $code, int $status, string $detail): JsonResponse
     {
@@ -140,9 +144,8 @@ class DownloadDocumentController implements RequestHandlerInterface
     }
 
     /**
-     * Cifrado: libsodium sealed-box exige buffer inteiro para abrir.
-     * Fechamos a stream do disco e relemos via `get()` — desperdiça ~6
-     * bytes já lidos, mas mantém o caminho cripto linear.
+     * A sealed box do libsodium só abre com o buffer inteiro, por isso o arquivo é
+     * relido via `get()`.
      *
      * @param resource $fileStream
      * @return array{0: Stream, 1: int}
@@ -169,9 +172,8 @@ class DownloadDocumentController implements RequestHandlerInterface
     }
 
     /**
-     * Plaintext: stream direto do disco, memória constante. `Content-Length`
-     * via `$disk->size()` evita ler o arquivo só para contar bytes
-     * para evitar reler o arquivo só pra contar bytes.
+     * Stream direto do disco, com memória constante; `size()` evita ler o arquivo
+     * só para obter o `Content-Length`.
      *
      * @param resource $fileStream
      * @return array{0: Stream, 1: int}

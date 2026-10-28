@@ -1,12 +1,11 @@
-import app from "flarum/admin/app";
-import Modal, { IInternalModalAttrs } from "flarum/common/components/Modal";
-import Button from "flarum/common/components/Button";
+import app from 'flarum/admin/app';
+import Modal, { IInternalModalAttrs } from 'flarum/common/components/Modal';
+import Button from 'flarum/common/components/Button';
 
-const trans = (key: string) =>
-  app.translator.trans(`ramon-verified.admin.encryption.${key}`);
+const trans = (key: string) => app.translator.trans(`ramon-verified.admin.encryption.${key}`);
 
 export interface IRegenerateConfirmAttrs extends IInternalModalAttrs {
-  /** Resolves to `false` when the operation failed (modal stays open). */
+  // `false` quando a operação falha; o modal continua aberto.
   onConfirm: () => Promise<boolean | unknown>;
 }
 
@@ -15,18 +14,18 @@ export default class RegenerateConfirmModal extends Modal<IRegenerateConfirmAttr
   protected submitting = false;
 
   className() {
-    return "EncryptionRegenerateModal Modal--medium";
+    return 'EncryptionRegenerateModal Modal--medium';
   }
 
   title() {
-    return trans("regenerate_modal.title");
+    return trans('regenerate_modal.title');
   }
 
   content() {
     return (
       <div className="Modal-body">
         <div className="Alert Alert--error">
-          <p>{trans("regenerate_modal.warning")}</p>
+          <p>{trans('regenerate_modal.warning')}</p>
         </div>
 
         <label className="EncryptionRegenerate-confirm">
@@ -37,8 +36,8 @@ export default class RegenerateConfirmModal extends Modal<IRegenerateConfirmAttr
               this.acknowledged = (e.target as HTMLInputElement).checked;
               m.redraw();
             }}
-          />{" "}
-          {trans("regenerate_modal.acknowledge")}
+          />{' '}
+          {trans('regenerate_modal.acknowledge')}
         </label>
 
         <div className="Form-group">
@@ -48,7 +47,7 @@ export default class RegenerateConfirmModal extends Modal<IRegenerateConfirmAttr
             disabled={!this.acknowledged || this.submitting}
             onclick={() => this.submit()}
           >
-            {trans("regenerate_modal.submit")}
+            {trans('regenerate_modal.submit')}
           </Button>
         </div>
       </div>
@@ -60,8 +59,7 @@ export default class RegenerateConfirmModal extends Modal<IRegenerateConfirmAttr
     m.redraw();
     try {
       const ok = await this.attrs.onConfirm();
-      // onConfirm returns false (or throws) when the request fails — keep
-      // the modal open so the admin can retry without re-acknowledging.
+      // Fica aberto para tentar de novo sem marcar a confirmação outra vez.
       if (ok === false) {
         this.submitting = false;
         m.redraw();
@@ -69,8 +67,7 @@ export default class RegenerateConfirmModal extends Modal<IRegenerateConfirmAttr
       }
       this.hide();
     } catch (e) {
-      // Parent already surfaced an error alert via apiCall. Leave the modal
-      // open so the admin can retry.
+      // O apiCall já mostrou o alerta de erro.
       this.submitting = false;
       m.redraw();
     }

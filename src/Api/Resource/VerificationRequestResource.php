@@ -1,5 +1,14 @@
 <?php
 
+/*
+ * This file is part of ramon/verified.
+ *
+ * Copyright (c) 2026 Ramon Guilherme.
+ *
+ * For the full copyright and license information, please view the LICENSE
+ * file that was distributed with this source code.
+ */
+
 namespace Ramon\Verified\Api\Resource;
 
 use Flarum\Api\Context;
@@ -32,15 +41,11 @@ class VerificationRequestResource extends AbstractDatabaseResource
     }
 
     /**
-     * Restringe a query por ator (quem não detém `verified.verifyUsers` vê
-     * só os próprios pedidos) e aplica o filtro custom
-     * `?byStatus=pending,rejected`. Dois pontos de
-     * cuidado do Flarum 2 / json-api-server: (1) `AbstractDatabaseResource::filters()`
-     * é `final` e lança "use a model searcher" sempre que o JSON:API server
-     * invoca `applyFilters` com qualquer `filter[]` no request; (2)
-     * `JsonApi::validateQueryParameters` rejeita query params custom cujo
-     * nome seja só `[a-z]` minúsculo (regex `/[^a-z]/`) — `status` falha;
-     * `byStatus` (camelCase) passa. PSR-7 entrega o valor intacto aqui.
+     * Quem não detém `verified.verifyUsers` vê só os próprios pedidos.
+     *
+     * O filtro vem de `?byStatus=` e não de `filter[]`: no Flarum 2,
+     * `AbstractDatabaseResource::filters()` é final e exige um model searcher, e
+     * `validateQueryParameters` rejeita params custom só com `[a-z]` (`status` falha).
      */
     public function scope(Builder $query, \Tobyz\JsonApiServer\Context $context): void
     {
@@ -72,10 +77,8 @@ class VerificationRequestResource extends AbstractDatabaseResource
     }
 
     /**
-     * `eagerLoad('user.verification')` nos endpoints de leitura: o `eagerLoad`
-     * do `UserResource` cobre só as rotas próprias dele, não o `user` incluído
-     * aqui. Sem isto, os campos de `UserResource` (`isVerified`, `verifiedTier`)
-     * disparariam uma consulta à tabela companheira por usuário serializado.
+     * O `eagerLoad` do `UserResource` só vale nas rotas dele. Sem isto, `isVerified`
+     * e `verifiedTier` fariam uma consulta por usuário incluído.
      */
     public function endpoints(): array
     {
@@ -84,13 +87,13 @@ class VerificationRequestResource extends AbstractDatabaseResource
                 ->authenticated()
                 ->paginate(15, 50)
                 ->defaultInclude(['user', 'handler'])
-                ->eagerLoad(['user.verification', 'handler.verification']),
+                ->eagerLoad(['user.verification', 'user.groups', 'handler.verification', 'handler.groups']),
 
             Endpoint\Show::make()
                 ->authenticated()
                 ->can('view')
                 ->defaultInclude(['user', 'handler'])
-                ->eagerLoad(['user.verification', 'handler.verification']),
+                ->eagerLoad(['user.verification', 'user.groups', 'handler.verification', 'handler.groups']),
 
             Endpoint\Create::make()
                 ->authenticated()
@@ -121,9 +124,8 @@ class VerificationRequestResource extends AbstractDatabaseResource
     }
 
     /**
-     * Nenhum campo é writable pela API — os endpoints customizados leem só
-     * `reason`/`documentType`/`documentPath` do body; o resto é server-set.
-     * `documentPath` fica visível apenas para admin.
+     * Nenhum campo é writable: os endpoints custom leem `reason`, `documentType` e
+     * `documentPath` do body e o resto é definido no servidor.
      */
     public function fields(): array
     {

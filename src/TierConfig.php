@@ -1,5 +1,14 @@
 <?php
 
+/*
+ * This file is part of ramon/verified.
+ *
+ * Copyright (c) 2026 Ramon Guilherme.
+ *
+ * For the full copyright and license information, please view the LICENSE
+ * file that was distributed with this source code.
+ */
+
 namespace Ramon\Verified;
 
 use Flarum\Group\Group;
@@ -7,18 +16,16 @@ use Flarum\Settings\SettingsRepositoryInterface;
 use Ramon\Verified\Support\SvgSanitizer;
 
 /**
- * Configuração multi-tier do badge. A lista vive como JSON em
- * `ramon-verified.tiers`; esta classe é a fonte única de parsing e
- * validação tanto server-side quanto no `serializeToForum`.
+ * Fonte única de parsing e validação dos tiers (`ramon-verified.tiers`).
  *
  * Shape de cada tier:
  * - id              slug [a-z0-9_-], 1..32 chars
  * - label           nome exibido, 1..64
- * - color           hex (#rgb / #rrggbb / #rrggbbaa); vazio cai no primary do forum
- * - description     texto do popover, até 280 chars; aceita `<strong>` e `<em>`
+ * - color           hex (#rgb / #rrggbb / #rrggbbaa); vazio cai no primary do fórum
+ * - description     texto do popover, até 320 chars; aceita `<strong>` e `<em>`
  * - learnMoreUrl    link opcional "Saiba mais"; apenas http/https
  * - autoGroups      IDs de grupos cujos membros recebem o tier automaticamente
- * - badgeEnabled    opt-in para usar um SVG customizado APENAS para este tier
+ * - badgeEnabled    usa um SVG customizado só neste tier
  * - badgeSvg        SVG sanitizado, até `BADGE_SVG_MAX` bytes; ignorado se `badgeEnabled=false`
  */
 class TierConfig
@@ -26,52 +33,37 @@ class TierConfig
     public const DEFAULT_TIER_ID = 'blue';
 
     /**
-     * Cap por tier para o SVG customizado. Cada tier extra é embarcado no
-     * payload do forum (toda página), então um cap apertado evita bloat —
-     * 8 tiers × 8 KB já são 64 KB serializados em cada carga, suficiente.
+     * Todo SVG de tier vai no payload do fórum em cada página: 8 tiers × 8 KB já
+     * são 64 KB por carga.
      */
     public const BADGE_SVG_MAX = 8 * 1024;
 
     /**
-     * Cache por hash do input em escopo de processo. `parse` é chamada a cada
-     * `serializeToForum` (toda montagem do payload) — sem cache, o sanitizer
-     * SVG roda DOMDocument por tier, em cada page-load.
-     *
-     * Cap LRU em `CACHE_LIMIT` (§44.2): em mod_php/php-fpm o array reseta a
-     * cada request, mas em queue workers / Octane / FrankenPHP / RoadRunner
-     * o processo vive por horas. Sem cap, cada save de configuração no admin
-     * adiciona uma entrada nova que vive para sempre — leak previsível.
+     * Sem cache, o sanitizer rodaria DOMDocument por tier a cada payload do fórum.
+     * O LRU limitado importa em processos longos (filas, Octane, RoadRunner): sem
+     * teto, cada save no admin deixaria uma entrada viva para sempre.
      *
      * @var array<string, array<int, array>>
      */
     private static array $parseCache = [];
 
-    /** Cap LRU do cache em escopo de processo (§44.2). */
     private const CACHE_LIMIT = 16;
 
     /**
-     * Parse de um valor cru (JSON string ou array já decodificado) para uma
-     * lista normalizada. Entradas malformadas são descartadas silenciosamente
-     * para que uma linha ruim no JSON do admin nunca derrube o forum.
-     *
-     * `xxh128` (128 bits) é usado em vez de `crc32` (32 bits) — colisão
-     * acidental em CRC-32 vira realista por volta de 65k entradas e devolveria
-     * a configuração de OUTRO admin sob o mesmo cache key. xxh128 é nativo
-     * desde PHP 8.1 e tem o mesmo custo de hash por byte que crc32.
+     * Entradas malformadas são descartadas em silêncio, para uma linha ruim nunca
+     * derrubar o fórum. A chave usa `xxh128`: com `crc32`, uma colisão acidental
+     * devolveria a configuração errada.
      *
      * @return array<int, array{id:string,label:string,color:string,description:string,learnMoreUrl:string,autoGroups:int[],badgeEnabled:bool,badgeSvg:string}>
      */
-    public static function parse($raw): array
+    public static function parse(mixed $raw): array
     {
         $cacheKey = is_string($raw)
             ? 's:'.hash('xxh128', $raw)
             : (is_array($raw) ? 'a:'.hash('xxh128', serialize($raw)) : null);
 
         if ($cacheKey !== null && isset(self::$parseCache[$cacheKey])) {
-            /*
-             * LRU touch: move o hit para o final do array para que entradas
-             * frias sejam descartadas primeiro quando o cap for atingido.
-             */
+            // Move o hit para o fim, para as entradas frias saírem primeiro.
             $hit = self::$parseCache[$cacheKey];
             unset(self::$parseCache[$cacheKey]);
             self::$parseCache[$cacheKey] = $hit;
@@ -90,7 +82,7 @@ class TierConfig
         return $result;
     }
 
-    private static function doParse($raw): array
+    private static function doParse(mixed $raw): array
     {
         $list = is_string($raw) ? json_decode($raw, true) : (is_array($raw) ? $raw : null);
         if (! is_array($list)) return [];
@@ -109,15 +101,12 @@ class TierConfig
     }
 
     /**
-     * Normaliza uma linha crua de tier. Devolve `null` quando a linha é
-     * malformada — não-array, `id` ausente/inválido, `id` duplicado ou
-     * `label` vazio — para o caller descartar. `$seen` acumula os ids já
-     * aceitos para deduplicação dentro da mesma lista.
+     * `null` para linha malformada: não-array, `id` inválido ou duplicado, `label` vazio.
      *
      * @param array<string, true> $seen
      * @return array{id:string,label:string,color:string,description:string,learnMoreUrl:string,autoGroups:int[],badgeEnabled:bool,badgeSvg:string}|null
      */
-    private static function parseTierRow($row, array &$seen): ?array
+    private static function parseTierRow(mixed $row, array &$seen): ?array
     {
         if (! is_array($row)) return null;
 
@@ -144,10 +133,9 @@ class TierConfig
     }
 
     /**
-     * Cor hex (`#rgb` a `#rrggbbaa`); string vazia quando ausente ou
-     * malformada — o frontend cai no `@primary-color` do fórum.
+     * Vazio quando ausente ou inválida; o frontend cai no `@primary-color`.
      */
-    private static function parseColor($row): string
+    private static function parseColor(array $row): string
     {
         if (isset($row['color']) && is_string($row['color'])) {
             $c = trim($row['color']);
@@ -159,21 +147,16 @@ class TierConfig
         return '';
     }
 
-    /**
-     * Texto do popover, escapado com allowlist `<strong>`/`<em>` e limitado
-     * a 320 chars.
-     */
-    private static function parseDescription($row): string
+    private static function parseDescription(array $row): string
     {
         return isset($row['description']) && is_string($row['description'])
-            ? mb_substr(self::sanitiseDescription($row['description']), 0, 320)
+            // Corta antes de escapar: depois, o corte podia partir uma
+            // entidade ao meio (`&am`).
+            ? self::sanitiseDescription(mb_substr(trim($row['description']), 0, 320))
             : '';
     }
 
-    /**
-     * Link "Saiba mais"; aceita apenas `http`/`https`, limitado a 500 chars.
-     */
-    private static function parseLearnMoreUrl($row): string
+    private static function parseLearnMoreUrl(array $row): string
     {
         if (isset($row['learnMoreUrl']) && is_string($row['learnMoreUrl'])) {
             $u = trim($row['learnMoreUrl']);
@@ -186,11 +169,9 @@ class TierConfig
     }
 
     /**
-     * IDs de grupos auto-verificadores: positivos, inteiros, deduplicados.
-     *
      * @return int[]
      */
-    private static function parseAutoGroups($row): array
+    private static function parseAutoGroups(array $row): array
     {
         if (! isset($row['autoGroups']) || ! is_array($row['autoGroups'])) {
             return [];
@@ -206,13 +187,11 @@ class TierConfig
     }
 
     /**
-     * SVG customizado do tier. Roda o `SvgSanitizer` e impõe `BADGE_SVG_MAX`
-     * antes e depois da sanitização; qualquer falha zera o par — `badgeSvg`
-     * vazio força `badgeEnabled=false`.
+     * `BADGE_SVG_MAX` vale antes e depois da sanitização; qualquer falha zera o par.
      *
      * @return array{0: bool, 1: string} `[badgeEnabled, badgeSvg]`
      */
-    private static function parseBadge($row): array
+    private static function parseBadge(array $row): array
     {
         $badgeEnabled = ! empty($row['badgeEnabled']);
         $badgeSvg = '';
@@ -234,7 +213,7 @@ class TierConfig
         return [$badgeEnabled, $badgeSvg];
     }
 
-    public static function parseForFrontend($raw): array
+    public static function parseForFrontend(mixed $raw): array
     {
         return self::parse($raw);
     }
@@ -245,8 +224,8 @@ class TierConfig
     }
 
     /**
-     * Permite apenas `<strong>` e `<em>` no description — o restante é
-     * escapado para neutralizar XSS no `m.trust()` do frontend.
+     * O frontend renderiza com `m.trust()`, então tudo além de `<strong>` e `<em>`
+     * é escapado.
      */
     protected static function sanitiseDescription(string $raw): string
     {
@@ -273,14 +252,8 @@ class TierConfig
     }
 
     /**
-     * Encontra o primeiro tier cujo `autoGroups` intersecta os grupos do
-     * usuário. A ordem da lista é a precedência — admin controla via
-     * reordenação.
-     *
-     * Administradores são imunes a auto-grant por membership implícita: um
-     * tier mirando "Members" (ou qualquer grupo que o admin também pertença)
-     * não verifica o admin. Admin só recebe auto-grant quando o tier lista
-     * explicitamente o grupo Admin (id 1).
+     * A ordem da lista é a precedência. Admins não recebem auto-grant por grupos
+     * que também têm (como Members), só quando o tier lista o grupo Admin.
      *
      * @param int[] $userGroupIds
      */

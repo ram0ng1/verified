@@ -1,0 +1,283 @@
+.VerifiedAdmin {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  margin: 0 auto;
+  max-width: 880px;
+}
+
+.VerifiedAdmin-card {
+  background: var(--body-bg);
+  border: 1px solid var(--control-bg);
+  border-radius: 10px;
+  padding: 22px 24px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.02);
+
+  &--requests {
+    padding: 0;
+    overflow: hidden;
+  }
+}
+
+.VerifiedAdmin-cardHeader {
+  margin-bottom: 18px;
+
+  h3 {
+    font-size: 16px;
+    font-weight: 600;
+    margin: 0 0 4px;
+    letter-spacing: -0.01em;
+  }
+
+  > .helpText {
+    margin: 0;
+    font-size: 13px;
+  }
+}
+
+.VerifiedAdmin-divider {
+  height: 1px;
+  background: var(--control-bg);
+  margin: 18px -24px;
+  opacity: 0.6;
+}
+
+.VerifiedAdmin-row {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+
+  > .helpText {
+    margin: 4px 0 0;
+    font-size: 13px;
+  }
+}
+
+// Subgrupo revelado por um toggle pai.
+.VerifiedAdmin-subGroup {
+  margin-left: 14px;
+  padding-left: 14px;
+  border-left: 2px solid var(--control-bg);
+}
+
+.VerifiedAdmin-label {
+  font-weight: 600;
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--muted-color);
+  margin: 0;
+}
+
+// Prévia
+.VerifiedAdmin-preview {
+  padding: 22px 24px;
+
+  // Imita o layout real do Post-header.
+  &-line {
+    line-height: 1.6;
+    margin-bottom: 6px;
+    font-family: inherit;
+  }
+
+  &-name {
+    font-weight: bold;
+    color: var(--heading-color);
+  }
+
+  &-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    vertical-align: middle;
+    margin-left: 5px;
+    color: var(--primary-color);
+    line-height: 0;
+
+    svg {
+      width: 100%;
+      height: 100%;
+      display: block;
+    }
+  }
+
+  &-meta {
+    margin-left: 10px;
+    color: var(--muted-color);
+  }
+}
+
+// Slider de tamanho do selo
+.VerifiedAdmin-rangeInput {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 6px;
+  background: var(--control-bg);
+  border-radius: 3px;
+  outline: none;
+  cursor: pointer;
+
+  &::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    background: var(--primary-color);
+    border: 2px solid var(--body-bg);
+    cursor: pointer;
+  }
+
+  &::-moz-range-thumb {
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    background: var(--primary-color);
+    border: 2px solid var(--body-bg);
+    cursor: pointer;
+  }
+}
+
+.VerifiedAdmin-sizeValue {
+  margin-left: auto;
+  font-family: SFMono-Regular, Menlo, Consolas, monospace;
+  font-weight: 500;
+  text-transform: none;
+  letter-spacing: 0;
+  color: var(--text-color);
+  font-size: 13px;
+}
+
+.VerifiedAdmin-row > .VerifiedAdmin-label {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+// Seletor de cor
+.VerifiedAdmin-colorRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.VerifiedAdmin-colorPicker {
+  width: 38px;
+  height: 38px;
+  border: 1px solid var(--control-bg);
+  border-radius: 8px;
+  padding: 2px;
+  background: transparent;
+  cursor: pointer;
+
+  &::-webkit-color-swatch-wrapper { padding: 0; }
+  &::-webkit-color-swatch { border: none; border-radius: 6px; }
+  &::-moz-color-swatch { border: none; border-radius: 6px; }
+}
+
+.VerifiedAdmin-colorInput {
+  flex: 1;
+  min-width: 160px;
+  font-family: SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 13px;
+}
+
+.VerifiedAdmin-clearBtn {
+  font-size: 13px;
+  padding: 6px 10px;
+  border-radius: 6px;
+
+  .icon {
+    margin-right: 4px;
+  }
+}
+
+// Linhas de toggle (Switch com o label como filho)
+.VerifiedAdmin-toggle {
+  margin-bottom: 0;
+
+  > .Checkbox {
+    font-weight: 600;
+    font-size: 14px;
+  }
+
+  > .helpText {
+    margin: 6px 0 0;
+    font-size: 13px;
+  }
+}
+
+// Abas principais
+.VerifiedAdmin-tabs {
+  display: flex;
+  gap: 4px;
+  padding: 4px;
+  margin: 0 0 16px;
+  background: var(--control-bg);
+  border-radius: 10px;
+
+  @media (max-width: 600px) {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+}
+
+.VerifiedAdmin-tab {
+  flex: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 10px 16px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--muted-color);
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.15s ease, color 0.15s ease, box-shadow 0.15s ease;
+
+  .icon {
+    font-size: 13px;
+    margin: 0;
+  }
+
+  &:hover {
+    color: var(--text-color);
+  }
+
+  &--active {
+    background: var(--body-bg);
+    color: var(--text-color);
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.06);
+  }
+}
+
+.VerifiedAdmin-tabContent {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.VerifiedAdmin-tabHeader {
+  margin: 4px 0 8px;
+
+  h2 {
+    margin: 0 0 6px;
+    font-size: 22px;
+    font-weight: 600;
+    letter-spacing: -0.015em;
+  }
+
+  p {
+    margin: 0;
+    color: var(--muted-color);
+    font-size: 14px;
+    line-height: 1.5;
+    max-width: 720px;
+  }
+}

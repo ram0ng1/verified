@@ -1,5 +1,14 @@
 <?php
 
+/*
+ * This file is part of ramon/verified.
+ *
+ * Copyright (c) 2026 Ramon Guilherme.
+ *
+ * For the full copyright and license information, please view the LICENSE
+ * file that was distributed with this source code.
+ */
+
 namespace Ramon\Verified\Documents;
 
 use Carbon\Carbon;
@@ -11,16 +20,9 @@ use Ramon\Verified\Models\VerificationRequest;
 use Throwable;
 
 /**
- * Ciclo de vida dos arquivos de documentos no disco
- * `flarum-verified-documents`. Três modos são suportados pela setting
- * `ramon-verified.document_retention`:
- *
- * - `keep`              — não apaga automaticamente; admin retém indefinidamente.
- * - `delete_immediate`  — apaga assim que a solicitação é finalizada.
- * - `delete_after_days` — apaga N dias após a finalização (comando agendado).
- *
- * Único ponto autorizado a deletar arquivos de documentos fora do pipeline
- * GDPR. Toda mutação passa pelo disco — nada de FS nativa.
+ * Retenção dos documentos (`ramon-verified.document_retention`): `keep`,
+ * `delete_immediate` (ao finalizar a solicitação) ou `delete_after_days`
+ * (comando agendado). Fora do pipeline GDPR, só esta classe apaga documentos.
  */
 class DocumentRetention
 {
@@ -29,12 +31,15 @@ class DocumentRetention
     public const MODE_DELETE_AFTER_DAYS = 'delete_after_days';
 
     /**
-     * Janela em que um arquivo recém-enviado mas ainda não submetido fica
-     * imune ao `sweepOrphans`. Suficientemente maior que a latência típica
-     * entre upload e submit, suficientemente menor para que órfãos reais
-     * não acumulem.
+     * Período em que um upload ainda não submetido fica imune ao `sweepOrphans`.
      */
     public const UNREFERENCED_GRACE_SECONDS = 30 * 60;
+
+    /**
+     * Sem este teto, um membro podia enviar 5 arquivos de 8 MB por minuto sem
+     * abrir solicitação e encher o disco.
+     */
+    public const MAX_UNATTACHED_PER_USER = 3;
 
     public function __construct(
         protected SettingsRepositoryInterface $settings,
@@ -45,9 +50,7 @@ class DocumentRetention
     }
 
     /**
-     * Aplica a política de retenção a uma solicitação recém-finalizada.
-     * Modo `delete_immediate` apaga o arquivo e zera `document_path`; demais
-     * modos são no-op (o purge agendado cuida de `delete_after_days`).
+     * Só age em `delete_immediate`; `delete_after_days` fica com o purge agendado.
      */
     public function onRequestHandled(VerificationRequest $request): void
     {
@@ -71,9 +74,7 @@ class DocumentRetention
     }
 
     /**
-     * Apaga apenas o arquivo associado à solicitação sem persistir o
-     * model — usado em hooks `deleting` de Eloquent onde a linha já vai
-     * embora.
+     * Não persiste o model: usado em hooks `deleting`, quando a linha já vai embora.
      */
     public function purgeFileForRequest(VerificationRequest $request): void
     {
@@ -85,15 +86,15 @@ class DocumentRetention
     }
 
     /**
-     * Apaga o diretório inteiro de um usuário (chamado no delete da conta —
-     * o `cascadeOnDelete` da FK não dispara eventos Eloquent por linha).
+     * O `cascadeOnDelete` da FK não dispara eventos Eloquent, por isso o diretório
+     * é apagado explicitamente.
      */
     public function purgeAllForUser(int $userId): int
     {
         $disk    = $this->disk();
         $userDir = $this->resolver->userDirectory($userId);
 
-        if (! $disk->directoryExists($userDir)) {
+        if (! $disk->exists($userDir)) {
             return 0;
         }
 
@@ -114,25 +115,68 @@ class DocumentRetention
     }
 
     /**
-     * Sweep de arquivos órfãos no diretório do usuário — arquivos que não
-     * são referenciados por nenhuma linha não-rejeitada de `verification_requests`.
-     * Chamado pelo controller de upload antes de gravar um novo arquivo
-     * para impedir loop "upload-submit-delete" abusivo. Retorna a contagem
-     * removida.
+     * Toda linha com `document_path` conta como referência, qualquer que seja o
+     * status: quem decide o destino do documento de uma solicitação rejeitada é a
+     * política de retenção, e no modo `keep` ele tem de ficar.
      */
     public function sweepOrphans(int $userId): int
+    {
+        $cutoff = time() - self::UNREFERENCED_GRACE_SECONDS;
+        $purged = 0;
+
+        foreach ($this->unattachedFiles($userId) as $relative => $mtime) {
+            if ($mtime > $cutoff) continue;
+
+            if ($this->safeDelete($relative)) {
+                $purged++;
+            }
+        }
+
+        return $purged;
+    }
+
+    /**
+     * O upload é recusado ao chegar a `MAX_UNATTACHED_PER_USER`.
+     */
+    public function countUnattached(int $userId): int
+    {
+        return count($this->unattachedFiles($userId));
+    }
+
+    /**
+     * Sem isto, os arquivos de quem envia e nunca abre solicitação ficariam para
+     * sempre: o sweep por usuário só roda no próximo upload dele.
+     */
+    public function sweepAllOrphans(): int
+    {
+        $disk   = $this->disk();
+        $purged = 0;
+
+        foreach ($disk->directories('') as $dir) {
+            if (! preg_match('/\A[0-9]+\z/', basename($dir))) continue;
+
+            $purged += $this->sweepOrphans((int) basename($dir));
+        }
+
+        return $purged;
+    }
+
+    /**
+     * @return array<string, int> caminho relativo => mtime, dos arquivos do
+     *                            usuário que nenhuma solicitação referencia
+     */
+    private function unattachedFiles(int $userId): array
     {
         $disk    = $this->disk();
         $userDir = $this->resolver->userDirectory($userId);
 
-        if (! $disk->directoryExists($userDir)) {
-            return 0;
+        if (! $disk->exists($userDir)) {
+            return [];
         }
 
         $referenced = VerificationRequest::query()
             ->where('user_id', $userId)
             ->whereNotNull('document_path')
-            ->where('status', '!=', VerificationRequest::STATUS_REJECTED)
             ->pluck('document_path')
             ->all();
 
@@ -145,8 +189,7 @@ class DocumentRetention
             }
         }
 
-        $cutoff = time() - self::UNREFERENCED_GRACE_SECONDS;
-        $purged = 0;
+        $files = [];
 
         foreach ($disk->files($userDir) as $relative) {
             $name = basename($relative);
@@ -154,24 +197,17 @@ class DocumentRetention
             if (isset($referencedFilenames[$name])) continue;
 
             try {
-                $mtime = $disk->lastModified($relative);
+                $files[$relative] = (int) $disk->lastModified($relative);
             } catch (Throwable $e) {
                 continue;
             }
-            if ($mtime > $cutoff) continue;
-
-            if ($this->safeDelete($relative)) {
-                $purged++;
-            }
         }
 
-        return $purged;
+        return $files;
     }
 
     /**
-     * Purge baseado em tempo. Remove arquivos de toda solicitação finalizada
-     * cujo `handled_at` ultrapassou a janela de retenção. No-op fora do
-     * modo `delete_after_days`. Retorna a contagem de solicitações processadas.
+     * Retorna o número de solicitações processadas.
      */
     public function purgeExpired(): int
     {
@@ -188,11 +224,8 @@ class DocumentRetention
         $purged = 0;
 
         /*
-         * `chunkById`, não `chunk`: `purgeRequest()` zera `document_path`, a
-         * própria coluna do `whereNotNull('document_path')`. Com `chunk`
-         * (paginação por OFFSET), cada lote processado encolhe o result set
-         * e o `OFFSET` do lote seguinte pula linhas ainda não tratadas.
-         * `chunkById` pagina por `id > último`, imune ao encolhimento.
+         * `chunkById`, não `chunk`: `purgeRequest()` zera a própria coluna do
+         * `whereNotNull`, e a paginação por OFFSET pularia linhas não tratadas.
          */
         VerificationRequest::query()
             ->whereIn('status', [VerificationRequest::STATUS_APPROVED, VerificationRequest::STATUS_REJECTED])
@@ -256,7 +289,7 @@ class DocumentRetention
     }
 
     /**
-     * Falhas de I/O são logadas e toleradas — retenção é best-effort.
+     * Retenção é best-effort: falhas de I/O são logadas e toleradas.
      */
     private function safeDelete(string $relative, ?int $requestId = null): bool
     {

@@ -1,8 +1,8 @@
-import Component, { ComponentAttrs } from "flarum/common/Component";
-import Switch from "flarum/common/components/Switch";
-import type Mithril from "mithril";
+import Component, { ComponentAttrs } from 'flarum/common/Component';
+import Switch from 'flarum/common/components/Switch';
+import type Mithril from 'mithril';
 
-import { settings, saveSetting, getBool } from "../utils/settings";
+import { settings, saveSetting, getBool } from '../utils/settings';
 
 export interface IAdminToggleAttrs extends ComponentAttrs {
   settingKey: string;
@@ -10,11 +10,7 @@ export interface IAdminToggleAttrs extends ComponentAttrs {
   help?: Mithril.Children;
 }
 
-/**
- * A boolean settings toggle that auto-saves on change. Mutates the live
- * `app.data.settings` map so other components reading the same key reflect
- * the new value before the API roundtrip resolves.
- */
+// Altera app.data.settings na hora para quem lê a mesma chave não esperar a API.
 export default class AdminToggle extends Component<IAdminToggleAttrs> {
   view(): Mithril.Children {
     const { settingKey, label, help } = this.attrs;
@@ -25,9 +21,15 @@ export default class AdminToggle extends Component<IAdminToggleAttrs> {
         <Switch
           state={value}
           onchange={(checked: boolean) => {
+            const previous = settings()[settingKey];
             settings()[settingKey] = checked;
             m.redraw();
-            saveSetting({ [settingKey]: checked ? "1" : "0" });
+            // Se o save falhar o switch volta: o painel nunca mostra ligado
+            // algo que o servidor não gravou.
+            saveSetting({ [settingKey]: checked ? '1' : '0' }).catch(() => {
+              settings()[settingKey] = previous;
+              m.redraw();
+            });
           }}
         >
           {label}

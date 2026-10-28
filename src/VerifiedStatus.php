@@ -1,5 +1,14 @@
 <?php
 
+/*
+ * This file is part of ramon/verified.
+ *
+ * Copyright (c) 2026 Ramon Guilherme.
+ *
+ * For the full copyright and license information, please view the LICENSE
+ * file that was distributed with this source code.
+ */
+
 namespace Ramon\Verified;
 
 use Carbon\Carbon;
@@ -7,15 +16,9 @@ use Flarum\User\User;
 use Ramon\Verified\Models\UserVerification;
 
 /**
- * Fachada para o estado de verificação que vive na tabela companheira
- * `user_verification`. Concentra reads e writes para que os call-sites
- * não precisem manipular a relação Eloquent diretamente (e para que a
- * regra de "criar linha quando precisa, deletar quando zera" fique em um
- * lugar só).
- *
- * `read()` retorna sempre uma instância (nova vazia quando não há linha)
- * para o caller poder ler propriedades sem chequer null. `mark()`/`clear()`
- * persistem o estado.
+ * Leituras e escritas do estado em `user_verification`, para a regra de criar a
+ * linha quando preciso e apagá-la ao zerar ficar num lugar só. `read()` sempre
+ * devolve uma instância, vazia quando não há linha.
  */
 class VerifiedStatus
 {
@@ -57,10 +60,8 @@ class VerifiedStatus
     }
 
     /**
-     * Apaga a linha companheira. Apagar (em vez de zerar) mantém a tabela
-     * pequena — usuários não-verificados não pagam aluguel de uma linha
-     * com todos os campos null. Também limpa qualquer opt-out de auto-tier
-     * existente — `clear` é "voltar ao estado original".
+     * Apagar em vez de zerar mantém a tabela pequena. Também remove qualquer opt-out
+     * de auto-tier: volta ao estado original.
      */
     public function clear(User $user): void
     {
@@ -69,11 +70,8 @@ class VerifiedStatus
     }
 
     /**
-     * Tombstone do opt-out: persiste uma linha com `is_verified=false` e
-     * `auto_revoked_at` setado. `TierResolver` honra esse marcador para
-     * não devolver auto-tier por grupo. Usado quando um usuário verificado
-     * apenas via auto-grant clica em Revoke — não há row pra deletar, mas
-     * precisamos registrar a intenção.
+     * Verificado só por auto-grant não tem linha para apagar, então o Revoke grava
+     * `is_verified=false` com `auto_revoked_at`, que o `TierResolver` respeita.
      */
     public function markAutoRevoked(User $user, Carbon $when): void
     {
@@ -96,10 +94,7 @@ class VerifiedStatus
     }
 
     /**
-     * Carrega a linha companheira; devolve instância vazia (não persistida)
-     * quando o usuário ainda não foi verificado. Memoiza o `null` via
-     * `setRelation` para que reads subsequentes no mesmo request não
-     * emitam novas queries.
+     * Memoiza a ausência via `setRelation` para não repetir a query no mesmo request.
      */
     private function read(User $user): UserVerification
     {

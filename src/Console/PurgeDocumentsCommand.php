@@ -1,5 +1,14 @@
 <?php
 
+/*
+ * This file is part of ramon/verified.
+ *
+ * Copyright (c) 2026 Ramon Guilherme.
+ *
+ * For the full copyright and license information, please view the LICENSE
+ * file that was distributed with this source code.
+ */
+
 namespace Ramon\Verified\Console;
 
 use Flarum\Console\AbstractCommand;
@@ -7,10 +16,8 @@ use Ramon\Verified\Documents\DocumentRetention;
 use Symfony\Component\Console\Command\Command;
 
 /**
- * Apaga documentos de verificação fora da janela de retenção configurada.
- * No-op fora do modo `delete_after_days`. Agendado diariamente via
- * `extend.php`; admins também podem rodar manualmente via
- * `php flarum verified:purge-documents`.
+ * Apaga documentos fora da janela de retenção (só no modo `delete_after_days`).
+ * Agendado diariamente.
  */
 class PurgeDocumentsCommand extends AbstractCommand
 {
@@ -29,6 +36,10 @@ class PurgeDocumentsCommand extends AbstractCommand
 
     protected function fire(): int
     {
+        // Uploads que nunca viraram solicitação: valem em qualquer modo.
+        $orphans = $this->retention->sweepAllOrphans();
+        $this->info("{$orphans} unattached upload(s) removed.");
+
         $mode = $this->retention->mode();
 
         if ($mode !== DocumentRetention::MODE_DELETE_AFTER_DAYS) {

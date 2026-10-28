@@ -1,5 +1,14 @@
 <?php
 
+/*
+ * This file is part of ramon/verified.
+ *
+ * Copyright (c) 2026 Ramon Guilherme.
+ *
+ * For the full copyright and license information, please view the LICENSE
+ * file that was distributed with this source code.
+ */
+
 namespace Ramon\Verified\Listener;
 
 use Flarum\Foundation\ValidationException;
@@ -10,14 +19,9 @@ use Flarum\User\Event\AvatarSaving;
 use Ramon\Verified\TierResolver;
 
 /**
- * Bloqueia save e delete de avatar para o próprio usuário verificado quando
- * `lock_avatar` está ativo. Usa `TierResolver::isVerified` para também
- * cobrir auto-tiers por grupo.
- *
- * Override moderativo: qualquer ator com `editCredentials` no alvo passa
- * — inclui admins (sempre têm) e moderadores em fóruns que concederam
- * essa permissão ao grupo de moderação. Sem esse override o lock travava
- * intervenção legítima de equipe.
+ * Com `lock_avatar` ativo, o verificado (inclusive por auto-tier) não troca nem
+ * apaga o próprio avatar. Quem tem `editCredentials` sobre o alvo passa, para
+ * não travar intervenções da equipe.
  */
 class EnforceAvatarLock
 {

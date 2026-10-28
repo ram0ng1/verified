@@ -1,5 +1,14 @@
 <?php
 
+/*
+ * This file is part of ramon/verified.
+ *
+ * Copyright (c) 2026 Ramon Guilherme.
+ *
+ * For the full copyright and license information, please view the LICENSE
+ * file that was distributed with this source code.
+ */
+
 namespace Ramon\Verified\Service\Verification;
 
 use Carbon\Carbon;
@@ -18,11 +27,6 @@ use Ramon\Verified\Models\VerificationRequest;
 use Ramon\Verified\TierResolver;
 use Ramon\Verified\VerifiedStatus;
 
-/**
- * Regra de negócio dos pedidos de verificação. Extraída do
- * `VerificationRequestResource` para manter o resource focado em schema,
- * endpoints e visibilidade — o resource só orquestra as chamadas.
- */
 class VerificationRequestService
 {
     public function __construct(
@@ -38,10 +42,8 @@ class VerificationRequestService
     }
 
     /**
-     * Cria um pedido pendente. A checagem "já tem pendente?" e o insert rodam
-     * dentro de uma transação com `lockForUpdate` sobre o índice composto
-     * `(user_id, status)` — sem a trava, dois requests concorrentes do mesmo
-     * ator passariam ambos pela checagem e gravariam pedidos duplicados.
+     * A checagem de pendente e o insert rodam numa transação com `lockForUpdate`;
+     * sem a trava, dois requests concorrentes do mesmo ator gravariam duplicados.
      */
     public function create(Context $context): VerificationRequest
     {
@@ -83,7 +85,11 @@ class VerificationRequestService
         $documentIsLive = $documentPath !== null
             && $documentPath !== ''
             && $this->pathResolver->isOwnedDocumentToken($documentPath, (int) $actor->id)
-            && $this->documentFileExists($actor, $documentPath);
+            && $this->documentFileExists($actor, $documentPath)
+            // Um arquivo já anexado a outra solicitação não pode ser reusado:
+            // apagar a solicitação nova (o dono pode, enquanto pendente)
+            // levaria junto a evidência da antiga.
+            && ! VerificationRequest::query()->where('document_path', $documentPath)->exists();
 
         if ($documentRequired && ! $documentIsLive) {
             throw new ValidationException([
@@ -124,9 +130,8 @@ class VerificationRequestService
     }
 
     /**
-     * Aprovação só roda em request `pending` — re-aprovar uma já-handled
-     * dispararia `UserVerified` duas vezes e sobrescreveria o tier do
-     * primeiro admin.
+     * Re-aprovar um pedido já tratado dispararia `UserVerified` de novo e
+     * sobrescreveria o tier do primeiro admin.
      */
     public function approve(Context $context): VerificationRequest
     {
@@ -154,6 +159,8 @@ class VerificationRequestService
         $tier = $this->tiers->resolveRequestedTierId($this->readRequestedTier($context));
 
         VerificationRequest::runInTransaction(function () use ($request, $user, $actor, $now, $note, $tier) {
+            $this->lockPending($request);
+
             $request->status     = VerificationRequest::STATUS_APPROVED;
             $request->handled_by = (int) $actor->id;
             $request->handled_at = $now;
@@ -170,16 +177,11 @@ class VerificationRequestService
     }
 
     /**
-     * Aprovação direta por um moderador via rota POST /verified/users/{id}/verify,
-     * sem depender de um pedido pendente prévio. Fecha qualquer pedido pendente
-     * do alvo — ou grava uma linha de auditoria APPROVED quando não há nenhum —
-     * e compartilha com approve() o núcleo `finalizeApproval()`. Devolve o tier
-     * resolvido para o caller montar a resposta. O dispatch de `UserVerified`
-     * fica fora da transação para publicar apenas após commit.
+     * Fecha os pedidos pendentes do alvo, ou grava uma linha APPROVED quando não há
+     * nenhum. `UserVerified` é disparado fora da transação, só após o commit.
      *
-     * A varredura de pendentes roda com `lockForUpdate` sobre `(user_id, status)`
-     * — a mesma trava de `create()`. Sem ela, um `create()` concorrente gravaria
-     * um pedido pendente entre a varredura e o commit, deixando-o sem ser fechado.
+     * A varredura de pendentes usa a mesma trava de `create()`; sem ela, um pedido
+     * criado entre a varredura e o commit ficaria aberto.
      */
     public function verifyDirect(User $target, User $actor, ?string $note, ?string $tierId, Carbon $now): string
     {
@@ -235,11 +237,8 @@ class VerificationRequestService
     }
 
     /**
-     * Revogação direta via rota DELETE /verified/users/{id}/verify. Grava a
-     * linha de auditoria REJECTED e limpa o estado verified. Quando a
-     * verificação era apenas auto-tier (sem linha manual) persiste o tombstone
-     * de opt-out em vez de deletar. A apresentação do auto-tier remanescente
-     * fica no controller — aqui só a mutação.
+     * Se a verificação era só auto-tier, grava o tombstone de opt-out em vez de
+     * apagar a linha.
      */
     public function unverifyDirect(User $target, User $actor, ?string $note, Carbon $now, bool $hasManualVerification): void
     {
@@ -268,9 +267,7 @@ class VerificationRequestService
     }
 
     /**
-     * Núcleo compartilhado por approve() e verifyDirect(): marca o usuário como
-     * verificado e aplica a política de retenção a cada pedido fechado. Roda
-     * sempre dentro da transação do caller.
+     * Roda sempre dentro da transação do caller.
      *
      * @param iterable<VerificationRequest> $handledRequests
      */
@@ -294,6 +291,8 @@ class VerificationRequestService
         $note = $this->extractNote($context);
 
         VerificationRequest::runInTransaction(function () use ($request, $actor, $now, $note) {
+            $this->lockPending($request);
+
             $request->status     = VerificationRequest::STATUS_REJECTED;
             $request->handled_by = (int) $actor->id;
             $request->handled_at = $now;
@@ -313,6 +312,15 @@ class VerificationRequestService
 
         $request = $this->findOrFail($context);
 
+        // Só uma aprovação pode ser revogada. Sem isto, "revogar" uma linha
+        // pendente virava uma rejeição que também limpava a verificação, e
+        // revogar uma linha antiga reescrevia quem a tinha tratado.
+        if ($request->status !== VerificationRequest::STATUS_APPROVED) {
+            throw new ValidationException([
+                'status' => $this->translator->trans('ramon-verified.api.revoke_not_approved'),
+            ]);
+        }
+
         /** @var User|null $user */
         $user = User::query()->find($request->user_id);
         $wasVerified = $user !== null && $this->verifiedStatus->isVerified($user);
@@ -324,6 +332,8 @@ class VerificationRequestService
         );
 
         VerificationRequest::runInTransaction(function () use ($request, $user, $actor, $now, $note) {
+            $this->lockLatestApproval($request);
+
             $request->status     = VerificationRequest::STATUS_REJECTED;
             $request->handled_by = (int) $actor->id;
             $request->handled_at = $now;
@@ -346,16 +356,69 @@ class VerificationRequestService
     }
 
     /**
-     * Resolve o `VerificationRequest` do contexto ou lança
-     * `ModelNotFoundException`, que o Flarum mapeia para HTTP 404. Um modelo
-     * ausente é recurso inexistente, não erro de validação (422).
+     * Model ausente é 404 (`ModelNotFoundException`), não erro de validação.
      */
     private function findOrFail(Context $context): VerificationRequest
     {
+        // O endpoint já carregou o model (404 se não existe); a consulta só
+        // roda quando o serviço é chamado fora de um endpoint.
+        if ($context->model instanceof VerificationRequest) {
+            return $context->model;
+        }
+
         /** @var VerificationRequest $request */
         $request = VerificationRequest::query()->findOrFail($context->modelId);
 
         return $request;
+    }
+
+    /**
+     * O `assertPending()` antes da transação é só a resposta rápida. Sem esta
+     * releitura travada, aprovar e rejeitar ao mesmo tempo (dois moderadores, ou um
+     * clique duplo) passariam os dois.
+     */
+    private function lockPending(VerificationRequest $request): void
+    {
+        $status = VerificationRequest::query()
+            ->whereKey($request->getKey())
+            ->lockForUpdate()
+            ->value('status');
+
+        if ($status !== VerificationRequest::STATUS_PENDING) {
+            throw new ValidationException([
+                'status' => $this->translator->trans('ramon-verified.api.already_handled'),
+            ]);
+        }
+    }
+
+    /**
+     * Após "revogar direto" e "verificar direto", a aprovação antiga continua
+     * `approved` no histórico; revogá-la apagaria a verificação nova.
+     */
+    private function lockLatestApproval(VerificationRequest $request): void
+    {
+        $status = VerificationRequest::query()
+            ->whereKey($request->getKey())
+            ->lockForUpdate()
+            ->value('status');
+
+        if ($status !== VerificationRequest::STATUS_APPROVED) {
+            throw new ValidationException([
+                'status' => $this->translator->trans('ramon-verified.api.revoke_not_approved'),
+            ]);
+        }
+
+        $newer = VerificationRequest::query()
+            ->where('user_id', $request->user_id)
+            ->where('status', VerificationRequest::STATUS_APPROVED)
+            ->where('id', '>', $request->getKey())
+            ->exists();
+
+        if ($newer) {
+            throw new ValidationException([
+                'status' => $this->translator->trans('ramon-verified.api.revoke_not_latest'),
+            ]);
+        }
     }
 
     private function assertPending(VerificationRequest $request): void
@@ -368,9 +431,7 @@ class VerificationRequestService
     }
 
     /**
-     * Checa que o arquivo apontado pelo token ainda existe no disco. Usado
-     * pelo create para recusar tokens stale cujo arquivo foi varrido por
-     * upload subsequente.
+     * Recusa tokens cujo arquivo já foi varrido por um upload posterior.
      */
     private function documentFileExists(User $user, string $path): bool
     {
@@ -383,9 +444,8 @@ class VerificationRequestService
     }
 
     /**
-     * Reduz o `documentType` enviado ao allowlist configurado pelo admin.
-     * Devolve null quando o input é inválido — preserva trilho de auditoria
-     * mas impede uso da coluna como sidechannel.
+     * Fora da allowlist do admin vira null: preserva o registro, mas impede o uso
+     * da coluna como canal lateral.
      */
     private function resolveDocumentType(string $requested): ?string
     {
@@ -429,9 +489,8 @@ class VerificationRequestService
     }
 
     /**
-     * Lê o tier requisitado de qualquer um dos shapes aceitos no body:
-     * `meta.tier` ou `data.attributes.tier`. A normalização (default/null)
-     * fica em `TierResolver::resolveRequestedTierId()`.
+     * Aceita `meta.tier` ou `data.attributes.tier`; a normalização fica em
+     * `TierResolver::resolveRequestedTierId()`.
      */
     private function readRequestedTier(Context $context): ?string
     {

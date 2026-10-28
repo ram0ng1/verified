@@ -1,5 +1,14 @@
 <?php
 
+/*
+ * This file is part of ramon/verified.
+ *
+ * Copyright (c) 2026 Ramon Guilherme.
+ *
+ * For the full copyright and license information, please view the LICENSE
+ * file that was distributed with this source code.
+ */
+
 namespace Ramon\Verified\Api\Controller;
 
 use Flarum\Group\Group;
@@ -16,15 +25,9 @@ use Ramon\Verified\TierResolver;
 use Ramon\Verified\VerifiedStatus;
 
 /**
- * Listagem paginada e pesquisável dos usuários "aprovados" — manuais
- * (`is_verified=1`) e auto-verificados via tier `autoGroups`. Aba "Approved"
- * do admin. Toda a complexidade de query/paginação fica em `ApprovedUserQuery`;
- * este handler só recebe critérios, resolve o page, monta o payload.
- *
- * Estas linhas são um agregado virtual (união de dois conjuntos), sem model
- * próprio — não cabem num `AbstractDatabaseResource`. O payload, porém, segue
- * o envelope JSON:API: `data` é uma lista de objetos `{type, id, attributes}`
- * e `meta` carrega total/paginação/tiers.
+ * Aba "Approved" do admin. As linhas são uma união virtual de dois conjuntos,
+ * sem model próprio, por isso não cabem num `AbstractDatabaseResource`; o
+ * payload ainda segue o envelope JSON:API. A query fica em `ApprovedUserQuery`.
  */
 class ListApprovedUsersController implements RequestHandlerInterface
 {
@@ -67,10 +70,6 @@ class ListApprovedUsersController implements RequestHandlerInterface
     }
 
     /**
-     * Monta a lista `data` como objetos-recurso JSON:API. O `id` vai no
-     * objeto-recurso (string, conforme a spec); os demais campos em
-     * `attributes`.
-     *
      * @param \Illuminate\Support\Collection<int, User> $users
      */
     private function buildData($users): array
@@ -101,7 +100,7 @@ class ListApprovedUsersController implements RequestHandlerInterface
             ? collect()
             : User::query()->whereIn('id', array_unique($handlerIds))->get()->keyBy('id');
 
-        $autoVerifiedGroupSet = array_flip($this->query->autoVerifiedGroupIds());
+        $autoVerifiedGroupSet = array_fill_keys($this->query->autoVerifiedGroupIds(), true);
 
         return $users->map(fn (User $user) => [
             'type'       => self::RESOURCE_TYPE,
@@ -116,20 +115,19 @@ class ListApprovedUsersController implements RequestHandlerInterface
     }
 
     /**
-     * Monta o objeto `attributes` de uma linha: estado base do usuário,
-     * grupos auto-verificadores e — quando existe — o bloco do último pedido
-     * aprovado. Cada uma das duas últimas partes vive num helper próprio.
-     *
+     * @param \Illuminate\Support\Collection<int|string, \Illuminate\Support\Collection<int, VerificationRequest>> $approvedRequests
+     * @param \Illuminate\Support\Collection<int, User> $handlers
      * @param array<int, true> $autoVerifiedGroupSet
+     * @return array<string, mixed>
      */
-    private function buildAttributes(User $user, $approvedRequests, $handlers, array $autoVerifiedGroupSet): array
+    private function buildAttributes(User $user, \Illuminate\Support\Collection $approvedRequests, \Illuminate\Support\Collection $handlers, array $autoVerifiedGroupSet): array
     {
         $isManual   = $this->verifiedStatus->isVerified($user);
         $verifiedAt = $this->verifiedStatus->verifiedAt($user);
 
         $row = [
             'username'           => (string) $user->username,
-            'displayName'        => (string) ($user->display_name ?: $user->nickname ?: $user->username),
+            'displayName'        => (string) ($user->display_name ?: $user->getAttribute('nickname') ?: $user->username),
             'avatarUrl'          => $user->avatar_url,
             'source'             => $isManual ? 'manual' : 'group',
             'isVerified'         => $isManual,
@@ -150,9 +148,6 @@ class ListApprovedUsersController implements RequestHandlerInterface
     }
 
     /**
-     * Subconjunto dos grupos do usuário que disparam auto-verificação, no
-     * shape leve consumido pela aba Approved.
-     *
      * @param array<int, true> $autoVerifiedGroupSet
      * @return array<int, array{id:int,name:string,color:?string,icon:?string}>
      */
@@ -171,9 +166,6 @@ class ListApprovedUsersController implements RequestHandlerInterface
     }
 
     /**
-     * Bloco `request` da linha: o último pedido aprovado do usuário e o
-     * moderador que o tratou.
-     *
      * @param \Illuminate\Support\Collection<int, User> $handlers
      */
     private function buildRequestBlock(VerificationRequest $latestRequest, $handlers): array

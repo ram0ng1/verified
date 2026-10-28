@@ -1,5 +1,14 @@
 <?php
 
+/*
+ * This file is part of ramon/verified.
+ *
+ * Copyright (c) 2026 Ramon Guilherme.
+ *
+ * For the full copyright and license information, please view the LICENSE
+ * file that was distributed with this source code.
+ */
+
 namespace Ramon\Verified\Audit;
 
 use Flarum\User\User;
@@ -11,13 +20,9 @@ use Ramon\Verified\TierResolver;
 use Throwable;
 
 /**
- * Grava a trilha de auditoria da extensão `ramon/audit` quando o status
- * verificado de um usuário muda. Só é fiado quando a audit está instalada
- * (guard `class_exists` no extend.php), então a referência a `Recorder`
- * nunca é autoloadada em installs sem a audit.
- *
- * Falha no registro de auditoria não pode desfazer o verify/unverify já
- * commitado — log e segue, como o listener de notificação.
+ * Só é registrado com ramon/audit instalada (guard `class_exists` no extend.php),
+ * então `Recorder` nunca é autoloadado sem ela. Uma falha aqui não pode desfazer
+ * o verify/unverify já commitado: loga e segue.
  */
 class RecordVerificationActivity
 {

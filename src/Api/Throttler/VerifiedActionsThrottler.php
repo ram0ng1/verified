@@ -1,5 +1,14 @@
 <?php
 
+/*
+ * This file is part of ramon/verified.
+ *
+ * Copyright (c) 2026 Ramon Guilherme.
+ *
+ * For the full copyright and license information, please view the LICENSE
+ * file that was distributed with this source code.
+ */
+
 namespace Ramon\Verified\Api\Throttler;
 
 use Flarum\Http\RequestUtil;
@@ -7,18 +16,15 @@ use Illuminate\Cache\RateLimiter;
 use Psr\Http\Message\ServerRequestInterface;
 
 /**
- * Rate limiter por ator. Devolve `null` para abster, `true` para limitar.
- * NUNCA `false` — isso isenta de todos os throttlers, inclusive login.
+ * Devolve `null` para se abster e `true` para limitar. Nunca `false`: isso
+ * isentaria o ator de todos os throttlers, inclusive o de login.
  */
 class VerifiedActionsThrottler
 {
     /**
-     * Rota → [max attempts/min, decay minutes]. Caps conservadores: usuário
-     * normal envia um upload, submete uma request, dispara um verify por
-     * minuto no máximo. Endpoints da resource registrados via
-     * `Endpoint\Endpoint::make()` recebem nomes
-     * `{resource_type}.{endpoint_name}` — sem eles, um loop create→delete
-     * fica unbounded mesmo com upload throttled.
+     * Rota => [tentativas, minutos de decay]. Os endpoints da resource entram como
+     * `{type}.{endpoint}`; sem eles, um loop create/delete ficaria ilimitado mesmo
+     * com o upload limitado.
      */
     protected const LIMITS = [
         'verified.documents.upload'              => [5,  1],
