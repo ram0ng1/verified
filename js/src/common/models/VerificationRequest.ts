@@ -19,6 +19,15 @@ export default class VerificationRequest extends Model {
   adminNote() {
     return Model.attribute<string | null>('adminNote').call(this);
   }
+  provider() {
+    return Model.attribute<string | null>('provider').call(this);
+  }
+  externalStatus() {
+    return Model.attribute<string | null>('externalStatus').call(this);
+  }
+  externalId() {
+    return Model.attribute<string | null>('externalId').call(this);
+  }
   createdAt() {
     return Model.attribute<Date | null, string | null>('createdAt', Model.transformDate).call(this);
   }

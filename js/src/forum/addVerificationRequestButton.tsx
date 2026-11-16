@@ -6,6 +6,7 @@ import type Mithril from 'mithril';
 import type ItemList from 'flarum/common/utils/ItemList';
 
 import VerifiedBadge from '../common/components/VerifiedBadge';
+import startDidit, { isStartingDidit } from './utils/startDidit';
 
 export default function addVerificationRequestButton(): void {
   extend('flarum/forum/components/SettingsPage', 'accountItems', function (this: any, items: ItemList<Mithril.Children>) {
@@ -26,6 +27,8 @@ export default function addVerificationRequestButton(): void {
       return;
     }
 
+    const didit = !!app.forum.attribute('ramonVerifiedDiditEnabled');
+
     if (user.hasPendingVerificationRequest && user.hasPendingVerificationRequest()) {
       items.add(
         'verifiedPending',
@@ -35,6 +38,19 @@ export default function addVerificationRequestButton(): void {
         </button>,
         80
       );
+
+      // A sessão da Didit pode ter ficado pela metade: o mesmo botão a retoma.
+      if (didit) {
+        items.add(
+          'verifiedDiditResume',
+          <div className="Form-group">
+            <Button className="Button" icon="fas fa-fingerprint" loading={isStartingDidit()} onclick={() => startDidit()}>
+              {app.translator.trans('ramon-verified.forum.didit.resume_button')}
+            </Button>
+          </div>,
+          79
+        );
+      }
       return;
     }
 
@@ -42,9 +58,19 @@ export default function addVerificationRequestButton(): void {
       items.add(
         'verifiedRequest',
         <div className="Form-group">
-          <Button className="Button" icon="fas fa-certificate" onclick={() => app.modal.show(() => import('./components/RequestVerificationModal'))}>
-            {app.translator.trans('ramon-verified.forum.settings.request_button')}
-          </Button>
+          {didit ? (
+            <Button className="Button" icon="fas fa-fingerprint" loading={isStartingDidit()} onclick={() => startDidit()}>
+              {app.translator.trans('ramon-verified.forum.didit.start_button')}
+            </Button>
+          ) : (
+            <Button
+              className="Button"
+              icon="fas fa-certificate"
+              onclick={() => app.modal.show(() => import('./components/RequestVerificationModal'))}
+            >
+              {app.translator.trans('ramon-verified.forum.settings.request_button')}
+            </Button>
+          )}
         </div>,
         80
       );

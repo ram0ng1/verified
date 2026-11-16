@@ -393,6 +393,11 @@ export default class VerificationRequestsSection extends Component<ComponentAttr
           <div className="VerifiedRequest-user">
             {user ? username(user) : <span className="username">—</span>}
             <span className={'VerifiedRequest-status VerifiedRequest-status--' + req.status()}>{trans('status_' + req.status())}</span>
+            {req.provider() === 'didit' ? (
+              <span className="VerifiedRequest-provider" title={req.externalId() || ''}>
+                <i className="icon fas fa-fingerprint" /> Didit{req.externalStatus() ? ' · ' + req.externalStatus() : ''}
+              </span>
+            ) : null}
           </div>
 
           <div className="VerifiedRequest-meta helpText">
@@ -439,7 +444,10 @@ export default class VerificationRequestsSection extends Component<ComponentAttr
         </div>
 
         <div className="VerifiedRequest-actions">
-          {req.isPending() ? (
+          {req.isPending() && req.provider() === 'didit' ? (
+            // Quem decide é a Didit; aprovar aqui deixaria os dois lados divergentes.
+            <span className="VerifiedRequest-managed helpText">{trans('didit_managed')}</span>
+          ) : req.isPending() ? (
             [
               <Button className="Button Button--primary" loading={busy} onclick={() => this.actOnRequest(req, 'approve')}>
                 <i className="icon fas fa-check" /> {trans('approve_button')}
