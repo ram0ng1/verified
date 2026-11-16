@@ -22,6 +22,7 @@ use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Message\UploadedFileInterface;
 use Psr\Http\Server\RequestHandlerInterface;
 use Ramon\Verified\Crypto\DocumentCipher;
+use Ramon\Verified\Didit\DiditConfig;
 use Ramon\Verified\Documents\DocumentPathResolver;
 use Ramon\Verified\Documents\DocumentRetention;
 use Ramon\Verified\Models\VerificationRequest;
@@ -52,7 +53,8 @@ class UploadDocumentController implements RequestHandlerInterface
         protected TranslatorInterface $translator,
         protected DocumentCipher $cipher,
         protected DocumentRetention $retention,
-        protected VerifiedStatus $verifiedStatus
+        protected VerifiedStatus $verifiedStatus,
+        protected DiditConfig $didit
     ) {
     }
 
@@ -61,6 +63,13 @@ class UploadDocumentController implements RequestHandlerInterface
         $actor = RequestUtil::getActor($request);
         $actor->assertRegistered();
         $actor->assertCan('verified.request');
+
+        // Com a Didit ligada, o documento é enviado direto a ela.
+        if ($this->didit->active()) {
+            throw new ValidationException([
+                'document' => $this->translator->trans('ramon-verified.api.didit.required'),
+            ]);
+        }
 
         if (! (bool) $this->settings->get('ramon-verified.requests_open', true)) {
             throw new ValidationException([

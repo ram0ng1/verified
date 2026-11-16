@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<phpunit
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:noNamespaceSchemaLocation="../vendor/phpunit/phpunit/phpunit.xsd"
+    bootstrap="../vendor/autoload.php"
+    cacheDirectory="../.phpunit.cache"
+    colors="true"
+    executionOrder="default"
+>
+    <!-- API real da Didit: precisa de DIDIT_API_KEY (os testes são pulados sem ela). -->
+    <testsuites>
+        <testsuite name="live">
+            <directory suffix="Test.php">./live</directory>
+        </testsuite>
+    </testsuites>
+</phpunit>

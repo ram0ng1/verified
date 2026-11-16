@@ -1,0 +1,53 @@
+// Card da Didit e o selo da fila.
+.DiditCard-msg {
+  margin-top: 12px;
+}
+
+.DiditCard-connection {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.DiditCard-status {
+  font-size: 13px;
+  font-weight: 600;
+
+  &--ok { color: var(--success-color, #1f9d55); }
+  &--error { color: var(--alert-error-color, #c0392b); }
+}
+
+.DiditCard-copyRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.DiditCard-url {
+  flex: 1;
+  min-width: 0;
+  padding: 8px 10px;
+  border-radius: 6px;
+  background: var(--control-bg);
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+
+.VerifiedRequest-provider {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: 8px;
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: var(--control-bg);
+  color: var(--muted-color);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.VerifiedRequest-managed {
+  font-size: 12px;
+}
