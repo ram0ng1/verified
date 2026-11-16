@@ -39,6 +39,16 @@ php flarum cache:clear
 
 Then enable Verified on the Extensions page. Settings, permissions and the request queue all live in the admin panel, each option explained in place.
 
+## Verification through Didit
+
+Turn on **Verify through Didit** in the settings and identity checks move to [Didit](https://didit.me): the member verifies the document and a selfie on Didit's page, and the badge is granted when Didit approves.
+
+1. In the Didit Business Console, copy an API key and paste it into the Didit card. The card lists your workflows; pick one or keep the account default.
+2. Add the webhook URL shown in the card as a webhook destination, subscribed to `status.updated`, and paste its signing secret into the card. Webhooks are verified with HMAC-SHA256 (`X-Signature` or `X-Signature-V2`) and a 5-minute window.
+3. Without the webhook the result still arrives when the member comes back to the forum: the decision is fetched from Didit's API, never read from the return URL.
+
+While Didit is on, the manual request, document upload, retention and encryption no longer apply to new requests, and moderators no longer approve or reject Didit requests in the forum. The API key and the webhook secret stay on the server.
+
 ## Good to know
 
 - Documents are wiped on the schedule you choose. The nightly `verified:purge-documents` command takes care of it, no cron of your own needed.
@@ -50,7 +60,8 @@ Then enable Verified on the Extensions page. Settings, permissions and the reque
 ```sh
 composer install
 composer test:setup        # once: creates the SQLite test database
-composer test              # unit + integration tests
+composer test              # unit + integration tests (Didit simulated)
+DIDIT_API_KEY=... vendor/bin/phpunit -c tests/phpunit.live.xml   # against the real Didit API
 composer analyse:phpstan
 cd js && npm ci && npm run check-typings && npm run format-check && npm run build
 ```

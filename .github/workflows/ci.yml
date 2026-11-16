@@ -143,6 +143,39 @@ jobs:
         continue-on-error: true
         run: npm audit --audit-level=high
 
+  # A API real da Didit, com o segredo DIDIT_API_KEY do repositório. Sem o
+  # segredo (forks, Dependabot), os testes são pulados e o job passa; a matriz
+  # do backend.yml cobre a integração com a Didit simulada.
+  didit-live:
+    name: Didit (API real)
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Harden runner
+        uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920  # v2
+        with:
+          egress-policy: audit
+
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7.0.0
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240  # v2
+        with:
+          php-version: '8.3'
+          coverage: none
+          tools: composer:v2
+
+      - name: Resolver dependências (composer update)
+        run: composer update --no-interaction --no-progress --prefer-stable --no-scripts
+
+      - name: Testes contra a API da Didit
+        env:
+          DIDIT_API_KEY: ${{ secrets.DIDIT_API_KEY }}
+          DIDIT_WORKFLOW_ID: ${{ vars.DIDIT_WORKFLOW_ID }}
+        run: vendor/bin/phpunit -c tests/phpunit.live.xml --testdox
+
   # Paridade das traduções (en ↔ pt-BR): não depende da versão do PHP/core.
   locale:
     name: Paridade das traduções
