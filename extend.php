@@ -25,7 +25,10 @@ use Flarum\User\Event\AvatarSaving;
 use Flarum\User\User;
 use League\Flysystem\Visibility;
 use Ramon\Verified\Access\VerificationRequestPolicy;
+use Ramon\Verified\Api\Controller\CreateDiditSessionController;
 use Ramon\Verified\Api\Controller\DeleteBadgeSvgController;
+use Ramon\Verified\Api\Controller\DiditWebhookController;
+use Ramon\Verified\Api\Controller\DiditWorkflowsController;
 use Ramon\Verified\Api\Controller\DownloadDocumentController;
 use Ramon\Verified\Api\Controller\EncryptionStatusController;
 use Ramon\Verified\Api\Controller\GenerateKeypairController;
@@ -40,13 +43,16 @@ use Ramon\Verified\Api\Throttler\VerifiedActionsThrottler;
 use Ramon\Verified\Api\UserResourceFields;
 use Ramon\Verified\Audit\RecordVerificationActivity;
 use Ramon\Verified\Console\PurgeDocumentsCommand;
+use Ramon\Verified\Didit\DiditConfig;
 use Ramon\Verified\Console\PurgeDocumentsSchedule;
 use Ramon\Verified\Documents\DocumentPathResolver;
 use Ramon\Verified\Event\UserUnverified;
+use Ramon\Verified\Forum\Controller\DiditReturnController;
 use Ramon\Verified\Event\UserVerified;
 use Ramon\Verified\Listener\EnforceAvatarLock;
 use Ramon\Verified\Listener\PurgeDocumentOnRequestDelete;
 use Ramon\Verified\Listener\PurgeDocumentsOnUserDelete;
+use Ramon\Verified\Listener\SanitizeDiditSettings;
 use Ramon\Verified\Listener\SanitizeTiersOnSave;
 use Ramon\Verified\Listener\SendNotificationWhenUserIsVerified;
 use Ramon\Verified\Models\UserVerification;
@@ -83,6 +89,10 @@ return [
         ->default('ramon-verified.document_retention', 'keep')
         ->default('ramon-verified.document_retention_days', 30)
         ->default('ramon-verified.encrypt_documents', false)
+        ->default(DiditConfig::ENABLED, false)
+        ->default(DiditConfig::API_KEY, '')
+        ->default(DiditConfig::WEBHOOK_SECRET, '')
+        ->default(DiditConfig::WORKFLOW_ID, '')
         ->default('ramon-verified.encryption_public_key', '')
         ->default('ramon-verified.lock_avatar', false)
         ->default('ramon-verified.show_tooltip', true)
@@ -131,7 +141,8 @@ return [
         ->listen(UserVerified::class, SendNotificationWhenUserIsVerified::class)
         ->listen('eloquent.deleting: '.VerificationRequest::class, PurgeDocumentOnRequestDelete::class)
         ->listen('eloquent.deleting: '.User::class, PurgeDocumentsOnUserDelete::class)
-        ->listen(SettingsSaving::class, SanitizeTiersOnSave::class),
+        ->listen(SettingsSaving::class, SanitizeTiersOnSave::class)
+        ->listen(SettingsSaving::class, SanitizeDiditSettings::class),
 
     (new Extend\ThrottleApi())
         ->set('verified.actions', VerifiedActionsThrottler::class),
@@ -149,7 +160,17 @@ return [
         ->delete('/verified/users/{id:[0-9]+}/verify', 'verified.users.unverify', UnverifyUserController::class)
         ->get('/verified/approved-users', 'verified.approved.list', ListApprovedUsersController::class)
         ->get('/verified/encryption/status',            'verified.encryption.status',   EncryptionStatusController::class)
-        ->post('/verified/encryption/generate-keypair', 'verified.encryption.generate', GenerateKeypairController::class),
+        ->post('/verified/encryption/generate-keypair', 'verified.encryption.generate', GenerateKeypairController::class)
+        ->post('/verified/didit/session',  'verified.didit.session',   CreateDiditSessionController::class)
+        ->post('/verified/didit/webhook',  'verified.didit.webhook',   DiditWebhookController::class)
+        ->get('/verified/didit/workflows', 'verified.didit.workflows', DiditWorkflowsController::class),
+
+    (new Extend\Routes('forum'))
+        ->get('/verified/didit/return', 'verified.didit.return', DiditReturnController::class),
+
+    // A Didit não tem sessão nem token CSRF; o webhook se autentica pela assinatura.
+    (new Extend\Csrf())
+        ->exemptRoute('verified.didit.webhook'),
 
     // Integrações opcionais: só valem com a outra extensão ativa (instalada e
     // desativada não conta).

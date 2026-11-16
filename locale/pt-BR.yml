@@ -48,6 +48,9 @@ ramon-verified:
       verify_failed: "Não foi possível verificar o usuário. Tente novamente."
       revoke_failed: "Não foi possível revogar a verificação. Tente novamente."
 
+    didit:
+      start_button: "Verificar com a Didit"
+      resume_button: "Continuar na Didit"
     request_modal:
       title: "Solicitar verificação"
       intro: "Conte por que sua conta deve ser verificada. Um administrador irá analisar a solicitação."
@@ -166,6 +169,27 @@ ramon-verified:
       verify_users_label: "Verificar usuários diretamente"
       self_revoke_label: "Revogar o próprio selo verificado"
 
+    didit:
+      section_title: "Verificação pela Didit"
+      section_help: "Passa a verificação de identidade para a Didit (didit.me): o membro confere o documento e a selfie na página da Didit e o selo é dado quando a Didit aprova. Ligada, a solicitação manual, o envio de documento, a retenção e a criptografia deixam de valer para as novas solicitações."
+      toggle_label: "Verificar pela Didit"
+      toggle_help: "Ligada: o botão \"Solicitar verificação\" leva o membro à Didit e a moderação deixa de aprovar ou rejeitar solicitações aqui. Desligada: volta o fluxo manual; as solicitações já feitas pela Didit mantêm o resultado."
+      api_key_label: "Chave da API"
+      api_key_help: "Do Business Console da Didit, em API & Webhooks. Fica no servidor e nunca vai para o fórum."
+      test_button: "Testar conexão"
+      connection_ok: "Conectado à Didit ({count, plural, one {# workflow} other {# workflows}})."
+      connection_invalid_key: "A Didit recusou a chave da API."
+      connection_error: "Não foi possível falar com a Didit."
+      workflow_label: "Workflow"
+      workflow_default: "Padrão da conta"
+      workflow_help: "Qual workflow da Didit os membros fazem. ★ marca o padrão da conta."
+      webhook_url_label: "URL do webhook"
+      webhook_url_help: "Cadastre-a como destino de webhook no console da Didit, com o evento status.updated, para o resultado chegar mesmo se o membro não voltar ao fórum."
+      webhook_secret_label: "Segredo de assinatura do webhook"
+      webhook_secret_help: "O segredo de assinatura do destino (secret_shared_key). Webhooks sem assinatura válida são recusados."
+      webhook_missing: "Sem o segredo de assinatura o webhook é recusado, e o resultado só chega quando o membro volta da Didit para o fórum."
+      copy: "Copiar"
+      copied: "Copiado"
     encryption:
       section_title: "Criptografia de documentos"
       section_help: "Sela os documentos de identidade com uma chave pública antes de gravá-los no disco. A chave privada é gerada aqui, mas você mesmo a cola no config.php — o servidor nunca a guarda."
@@ -213,6 +237,7 @@ ramon-verified:
 
     requests:
       title: "Solicitações de verificação"
+      didit_managed: "Decidido pela Didit. Analise no console da Didit."
       description: "Revise e atue sobre as solicitações enviadas pelos usuários."
       tab_pending: "Pendentes"
       tab_approved: "Aprovadas"
@@ -295,6 +320,15 @@ ramon-verified:
     too_many_uploads: "Você já tem documentos enviados que não foram anexados a uma solicitação. Envie sua solicitação ou aguarde 30 minutos para enviar outro."
     revoke_not_approved: "Só uma solicitação aprovada pode ser revogada."
     revoke_not_latest: "Só a aprovação que está valendo pode ser revogada."
+    didit:
+      disabled: "A verificação pela Didit não está ligada neste fórum."
+      required: "A verificação neste fórum é feita pela Didit. Use o botão \"Verificar com a Didit\"."
+      unavailable: "Não foi possível iniciar a verificação com a Didit agora. Tente de novo em alguns minutos."
+      managed: "Esta solicitação é decidida pela Didit. Analise-a no console da Didit."
+      invalid_workflow: "O workflow da Didit precisa ser o ID (UUID) de um workflow do console da Didit."
+      approved_note: "Aprovado pela Didit."
+      closed_note: "Encerrado pela Didit ({status})."
+      revoked_note: "Verificação revogada pela Didit ({status})."
     encryption:
       libsodium_missing: "libsodium não está disponível nesta instalação do PHP."
       acknowledge_loss_required: "Você precisa confirmar que todos os documentos cifrados existentes serão apagados antes de gerar um novo par de chaves."
