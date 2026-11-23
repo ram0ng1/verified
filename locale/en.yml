@@ -47,6 +47,9 @@ ramon-verified:
       verify_failed: "Could not verify the user. Please try again."
       revoke_failed: "Could not revoke verification. Please try again."
 
+    didit:
+      start_button: "Verify with Didit"
+      resume_button: "Continue on Didit"
     request_modal:
       title: "Request verification"
       intro: "Tell us why your account should be verified. An administrator will review your request."
@@ -165,6 +168,27 @@ ramon-verified:
       verify_users_label: "Verify users directly"
       self_revoke_label: "Revoke their own verified badge"
 
+    didit:
+      section_title: "Verification through Didit"
+      section_help: "Hand identity verification over to Didit (didit.me): the member verifies the document and the selfie on Didit's page and the badge is granted when Didit approves. While it is on, the manual request, the document upload, its retention and its encryption no longer apply to new requests."
+      toggle_label: "Verify through Didit"
+      toggle_help: "On: the \"Request verification\" button sends the member to Didit and moderators no longer approve or reject requests here. Off: the manual flow comes back; existing Didit requests keep their result."
+      api_key_label: "API key"
+      api_key_help: "From the Didit Business Console, API & Webhooks. It stays on the server and is never sent to the forum."
+      test_button: "Test connection"
+      connection_ok: "Connected to Didit ({count, plural, one {# workflow} other {# workflows}})."
+      connection_invalid_key: "Didit refused the API key."
+      connection_error: "Could not reach Didit."
+      workflow_label: "Workflow"
+      workflow_default: "Account default"
+      workflow_help: "Which Didit workflow members go through. ★ marks the account default."
+      webhook_url_label: "Webhook URL"
+      webhook_url_help: "Add it as a webhook destination in the Didit console, subscribed to status.updated, so decisions arrive even if the member does not come back to the forum."
+      webhook_secret_label: "Webhook signing secret"
+      webhook_secret_help: "The destination's signing secret (secret_shared_key). Webhooks without a valid signature are refused."
+      webhook_missing: "Without the signing secret the webhook is refused, and the result only arrives when the member returns to the forum from Didit."
+      copy: "Copy"
+      copied: "Copied"
     encryption:
       section_title: "Document encryption"
       section_help: "Seal uploaded identity documents with a public key before they touch the disk. The private key is generated here, but you paste it into config.php yourself — the server never stores it."
@@ -212,6 +236,7 @@ ramon-verified:
 
     requests:
       title: "Verification requests"
+      didit_managed: "Decided by Didit. Review it in the Didit console."
       description: "Review and act on verification requests submitted by users."
       tab_pending: "Pending"
       tab_approved: "Approved"
@@ -294,6 +319,15 @@ ramon-verified:
     too_many_uploads: "You already have documents uploaded that were not attached to a request. Submit your request or wait 30 minutes before uploading again."
     revoke_not_approved: "Only an approved request can be revoked."
     revoke_not_latest: "Only the approval currently in effect can be revoked."
+    didit:
+      disabled: "Verification through Didit is not enabled on this forum."
+      required: "Verification on this forum is done through Didit. Use the \"Verify with Didit\" button."
+      unavailable: "Could not start the verification with Didit right now. Try again in a few minutes."
+      managed: "This request is decided by Didit. Review it in the Didit console."
+      invalid_workflow: "The Didit workflow must be a workflow ID (UUID) from the Didit console."
+      approved_note: "Approved by Didit."
+      closed_note: "Closed by Didit ({status})."
+      revoked_note: "Verification revoked by Didit ({status})."
     encryption:
       libsodium_missing: "libsodium is not available on this PHP installation."
       acknowledge_loss_required: "You must acknowledge that all existing encrypted documents will be deleted before generating a new keypair."

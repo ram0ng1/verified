@@ -9,6 +9,7 @@ import getBadgeSvg, { resolveAssetUrl } from '../../common/utils/getBadgeSvg';
 import VerifiedSettingsState from '../states/VerifiedSettingsState';
 import { getBool, getStr } from '../utils/settings';
 import AdminToggle from './AdminToggle';
+import DiditCard from './DiditCard';
 import DocumentTypesEditor from './DocumentTypesEditor';
 import EncryptionCard from './EncryptionCard';
 import TiersEditor from './TiersEditor';
@@ -97,6 +98,7 @@ export default class VerifiedSettingsPanel extends Component<ComponentAttrs> {
         {this.behaviourCard()}
         {requireDoc ? this.documentTypesCard() : null}
         <EncryptionCard />
+        <DiditCard />
       </div>
     );
   }

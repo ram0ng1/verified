@@ -24,6 +24,9 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * @property string|null $reason
  * @property string|null $admin_note
  * @property int|null $handled_by
+ * @property string|null $provider
+ * @property string|null $external_id
+ * @property string|null $external_status
  * @property \Carbon\Carbon|null $handled_at
  * @property \Carbon\Carbon|null $created_at
  * @property \Carbon\Carbon|null $updated_at

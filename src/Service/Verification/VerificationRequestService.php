@@ -19,6 +19,7 @@ use Flarum\Settings\SettingsRepositoryInterface;
 use Flarum\User\User;
 use Illuminate\Contracts\Events\Dispatcher;
 use Illuminate\Contracts\Filesystem\Factory as FilesystemFactory;
+use Ramon\Verified\Didit\DiditConfig;
 use Ramon\Verified\Documents\DocumentPathResolver;
 use Ramon\Verified\Documents\DocumentRetention;
 use Ramon\Verified\Event\UserUnverified;
@@ -37,7 +38,8 @@ class VerificationRequestService
         protected DocumentPathResolver $pathResolver,
         protected FilesystemFactory $filesystem,
         protected VerifiedStatus $verifiedStatus,
-        protected TierResolver $tiers
+        protected TierResolver $tiers,
+        protected DiditConfig $didit
     ) {
     }
 
@@ -50,6 +52,13 @@ class VerificationRequestService
         $actor = $context->getActor();
         $actor->assertRegistered();
         $actor->assertCan('verified.request');
+
+        // Com a Didit ligada, a solicitação nasce pela sessão dela.
+        if ($this->didit->active()) {
+            throw new ValidationException([
+                'status' => $this->translator->trans('ramon-verified.api.didit.required'),
+            ]);
+        }
 
         if (! (bool) $this->settings->get('ramon-verified.requests_open', true)) {
             throw new ValidationException([
@@ -139,6 +148,7 @@ class VerificationRequestService
 
         $request = $this->findOrFail($context);
         $this->assertPending($request);
+        $this->assertManual($request);
 
         /** @var User|null $user */
         $user = User::query()->find($request->user_id);
@@ -286,6 +296,7 @@ class VerificationRequestService
 
         $request = $this->findOrFail($context);
         $this->assertPending($request);
+        $this->assertManual($request);
 
         $now = Carbon::now();
         $note = $this->extractNote($context);
@@ -417,6 +428,19 @@ class VerificationRequestService
         if ($newer) {
             throw new ValidationException([
                 'status' => $this->translator->trans('ramon-verified.api.revoke_not_latest'),
+            ]);
+        }
+    }
+
+    /**
+     * Quem decide uma sessão da Didit é a Didit; aprovar ou rejeitar aqui
+     * deixaria o fórum e o console dizendo coisas diferentes.
+     */
+    private function assertManual(VerificationRequest $request): void
+    {
+        if ($request->provider !== null) {
+            throw new ValidationException([
+                'status' => $this->translator->trans('ramon-verified.api.didit.managed'),
             ]);
         }
     }

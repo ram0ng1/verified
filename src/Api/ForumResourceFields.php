@@ -14,6 +14,7 @@ namespace Ramon\Verified\Api;
 use Flarum\Api\Context;
 use Flarum\Api\Schema;
 use Flarum\Settings\SettingsRepositoryInterface;
+use Ramon\Verified\Didit\DiditConfig;
 
 /**
  * Campos do `ForumResource` só para usuários autenticados, fora do payload
@@ -22,7 +23,8 @@ use Flarum\Settings\SettingsRepositoryInterface;
 class ForumResourceFields
 {
     public function __construct(
-        protected SettingsRepositoryInterface $settings
+        protected SettingsRepositoryInterface $settings,
+        protected DiditConfig $didit
     ) {
     }
 
@@ -51,6 +53,10 @@ class ForumResourceFields
 
             Schema\Boolean::make('ramonVerifiedLockAvatar')
                 ->get(fn () => (bool) $this->settings->get('ramon-verified.lock_avatar', false))
+                ->visible($loggedIn),
+
+            Schema\Boolean::make('ramonVerifiedDiditEnabled')
+                ->get(fn () => $this->didit->active())
                 ->visible($loggedIn),
 
             Schema\Arr::make('ramonVerifiedDocumentTypes')

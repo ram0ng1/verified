@@ -141,6 +141,15 @@ class VerificationRequestResource extends AbstractDatabaseResource
                 ->nullable()
                 ->visible(fn (VerificationRequest $request, Context $context) =>
                     $context->getActor()->isAdmin()),
+            Schema\Str::make('provider')->nullable(),
+            Schema\Str::make('externalStatus')
+                ->property('external_status')
+                ->nullable(),
+            Schema\Str::make('externalId')
+                ->property('external_id')
+                ->nullable()
+                ->visible(fn (VerificationRequest $request, Context $context) =>
+                    $context->getActor()->hasPermission('verified.verifyUsers')),
             Schema\Str::make('reason')->nullable(),
             Schema\Str::make('adminNote')
                 ->property('admin_note')

@@ -38,6 +38,7 @@ class VerifiedActionsThrottler
         'verification-requests.verified.approve' => [60, 1],
         'verification-requests.verified.reject'  => [60, 1],
         'verification-requests.verified.revoke'  => [60, 1],
+        'verified.didit.session'                 => [5,  1],
     ];
 
     public function __construct(
